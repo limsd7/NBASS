@@ -7,6 +7,7 @@ import { EXPERT_CONTENTS } from '../ExpertOverlay';
 import { BrainBodyDashboard } from './BrainBodyDashboard';
 import CircularSchedule from '../ui/CircularSchedule';
 import { evaluateBrainBodyCoherence } from '../../services/brainBodyEngine';
+import { generateSleepPrescription } from '../../utils/sleepLogic';
 
 interface MedicalReportProps {
     result: AssessmentResult;
@@ -62,9 +63,33 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({ result, strategies
     const fatigue = hrv.fatigue ?? 50;
     const stress = protocol?.stressLevel ?? 50;
 
-    // Golden Time
-    const goldenStart = hrv.goldenTimeStart || "09:00";
-    const goldenEnd = hrv.goldenTimeEnd || "12:00";
+    // --- Dynamic Brain Peak Time calculation based on Sleep Logic ---
+    const sleepPrescription = React.useMemo(() => {
+        return generateSleepPrescription(result.careType, result.analytics);
+    }, [result.careType, result.analytics]);
+
+    const parseTimeHour = (timeStr: string) => parseInt(timeStr.split(':')[0], 10);
+    const bedHour = parseTimeHour(sleepPrescription.recommendedBedtime);
+    const wakeHour = parseTimeHour(sleepPrescription.recommendedWakeTime);
+
+    // Calculate dynamic blocks based on Wake Hour
+    const morningStart = wakeHour;
+    const morningEnd = (wakeHour + 2) % 24;
+    const goldenStartNum = (wakeHour + 2) % 24;
+    const goldenEndNum = (wakeHour + 5) % 24;
+    const slumpStartNum = (wakeHour + 6) % 24;
+    const slumpEndNum = (wakeHour + 7) % 24;
+    const secondStartNum = (wakeHour + 9) % 24;
+    
+    // Second wind ends 1 hour before bedtime
+    let secondEndNum = bedHour - 1;
+    if (secondEndNum < 0) secondEndNum += 24;
+
+    const formatHour = (h: number) => `${h.toString().padStart(2, '0')}:00`;
+
+    // Override the legacy static Golden Time with the dynamic one
+    const goldenStart = formatHour(goldenStartNum);
+    const goldenEnd = formatHour(goldenEndNum);
 
     // Date & Age
     const today = student.testDate || new Date().toISOString().split('T')[0];
@@ -1008,8 +1033,20 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({ result, strategies
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-8 text-sm leading-relaxed">
-                            <div>
-                                <strong className="text-blue-700 block mb-2 underline underline-offset-4">실천 방법</strong>
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <strong className="text-blue-700 block mb-2 underline underline-offset-4">실천 방법</strong>
+                                    <CircularSchedule 
+                                        isDark={false}
+                                        periods={[
+                                            { id: 'morning', start: morningStart, end: morningEnd, label: '오전 루틴', color: '#1e40af', icon: '🌅' },
+                                            { id: 'golden', start: goldenStartNum, end: goldenEndNum, label: 'Golden Hour', color: '#2563eb', icon: '🧠' },
+                                            { id: 'slump', start: slumpStartNum, end: slumpEndNum, label: '회복/슬럼프', color: '#94a3b8', icon: '☕' },
+                                            { id: 'second', start: secondStartNum, end: secondEndNum, label: 'Second Wind', color: '#4f46e5', icon: '⚡' },
+                                            { id: 'sleep', start: bedHour, end: wakeHour, label: '수면', color: '#334155', icon: '🌙' }
+                                        ]}
+                                    />
+                                </div>
                                 <p className="text-slate-600 italic">입으로 소리 내고, 손으로 쓰고, 귀로 듣는 등 오감을 동원하세요. 알록달록한 형광펜을 사용하고 타이머로 타임 어택을 하세요. 장소를 1시간마다 옮기는 것도 효과적입니다.</p>
                             </div>
                             <div>
@@ -1080,7 +1117,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({ result, strategies
                         <div className="flex items-center bg-slate-50 border rounded-xl overflow-hidden">
                             <div className="bg-blue-800 text-white px-6 py-4 w-32 text-center flex-shrink-0">
                                 <div className="text-[10px] font-bold opacity-60">오전 루틴</div>
-                                <div className="text-lg font-black tracking-tighter">07:00-09:00</div>
+                                <div className="text-lg font-black tracking-tighter">{formatHour(morningStart)}-{formatHour(morningEnd)}</div>
                             </div>
                             <div className="p-4 flex-1 text-xs text-slate-700">
                                 <strong className="text-blue-800 block mb-1">Morning Activation</strong>
@@ -1100,7 +1137,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({ result, strategies
                         <div className="flex items-center bg-slate-100 border rounded-xl overflow-hidden opacity-60">
                             <div className="bg-slate-400 text-white px-6 py-4 w-32 text-center flex-shrink-0">
                                 <div className="text-[10px] font-bold opacity-60">회복/슬럼프</div>
-                                <div className="text-lg font-black tracking-tighter">13:00-14:00</div>
+                                <div className="text-lg font-black tracking-tighter">{formatHour(slumpStartNum)}-{formatHour(slumpEndNum)}</div>
                             </div>
                             <div className="p-4 flex-1 text-xs text-slate-600">
                                 <strong className="text-slate-800 block mb-1">브레인 포그 (Brain Fog)</strong>
@@ -1110,7 +1147,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({ result, strategies
                         <div className="flex items-center bg-indigo-50 border border-indigo-100 rounded-xl overflow-hidden">
                             <div className="bg-indigo-600 text-white px-6 py-4 w-32 text-center flex-shrink-0">
                                 <div className="text-[10px] font-bold opacity-60 italic">Second Wind</div>
-                                <div className="text-lg font-black tracking-tighter">16:00-22:00</div>
+                                <div className="text-lg font-black tracking-tighter">{formatHour(secondStartNum)}-{formatHour(secondEndNum)}</div>
                             </div>
                             <div className="p-4 flex-1 text-xs text-indigo-900">
                                 <strong className="text-indigo-700 block mb-1">Logical Thinking & Consolidation</strong>
