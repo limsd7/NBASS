@@ -46,7 +46,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
               {menuItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => onMenuChange(item.id)}
+                  onClick={() => onMenuChange(item.id as any)}
                   className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${activeMenu === item.id
                     ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
                     : 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700'

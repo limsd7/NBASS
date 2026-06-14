@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
 import { ConfigModal as ConfigModalComponent } from '../../components/modals/ConfigModal';
 import { NutritionalPrescriptionModal } from '../../components/modals/NutritionalPrescriptionModal';
@@ -58,6 +58,7 @@ interface ResultsViewProps {
     setSelectedSubjectOptions: (opts: any) => void;
 
     showConfig: boolean;
+    [key: string]: any;
     setShowConfig: (show: boolean) => void;
     activeConfigTab: string;
     setActiveConfigTab: (tab: any) => void;
@@ -132,10 +133,40 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     predictionRules, handlePredictionRulesChange, resetPredictionRules,
     studyEfficiencyResults, aiModels, handleAiModelsChange
 }) => {
+    // Handle expert guide visibility
+    const [showExpertGuide, setShowExpertGuide] = useState(false);
+
+    // Auto-generate sleep analysis text if it's missing
+    useEffect(() => {
+        if (!result.sleepAnalysisText) {
+            let analysis = `### 🌙 수면 및 학습 패턴 종합 분석\n\n`;
+            
+            if (result.studyEfficiencyResults?.chronotype) {
+                analysis += `**크로노타입 기반 조언**: ${result.studyEfficiencyResults.chronotype}형에 맞는 최적의 수면 및 기상 시간을 권장합니다.\n`;
+            }
+            
+            analysis += `\n**전문가 코멘트 (${result.careType || '유형 미지정'})**\n`;
+            analysis += `- 수면 패턴과 학습 집중도(집중력/스트레스)의 상관관계를 기반으로 맞춤 관리가 필요합니다.\n`;
+            analysis += `- 현재 데이터에 기반하여 학생에게 가장 효율적인 수면 시간과 기상 시간을 일정표에 반영하세요.\n`;
+            
+            handleDataUpdate({
+                ...result,
+                sleepAnalysisText: analysis
+            });
+        }
+    }, [result.sleepAnalysisText]);
+
     // Report Mode State
     const [reportMode, setReportMode] = useState<'expert' | 'student'>(
-        config.expertModePassword ? 'student' : 'expert'
+        isAdminUnlocked ? 'expert' : (config.expertModePassword ? 'student' : 'expert')
     );
+    
+    // Sync with isAdminUnlocked if it changes externally
+    useEffect(() => {
+        if (isAdminUnlocked) {
+            setReportMode('expert');
+        }
+    }, [isAdminUnlocked]);
     const [showAssessmentWindow, setShowAssessmentWindow] = useState(false);
     const [isExpertOverlayOpen, setIsExpertOverlayOpen] = useState(false);
     const [showExpertModePrompt, setShowExpertModePrompt] = useState(false);
@@ -226,7 +257,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <ConfigModalComponent
                 isOpen={showConfig}
                 onTabChange={setActiveConfigTab}
-                activeTab={activeConfigTab}
+                activeTab={activeConfigTab as any}
                 onClose={() => setShowConfig(false)}
                 config={config}
                 onConfigChange={setConfig}
@@ -452,6 +483,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     classificationResult={result.classificationResult}
                     assessmentResult={{ ...result, studyEfficiencyResults }}
                     reportMode={reportMode}
+                    onUpdateAssessmentResult={handleDataUpdate}
                 />
 
                 {/* Medical Analysis */}

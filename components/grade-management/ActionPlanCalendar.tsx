@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { SimulationResult, StudentInfo } from '../../types';
+import { StudentInfo } from '../../types';
+import { SimulationResult } from '../../services/gradeSimulationEngine';
 import { DatabaseService } from '../../services/database';
 
 interface ActionPlanCalendarProps {
-    simulationResults: SimulationResult[];
+    simulationResults: any[];
     student: StudentInfo;
 }
 
@@ -234,7 +235,7 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                             <div class="bg-slate-50 rounded-xl p-6 mb-8 border border-slate-100 flex flex-wrap justify-between gap-4">
                                 <div>
                                     <div class="text-xs text-slate-400 mb-1">피검자 성명</div>
-                                    <div class="text-lg font-bold text-slate-800">${student.name} <span class="text-sm font-normal text-slate-500">(${student.gender === 'F' ? 'F' : 'M'} / ${student.age}세)</span></div>
+                                    <div class="text-lg font-bold text-slate-800">${student.name} <span class="text-sm font-normal text-slate-500">(${student.gender === 'Female' ? 'F' : 'M'} / ${student.age}세)</span></div>
                                 </div>
                                 <div>
                                     <div class="text-xs text-slate-400 mb-1">진단 코드</div>

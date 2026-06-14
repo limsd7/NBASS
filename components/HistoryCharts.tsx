@@ -388,7 +388,7 @@ export const ManageHistoryView: React.FC<{
                                     {record.classificationResult?.primary || 'Unknown'}
                                 </td>
                                 <td className="py-4 font-bold text-blue-600 dark:text-blue-400">
-                                    {record.summaryScore}
+                                    {(record as any).summaryScore}
                                 </td>
                                 <td className="py-4 text-right">
                                     {editingId === record.id ? (

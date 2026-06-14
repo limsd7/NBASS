@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SleepRecord, SleepGoal } from '../../../types';
 import { SleepTrendChart } from '../SleepTrendChart';
 
@@ -34,8 +34,33 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({ records, goa
   const avgSleep = getAverageSleep();
   const targetDuration = goal?.targetDuration || 7;
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncWearable = () => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      setIsSyncing(false);
+      alert('스마트워치 및 스크린타임 데이터가 성공적으로 동기화되었습니다. (Mock)');
+    }, 1500);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Action Header */}
+      <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <div>
+          <h3 className="font-bold text-slate-800 dark:text-white">데이터 연동 (Data Integration)</h3>
+          <p className="text-sm text-slate-500">Apple Watch, Galaxy Watch 및 스크린타임 동기화</p>
+        </div>
+        <button 
+          onClick={handleSyncWearable}
+          disabled={isSyncing}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 font-semibold rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-50"
+        >
+          <span className={isSyncing ? "animate-spin" : ""}>🔄</span>
+          {isSyncing ? '동기화 중...' : '웨어러블 동기화'}
+        </button>
+      </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
@@ -95,6 +120,43 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({ records, goa
           </div>
           <div className="mt-4 text-sm text-slate-500">
             취침/기상 시간 편차 분석
+          </div>
+        </div>
+
+        {/* Sleep Stages (Mocked for latest record or average) */}
+        <div className="md:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">최근 수면 질 분석 (Sleep Stages)</p>
+              <div className="text-xs text-slate-400 mt-1">웨어러블 측정 기반</div>
+            </div>
+          </div>
+          <div className="h-6 w-full rounded-full overflow-hidden flex shadow-inner">
+            <div className="h-full bg-blue-300" style={{width: '20%'}} title="REM 수면 (20%)"></div>
+            <div className="h-full bg-indigo-400" style={{width: '60%'}} title="얕은 수면 (60%)"></div>
+            <div className="h-full bg-indigo-700" style={{width: '20%'}} title="깊은 수면 (20%)"></div>
+          </div>
+          <div className="flex justify-between text-xs mt-2 font-medium text-slate-500">
+            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-300"></span>REM 20%</div>
+            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-400"></span>Light 60%</div>
+            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-700"></span>Deep 20%</div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">수면 지연 (Sleep Delay)</p>
+              <h3 className="text-3xl font-bold text-slate-800 dark:text-white mt-1">
+                24<span className="text-lg font-normal text-slate-500 ml-1">분</span>
+              </h3>
+            </div>
+            <div className="p-3 bg-red-50 dark:bg-red-900/30 rounded-xl">
+              <span className="text-2xl">📱</span>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-red-500 font-medium">
+            야간 스크린타임 증가 주의
           </div>
         </div>
       </div>

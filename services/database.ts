@@ -459,19 +459,21 @@ export const DatabaseService = {
             const existing = await db.students.where('name').equals(student.name).toArray();
             const profile = existing.find(p => p.studentId === student.id || !p.studentId);
             
+            const { id: studentIdStr, ...studentData } = student;
+            
             if (profile && profile.id !== undefined) {
                 await db.students.update(profile.id, {
-                    ...student,
-                    studentId: student.id,
+                    ...studentData,
+                    studentId: studentIdStr,
                     updatedAt: new Date().toISOString()
-                });
+                } as any);
             } else {
                 await db.students.add({
-                    ...student,
-                    studentId: student.id,
+                    ...studentData,
+                    studentId: studentIdStr,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
-                });
+                } as any);
             }
         } catch (error) {
             console.error('Failed to update student:', error);

@@ -4296,9 +4296,9 @@ export const ExpertOverlay: React.FC<ExpertOverlayProps> = ({
         const selectedLearning = selectedStrategies.learning || [];
         const selectedExercise = selectedStrategies.exercise || [];
 
-        const easyTasks = currentWeeklyPlan?.weeks[0]?.tasks?.easy || [];
-        const weeklyTasks = currentWeeklyPlan?.weeks[0]?.tasks?.core || [];
-        const priorityKPIs = currentSuccessIndicators?.slice(0, 3).map(kpi => kpi.title) || [];
+        const easyTasks = (currentWeeklyPlan as any)?.weeks?.[0]?.tasks?.easy || [];
+        const weeklyTasks = (currentWeeklyPlan as any)?.weeks?.[0]?.tasks?.core || [];
+        const priorityKPIs = (currentSuccessIndicators as any[])?.slice(0, 3).map(kpi => kpi.title) || [];
 
         const printContent = `
 <!DOCTYPE html>

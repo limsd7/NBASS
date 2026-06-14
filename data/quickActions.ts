@@ -1,6 +1,6 @@
 import { CareType, QuickAction } from '../types';
 
-export const QUICK_ACTIONS: Record<CareType, QuickAction[]> = {
+export const QUICK_ACTIONS: Partial<Record<CareType, QuickAction[]>> = {
     [CareType.UNASSESSED]: [],
     [CareType.HEALTHY]: [
         {

@@ -14,7 +14,7 @@ export const generateSleepPrescription = (
     "미지근한 물로 샤워하기",
     "조명 어둡게 하기"
   ];
-  let powerNap = { recommended: false };
+  let powerNap: { recommended: boolean; timing?: string; duration?: number } = { recommended: false };
   let chronotypeNotes = "";
 
   // 1. CareType 기반 수면 전략 설정

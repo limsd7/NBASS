@@ -191,7 +191,7 @@ export const UniversityPredictionView: React.FC<UniversityPredictionViewProps> =
                                 </p>
                             ) : (
                                 <p className="text-sm text-slate-200 leading-relaxed">
-                                    {selectedUni?.name} {selectedDept.name} 합격을 위해서는 평균 {Math.max(0.5, currentGradeAvg - selectedDept.targetGradeCutline).toFixed(1)}등급 이상의 큰 폭 향상이 필요합니다. 핵심 과목 위주로 뼈대를 다시 세우는 전략이 필요합니다.
+                                    {selectedUni?.name} {selectedDept.name} 합격을 위해서는 평균 {Math.max(0.5, currentGradeAvg - (Object.values(selectedDept.targetGrades).reduce((a,b)=>a+b,0) / Math.max(1, Object.values(selectedDept.targetGrades).length))).toFixed(1)}등급 이상의 성적 향상이 필요합니다. 핵심 과목 위주로 뼈를 깎는 성적 향상 전략이 필요합니다.
                                 </p>
                             )}
                         </div>

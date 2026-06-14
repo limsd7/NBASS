@@ -21,6 +21,9 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
   } | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  const [isExamMode, setIsExamMode] = useState(false);
+  const [examDate, setExamDate] = useState('');
+
   const handleSimulate = async () => {
     setIsSimulating(true);
     // In a real application, we would call an AI endpoint here using aiModels
@@ -91,9 +94,42 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
         <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
           <span>🧪</span> 수면 시뮬레이터 (AI 예측)
         </h3>
-        <p className="text-slate-500 dark:text-slate-400 mb-6">
-          특정 수면 스케줄을 가정했을 때, 다음 날 예상되는 뇌기능 및 신체 컨디션을 AI가 시뮬레이션합니다.
-        </p>
+        <div className="flex justify-between items-start mb-6">
+          <p className="text-slate-500 dark:text-slate-400">
+            특정 수면 스케줄을 가정했을 때, 다음 날 예상되는 뇌기능 및 신체 컨디션을 AI가 시뮬레이션합니다.
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">🎯 수능/시험 모드</span>
+            <button 
+              onClick={() => setIsExamMode(!isExamMode)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isExamMode ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isExamMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        </div>
+
+        {isExamMode && (
+          <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded-xl animate-fade-in">
+            <h4 className="font-bold text-indigo-800 dark:text-indigo-300 mb-2 flex items-center gap-2">
+              <span>📅</span> D-30 생체 리듬 최적화 플랜
+            </h4>
+            <p className="text-sm text-indigo-600 dark:text-indigo-400 mb-4">
+              시험 당일(08:40 시작)에 뇌 기능이 100% 활성화되도록 점진적으로 기상 시간을 앞당기는 시뮬레이션입니다.
+            </p>
+            <div className="flex items-center gap-4">
+              <input 
+                type="date" 
+                value={examDate}
+                onChange={(e) => setExamDate(e.target.value)}
+                className="p-2 text-sm rounded-lg border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+              />
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                목표 기상 시간: <span className="text-indigo-600 font-bold">06:30</span>
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div>

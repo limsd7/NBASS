@@ -583,7 +583,7 @@ const App: React.FC = () => {
     <ConfigModalComponent
       isOpen={showConfig}
       onTabChange={setActiveConfigTab}
-      activeTab={activeConfigTab}
+      activeTab={activeConfigTab as any}
       onClose={() => setShowConfig(false)}
       config={config}
       onConfigChange={setConfig}
@@ -1024,7 +1024,7 @@ const App: React.FC = () => {
 
   // --- Menu Views ---
   if (activeMenu === 'dashboard') {
-    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><DashboardView onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} onHistoryClick={() => setActiveMenu('history')} onResourcesClick={() => setActiveMenu('resources')} history={history} config={config} analystConfig={logicConfig.analystConfig as any} /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
+    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><DashboardView onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} onHistoryClick={() => setActiveMenu('history')} onResourcesClick={() => setActiveMenu('resources')} history={history} config={config} analystConfig={(logicConfig as any).analystConfig} /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
   }
   if (activeMenu === 'history') {
     const handleViewDetail = (record: AssessmentResult) => {
@@ -1057,7 +1057,7 @@ const App: React.FC = () => {
       // Restore Study Efficiency results from survey data
       const recordDate = (record as any).date || '';
       if (record.survey) {
-        setStudyEfficiencyResults(mapSurveyDataToResults(record.survey, recordDate));
+        setStudyEfficiencyResults(mapSurveyDataToResults(record.survey, recordDate) as any);
 
         // Restore Survey State variables from survey data for consistency
         // (This allows SurveyStep to show correct answers if revisited)

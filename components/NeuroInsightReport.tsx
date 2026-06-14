@@ -239,6 +239,8 @@ const renderSimpleMarkdown = (text: string, isDark: boolean = false): React.Reac
 };
 
 
+import { SleepAnalysisEditModal } from './modals/SleepAnalysisEditModal';
+
 interface NeuroInsightReportProps {
     analysisText: string;
     classificationResult?: ClassificationResult;
@@ -248,11 +250,13 @@ interface NeuroInsightReportProps {
     aiModels?: any; // To pass down to ExpertOverlay
     showExpertGuide?: boolean;
     onCloseExpertGuide?: () => void;
+    onUpdateAssessmentResult?: (updatedData: any) => void;
 }
 
 // Parse the analysis text and render it as structured cards
-export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysisText, classificationResult, assessmentResult, reportMode = 'expert', customSubjectStrategy, aiModels, showExpertGuide, onCloseExpertGuide }) => {
+export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysisText, classificationResult, assessmentResult, reportMode = 'expert', customSubjectStrategy, aiModels, showExpertGuide, onCloseExpertGuide, onUpdateAssessmentResult }) => {
     const [showDeepInsight, setShowDeepInsight] = useState(false);
+    const [showSleepEditModal, setShowSleepEditModal] = useState(false);
 
     // Student Mode Sections Whitelist
     const STUDENT_SECTIONS = ['1', '2', '4', '4-2', '5', '5-6', '7'];
@@ -277,12 +281,12 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
 
     // Parse sections from the markdown-style text
     const parseSection = (text: string, sectionId: string): { items: string[]; subItems: string[]; rawContent?: string } => {
-        // ANS section (5), Vitality/Fatigue section (5-2), Brain Balance Radar (5-3), Stress/Concentration (5-4), Integrated (5-5), Cognitive (5-6), Peak Time (4-2), Action Plan (7) need special handling
-        const isSpecialSection = ['1', '5', '5-2', '5-3', '5-4', '5-5', '5-6', '4-2', '7'].includes(sectionId);
+        // ANS section (5), Vitality/Fatigue section (5-2), Brain Balance Radar (5-3), Stress/Concentration (5-4), Integrated (5-5), Cognitive (5-6), Peak Time (4-2), Action Plan (7), Sleep Management (8) need special handling
+        const isSpecialSection = ['1', '5', '5-2', '5-3', '5-4', '5-5', '5-6', '4-2', '7', '8'].includes(sectionId);
         const escapedId = sectionId.replace('-', '\\s*-\\s*');
 
         // Sections with internal separators need careful regex
-        const regexPattern = ['1', '5', '5-2', '5-3', '5-4', '5-5', '5-6', '4-2', '7'].includes(sectionId)
+        const regexPattern = ['1', '5', '5-2', '5-3', '5-4', '5-5', '5-6', '4-2', '7', '8'].includes(sectionId)
             ? `##\\s*\\[${escapedId}\\][^\\r\\n]*[\\r\\n]+([\\s\\S]*?)(?=##\\s*\\[|$)`
             : isSpecialSection
                 ? `##\\s*\\[${escapedId}\\][^\\r\\n]*[\\r\\n]+([\\s\\S]*?)(?=##\\s*\\[|---|$)`
@@ -433,6 +437,13 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
             title: '최종 솔루션 제안',
             subtitle: 'Action Plan',
             color: 'emerald'
+        },
+        {
+            id: '8',
+            icon: '🌙',
+            title: '수면 패턴 분석 및 처방',
+            subtitle: 'Sleep Management & Analysis',
+            color: 'indigo'
         }
     ];
 
@@ -481,8 +492,14 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
     const parsedSections = sections.map(section => {
         const { items, subItems, rawContent } = parseSection(analysisText, section.id);
 
+        // Merge sleepAnalysisText for Section 8 if available
+        let finalRawContent = rawContent;
+        if (section.id === '8' && assessmentResult?.sleepAnalysisText) {
+            finalRawContent = assessmentResult.sleepAnalysisText;
+        }
+
         // DEBUG: Force visible content for 4-2 if missing
-        if (section.id === '4-2' && !rawContent) {
+        if (section.id === '4-2' && !finalRawContent) {
             return {
                 ...section,
                 items,
@@ -491,7 +508,7 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
             };
         }
 
-        return { ...section, items, subItems, rawContent };
+        return { ...section, items, subItems, rawContent: finalRawContent };
     });
 
     // Check for exam strategy section (새로운 형식: ## 📈 수험생 실전 전략)
@@ -714,6 +731,15 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
                                 <div className={`w-10 h-10 ${colors.badge} text-white rounded-xl flex items-center justify-center text-lg font-black shadow-lg`}>
                                     {section.id}
                                 </div>
+                                {section.id === '8' && reportMode === 'expert' && (
+                                    <button
+                                        onClick={() => setShowSleepEditModal(true)}
+                                        className="ml-2 w-10 h-10 bg-white text-indigo-600 border border-indigo-200 rounded-xl flex items-center justify-center shadow-sm hover:bg-indigo-50 transition-colors cursor-pointer print:hidden"
+                                        title="수면 분석 편집"
+                                    >
+                                        ✏️
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -1168,6 +1194,22 @@ export const NeuroInsightReport: React.FC<NeuroInsightReportProps> = ({ analysis
                     isOpen={showDeepInsight}
                     onClose={() => setShowDeepInsight(false)}
                     data={generateDeepInsight(assessmentResult)}
+                />
+            )}
+            
+            {showSleepEditModal && (
+                <SleepAnalysisEditModal
+                    isOpen={showSleepEditModal}
+                    onClose={() => setShowSleepEditModal(false)}
+                    initialText={assessmentResult?.sleepAnalysisText || ''}
+                    onSave={(newText) => {
+                        if (onUpdateAssessmentResult) {
+                            onUpdateAssessmentResult({
+                                ...assessmentResult,
+                                sleepAnalysisText: newText
+                            });
+                        }
+                    }}
                 />
             )}
         </div>

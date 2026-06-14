@@ -1,4 +1,4 @@
-import { GradeRecord, GradeGoal, AssessmentResult, SubjectGrade, StudentInfo } from '../types';
+import { GradeRecord, GradeGoal, AssessmentResult, SubjectGrade, StudentInfo, CareType } from '../types';
 import { SUNEUNG_SUBJECTS } from '../data/suneungSubjects';
 
 export interface SimulationResult {
@@ -184,25 +184,23 @@ export class GradeSimulationEngine {
 
             if (bottlenecks.length === 0) bottlenecks.push("특별한 병목 요인 없이 안정적인 성적 향상이 기대됩니다.");
 
-            const recommendations = [];
-
             // 통합: 신체/자율신경계 기반 CareType 추출
             const careType = assessment?.careType;
             let careTypePrefix = "";
 
-            if (careType === 'BURNOUT') {
+            if (careType === CareType.BURNOUT) {
                 careTypePrefix = "현재 번아웃(Burnout) 상태이므로 과도한 목표보다는 기존 목표량의 50% 수준으로 조정하고, ";
-            } else if (careType === 'BRAIN_FATIGUE') {
-                careTypePrefix = "뇌 피로(Brain Fatigue)가 높은 상태이므로 태블릿/스마트폰 등 디지털 기기 사용을 최소화하고 종이 교재 위주로, ";
-            } else if (careType === 'ADRENAL') {
+            } else if (careType === CareType.BRAIN_FATIGUE) {
+                careTypePrefix = "뇌 피로(Brain Fatigue)가 높은 상태이므로 태블릿, 스마트폰 등 디지털 기기 사용을 최소화하고 종이 교재 위주로 ";
+            } else if (careType === CareType.ADRENAL) {
                 careTypePrefix = "부신 피로로 인해 에너지 변동이 심하므로 무리한 계획보다는 컨디션이 좋은 시간에 집중하여, ";
-            } else if (careType === 'SLEEP') {
-                careTypePrefix = "수면 부족으로 장기 기억 전환이 불리하므로, 무조건 학습 시간을 늘리기보다 충분한 수면을 우선 확보한 뒤, ";
-            } else if (careType === 'ANXIETY_TENSION') {
-                careTypePrefix = "긴장과 불안도가 높으므로 결과에 대한 압박감을 내려놓고, '5분만 해보기' 전략으로 부담 없이 시작하여, ";
+            } else if (careType === CareType.SLEEP) {
+                careTypePrefix = "수면 부족으로 장기 기억 전환에 불리합니다. 무조건 학습 시간을 늘리기보다 충분한 수면을 우선 확보하면서 ";
+            } else if (careType === CareType.ANXIETY_TENSION) {
+                careTypePrefix = "긴장과 불안도가 높으므로 결과에 대한 압박감을 내려놓고, '5분만 해보자'는 전략으로 부담 없이 시작하여, ";
             }
 
-            let gradeStrategy = "";
+            const recommendations = [];
             recommendations.push(`[과목별 전략] ${careTypePrefix}${subjectStrategy}`);
 
             projections.push({

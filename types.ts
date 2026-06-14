@@ -355,6 +355,7 @@ export interface AssessmentResult {
   selectedSubjectOptions?: Record<string, string[]>;
   previousResult?: AssessmentResult | null;
   gradeHistory?: GradeRecord[];  // 성적 이력 참조
+  sleepAnalysisText?: string;    // [NEW] 수면 분석 자동 생성 및 편집 필드
 }
 
 // ========== 예측 엔진 타입 (Prediction Engine) ==========
@@ -528,6 +529,15 @@ export interface SleepRecord {
   sleepQuality: number;  // 1-5
   memo?: string;
   createdAt: string;
+  // [NEW] Data Integration Fields
+  stages?: {
+    rem: number;       // percentage 0-100
+    light: number;     // percentage 0-100
+    deep: number;      // percentage 0-100
+  };
+  nightHrv?: number;   // average HRV during sleep
+  screenTimeBeforeBed?: number; // minutes
+  sleepDelay?: number; // minutes it took to fall asleep
 }
 
 export interface SleepGoal {
@@ -537,6 +547,11 @@ export interface SleepGoal {
   targetWakeTime: string; // HH:mm
   targetDuration: number; // hours
   memo?: string;
+  // [NEW] Gamification Fields
+  currentStreak?: number;
+  longestStreak?: number;
+  conditionScore?: number; // 0-100
+  sleepDebtMinutes?: number; // Positive = debt, Negative = surplus
 }
 
 export interface SleepPrescription {

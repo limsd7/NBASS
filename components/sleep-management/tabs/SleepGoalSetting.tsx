@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StudentInfo, AssessmentResult, SleepGoal } from '../../../types';
+import { StudentInfo, AssessmentResult, SleepGoal, CareType } from '../../../types';
 
 interface SleepGoalSettingProps {
   student: StudentInfo;
@@ -52,21 +52,55 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
 
   const getRecommendedBedtime = () => {
     const careType = currentAssessment?.careType;
-    if (careType === 'burnout' || careType === 'stress') return '22:30 ~ 23:00';
-    if (careType === 'focus' || careType === 'brain_fog') return '23:00 ~ 23:30';
+    if (careType === CareType.BURNOUT || careType === CareType.STRESS_OVERLOAD) return '22:30 ~ 23:00';
+    if (careType === CareType.ATTENTION_DEFICIT || careType === CareType.BRAIN_FATIGUE) return '23:00 ~ 23:30';
     return '23:00 ~ 24:00';
   };
 
   const getRecommendedDuration = () => {
     const careType = currentAssessment?.careType;
-    if (careType === 'burnout') return '최소 8시간 이상';
-    if (careType === 'stress') return '7.5 ~ 8시간';
+    if (careType === CareType.BURNOUT) return '최소 8시간 이상';
+    if (careType === CareType.STRESS_OVERLOAD) return '7.5 ~ 8시간';
     return '7 ~ 7.5시간';
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
+        
+        {/* Gamification Dashboard */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+            <span>🎮</span> 수면 챌린지 및 달성도
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">현재 스트릭 (연속 달성)</p>
+                <div className="flex items-end gap-1 mt-1">
+                  <span className="text-3xl font-black text-orange-600 dark:text-orange-400">12</span>
+                  <span className="text-slate-500 mb-1">일 🔥</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-800 flex items-center justify-center text-xl">
+                🏆
+              </div>
+            </div>
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">수면 컨디션 점수</p>
+                <div className="flex items-end gap-1 mt-1">
+                  <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">85</span>
+                  <span className="text-slate-500 mb-1">/ 100</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center text-xl">
+                📈
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <span>🎯</span> 수면 목표 설정
@@ -144,6 +178,38 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+          <h3 className="text-base font-bold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
+            <span>💊</span> Care Type 맞춤 처방
+          </h3>
+          <ul className="space-y-4">
+            {currentAssessment?.careType === CareType.BURNOUT && (
+              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">NSDR (Non-Sleep Deep Rest) 요법</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300">오후 2-3시경 20분간 요가 니드라 또는 NSDR 오디오를 들으며 뇌 피로를 리셋하세요.</span>
+              </li>
+            )}
+            {currentAssessment?.careType === CareType.BRAIN_FATIGUE && (
+              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">아침 햇빛 10분 챌린지</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300">브레인 포그 해소를 위해 기상 직후 30분 이내에 10분간 야외 햇빛을 쬐어 코르티솔 사이클을 정상화하세요.</span>
+              </li>
+            )}
+            {currentAssessment?.careType === CareType.STRESS_OVERLOAD && (
+              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">수면 지연 방지 루틴</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300">취침 전 불안감(Anxiety)으로 인한 폰 사용을 막기 위해 1시간 전부터 '박스 호흡법(Box Breathing)'을 실시하세요.</span>
+              </li>
+            )}
+            {!([CareType.BURNOUT, CareType.BRAIN_FATIGUE, CareType.STRESS_OVERLOAD] as string[]).includes(currentAssessment?.careType || '') && (
+              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">주말 수면 보충 가이드</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300">주말에 부족한 잠을 보충할 때는 1~2시간만 추가로 자고, 기상 시간은 평일과 동일하게 유지하는 것이 좋습니다.</span>
+              </li>
+            )}
+          </ul>
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">
