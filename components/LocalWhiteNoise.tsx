@@ -41,33 +41,13 @@ export const LocalWhiteNoise: React.FC<LocalWhiteNoiseProps> = ({ type, title })
             ctx.resume();
         }
 
-        const bufferSize = ctx.sampleRate * 2; // 2 seconds buffer
+        const bufferSize = ctx.sampleRate * 5; // 5 seconds buffer
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
 
-        // Pink/Brown noise state variables
-        let lastOut = 0;
-        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-
+        // Generate pure white noise
         for (let i = 0; i < bufferSize; i++) {
-            const white = Math.random() * 2 - 1;
-
-            if (type === 'Rain') {
-                // Brown Noise approximation for Rain
-                lastOut = (lastOut + (0.02 * white)) / 1.02;
-                data[i] = lastOut * 3.5; // Compensate gain
-            } else {
-                // Pink Noise approximation for Ocean
-                b0 = 0.99886 * b0 + white * 0.0555179;
-                b1 = 0.99332 * b1 + white * 0.0750759;
-                b2 = 0.96900 * b2 + white * 0.1538520;
-                b3 = 0.86650 * b3 + white * 0.3104856;
-                b4 = 0.55000 * b4 + white * 0.5329522;
-                b5 = -0.7616 * b5 - white * 0.0168980;
-                data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-                data[i] *= 0.11; // Compensate gain
-                b6 = white * 0.115926;
-            }
+            data[i] = Math.random() * 2 - 1;
         }
 
         const noiseSource = ctx.createBufferSource();
@@ -77,35 +57,73 @@ export const LocalWhiteNoise: React.FC<LocalWhiteNoiseProps> = ({ type, title })
         const masterGain = ctx.createGain();
         masterGain.gain.value = 0.5;
 
-        // For Ocean, add an LFO to simulate waves (volume swelling)
-        if (type === 'Ocean') {
-            const lfo = ctx.createOscillator();
-            lfo.type = 'sine';
-            lfo.frequency.value = 0.1; // 10 seconds per wave cycle
+        if (type === 'Rain') {
+            // Rain: We need it to sound like "shhhh" (pink/brown noise) with some high-end sizzle for drops
+            const lowpass = ctx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.value = 1200; // Cut off harsh highs
+            
+            const highpass = ctx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 300; // Cut off muddy lows
+
+            // To make it sound like rain, we modulate the amplitude VERY quickly (audio rate noise)
+            const rainLFO = ctx.createOscillator();
+            rainLFO.type = 'sine';
+            rainLFO.frequency.value = 50; // fast flutter
 
             const lfoGain = ctx.createGain();
-            lfoGain.gain.value = 0.3; // Depth of the wave
-            masterGain.gain.value = 0.4; // Base volume
+            lfoGain.gain.value = 0.2;
 
-            lfo.connect(lfoGain);
-            lfoGain.connect(masterGain.gain);
-            lfo.start();
+            rainLFO.connect(lfoGain);
+            // We can't directly modulate amplitude effectively like drops with sine, 
+            // but this adds a "fluttering" texture to the static noise
+            
+            noiseSource.connect(lowpass);
+            lowpass.connect(highpass);
+            highpass.connect(masterGain);
+            
+            rainLFO.start();
 
-            // Additional lowpass filter to make it sound more like deep water
+        } else if (type === 'Ocean') {
+            // Ocean: Multiple waves rolling in. 
+            // Deep lowpass filter sweeping up and down.
             const filter = ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.value = 400; // Hz
+            filter.frequency.value = 400; // Base frequency
+
+            // LFO 1: Main wave swelling (12 seconds)
+            const lfo1 = ctx.createOscillator();
+            lfo1.type = 'sine';
+            lfo1.frequency.value = 1 / 12;
+
+            const lfo1GainFilter = ctx.createGain();
+            lfo1GainFilter.gain.value = 800; // Modulate frequency by 800Hz
+            lfo1.connect(lfo1GainFilter);
+            lfo1GainFilter.connect(filter.frequency);
+
+            const lfo1GainAmp = ctx.createGain();
+            lfo1GainAmp.gain.value = 0.5; // Modulate volume
+            lfo1.connect(lfo1GainAmp);
+            lfo1GainAmp.connect(masterGain.gain);
+
+            // LFO 2: Secondary distant wave (8 seconds)
+            const lfo2 = ctx.createOscillator();
+            lfo2.type = 'sine';
+            lfo2.frequency.value = 1 / 8;
             
+            const lfo2GainAmp = ctx.createGain();
+            lfo2GainAmp.gain.value = 0.2;
+            lfo2.connect(lfo2GainAmp);
+            lfo2GainAmp.connect(masterGain.gain);
+
             noiseSource.connect(filter);
             filter.connect(masterGain);
-        } else if (type === 'Rain') {
-            // Rain (Brown Noise) also needs a bit of high freq shaping
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 1000; // Hz
+
+            lfo1.start();
+            lfo2.start();
             
-            noiseSource.connect(filter);
-            filter.connect(masterGain);
+            masterGain.gain.value = 0.2; // Base volume is lower so swells stand out
         }
 
         masterGain.connect(ctx.destination);

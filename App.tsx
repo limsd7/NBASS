@@ -28,6 +28,7 @@ import { StressCareLabView } from './components/StressCareLabView';
 import { MENTAL_PRESCRIPTIONS } from './data/prescriptions';
 import { SUNEUNG_SUBJECTS } from './data/suneungSubjects';
 import { getLearningExplanation, getLearningRecommendations, CARETYPE_SPECIFIC_RECOMMENDATIONS } from './data/learningAnalyticsInsights';
+import { PomodoroTimer } from './components/PomodoroTimer';
 import { DatabaseService } from './services/database';
 import {
   BAI_QUESTIONS,
@@ -2207,6 +2208,9 @@ const App: React.FC = () => {
           onClose={() => setShowStudyEfficiencyModal(false)}
         />
       )}
+
+      {/* 글로벌 뽀모도로 타이머 위젯 */}
+      <PomodoroTimer />
 
     </Layout>
   );

@@ -5,6 +5,8 @@ import { DropdownSearch } from './DropdownSearch';
 import { AnalystConfig } from '../utils/analystConfig';
 import { StretchingGuide } from './StretchingGuide';
 import { LocalWhiteNoise } from './LocalWhiteNoise';
+import { MoodTracker } from './MoodTracker';
+import { NBackHistoryChart } from './NBackHistoryChart';
 
 export { ProgressView } from './ProgressView';
 
@@ -147,6 +149,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onStartClick, onHi
                 </div>
             )}
 
+            {/* Mood Tracker Widget */}
+            <MoodTracker />
+
+            {/* N-Back History Widget */}
+            <NBackHistoryChart />
+
+            {/* Overall Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all cursor-pointer group" onClick={onHistoryClick}>
                     <div className="flex items-center justify-between mb-6">
