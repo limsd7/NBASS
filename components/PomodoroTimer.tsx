@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 
 export const PomodoroTimer: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
+    const [focusDuration, setFocusDuration] = useState(25);
+    const [breakDuration, setBreakDuration] = useState(5);
     const [timeLeft, setTimeLeft] = useState(25 * 60);
     const [isRunning, setIsRunning] = useState(false);
 
@@ -18,26 +21,26 @@ export const PomodoroTimer: React.FC = () => {
             
             if (mode === 'FOCUS') {
                 setMode('BREAK');
-                setTimeLeft(5 * 60);
+                setTimeLeft(breakDuration * 60);
             } else {
                 setMode('FOCUS');
-                setTimeLeft(25 * 60);
+                setTimeLeft(focusDuration * 60);
             }
         }
         return () => clearTimeout(timer);
-    }, [isRunning, timeLeft, mode]);
+    }, [isRunning, timeLeft, mode, focusDuration, breakDuration]);
 
     const toggleTimer = () => setIsRunning(!isRunning);
 
     const resetTimer = () => {
         setIsRunning(false);
-        setTimeLeft(mode === 'FOCUS' ? 25 * 60 : 5 * 60);
+        setTimeLeft(mode === 'FOCUS' ? focusDuration * 60 : breakDuration * 60);
     };
 
     const switchMode = (newMode: 'FOCUS' | 'BREAK') => {
         setIsRunning(false);
         setMode(newMode);
-        setTimeLeft(newMode === 'FOCUS' ? 25 * 60 : 5 * 60);
+        setTimeLeft(newMode === 'FOCUS' ? focusDuration * 60 : breakDuration * 60);
     };
 
     const formatTime = (seconds: number) => {
@@ -53,23 +56,51 @@ export const PomodoroTimer: React.FC = () => {
                 <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-200 animate-in slide-in-from-bottom-4 duration-200 w-72">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-slate-800">🍅 뽀모도로 타이머</h3>
-                        <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="text-slate-400 hover:text-slate-600">⚙️</button>
+                            <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                        </div>
                     </div>
 
-                    <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                        <button 
-                            className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors ${mode === 'FOCUS' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500'}`}
-                            onClick={() => switchMode('FOCUS')}
-                        >
-                            집중 (25분)
-                        </button>
-                        <button 
-                            className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors ${mode === 'BREAK' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'}`}
-                            onClick={() => switchMode('BREAK')}
-                        >
-                            휴식 (5분)
-                        </button>
-                    </div>
+                    {isSettingsOpen ? (
+                        <div className="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-200">
+                            <h4 className="text-sm font-bold text-slate-700 mb-3">타이머 설정</h4>
+                            <div className="flex flex-col gap-3">
+                                <label className="flex items-center justify-between text-sm">
+                                    <span className="text-slate-600">집중 시간 (분)</span>
+                                    <input type="number" min="1" max="120" value={focusDuration} onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setFocusDuration(val);
+                                        if (mode === 'FOCUS') setTimeLeft(val * 60);
+                                    }} className="w-16 p-1 border rounded text-right" />
+                                </label>
+                                <label className="flex items-center justify-between text-sm">
+                                    <span className="text-slate-600">휴식 시간 (분)</span>
+                                    <input type="number" min="1" max="60" value={breakDuration} onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setBreakDuration(val);
+                                        if (mode === 'BREAK') setTimeLeft(val * 60);
+                                    }} className="w-16 p-1 border rounded text-right" />
+                                </label>
+                            </div>
+                            <button onClick={() => setIsSettingsOpen(false)} className="w-full mt-4 py-2 bg-slate-800 text-white font-bold rounded-lg text-sm">완료</button>
+                        </div>
+                    ) : (
+                        <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                            <button 
+                                className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors ${mode === 'FOCUS' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500'}`}
+                                onClick={() => switchMode('FOCUS')}
+                            >
+                                집중 ({focusDuration}분)
+                            </button>
+                            <button 
+                                className={`flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors ${mode === 'BREAK' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'}`}
+                                onClick={() => switchMode('BREAK')}
+                            >
+                                휴식 ({breakDuration}분)
+                            </button>
+                        </div>
+                    )}
 
                     <div className="text-center mb-6">
                         <div className={`text-6xl font-black font-mono tabular-nums tracking-tighter ${mode === 'FOCUS' ? 'text-rose-500' : 'text-emerald-500'}`}>
