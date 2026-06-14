@@ -5,6 +5,7 @@ import App from './App';
 import { StudentWindow } from './components/StudentView';
 import { BreathingGuidePage } from './components/guides/BreathingGuidePage';
 import { StudyEfficiencyProvider } from './contexts/StudyEfficiencyContext';
+import { PomodoroTimer } from './components/PomodoroTimer';
 
 
 /**
@@ -16,18 +17,20 @@ const AppRouter: React.FC = () => {
   const path = window.location.pathname;
   const params = new URLSearchParams(window.location.search);
 
-  // 학생 창 라우트
+  // 라우트 렌더링
+  let element = <App />;
   if (path === '/student' || path === '/student/') {
-    return <StudentWindow />;
+    element = <StudentWindow />;
+  } else if (path === '/breathing' || path === '/breathing/') {
+    element = <BreathingGuidePage />;
   }
 
-  // 호흡 가이드 라우트 (새 창)
-  if (path === '/breathing' || path === '/breathing/') {
-    return <BreathingGuidePage />;
-  }
-
-  // 기본: 관리자/메인 앱
-  return <App />;
+  return (
+    <>
+      {element}
+      <PomodoroTimer />
+    </>
+  );
 };
 
 const rootElement = document.getElementById('root');

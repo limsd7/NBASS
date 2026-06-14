@@ -2209,9 +2209,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* 글로벌 뽀모도로 타이머 위젯 */}
-      <PomodoroTimer />
-
     </Layout>
   );
 };
