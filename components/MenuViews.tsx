@@ -1,9 +1,10 @@
-
 import React from 'react';
 import { CareType, AssessmentResult } from '../types';
 import { BreathingGuide } from './BreathingGuide';
 import { DropdownSearch } from './DropdownSearch';
 import { AnalystConfig } from '../utils/analystConfig';
+import { StretchingGuide } from './StretchingGuide';
+import { LocalWhiteNoise } from './LocalWhiteNoise';
 
 export { ProgressView } from './ProgressView';
 
@@ -410,20 +411,8 @@ export const HistoryView: React.FC<{
 
 export const ResourcesView: React.FC = () => {
     const [showBreathingGuide, setShowBreathingGuide] = React.useState(false);
-    const [activeVideo, setActiveVideo] = React.useState<string | null>(null);
     const [isNutritionModalOpen, setIsNutritionModalOpen] = React.useState(false);
     const [isMentalModalOpen, setIsMentalModalOpen] = React.useState(false);
-
-    const stretchingVideos = [
-        { id: '1', title: '목/어깨 스트레칭', url: 'https://www.youtube.com/embed/RqcOCBb4arc', duration: '5분' },
-        { id: '2', title: '허리 스트레칭', url: 'https://www.youtube.com/embed/4BOTvaRaDjI', duration: '7분' },
-        { id: '3', title: '눈 운동', url: 'https://www.youtube.com/embed/WNzHwOe5F8k', duration: '3분' },
-    ];
-
-    const whitenoise = [
-        { id: '1', title: '빗소리', url: 'https://www.youtube.com/embed/mPZkdNFkNps', type: 'Rain' },
-        { id: '4', title: '파도 소리', url: 'https://www.youtube.com/embed/WHPEKLQID4U', type: 'Ocean' },
-    ];
 
     return (
         <div className="max-w-6xl mx-auto animate-in fade-in duration-300 space-y-8 relative">
@@ -452,64 +441,22 @@ export const ResourcesView: React.FC = () => {
                 </div>
             </div>
 
-            {/* 스트레칭 가이드 */}
+            {/* 오프라인 스트레칭 가이드 */}
             <div>
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🧘</span> 5분 스트레칭 가이드
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="text-2xl">🤸‍♀️</span> 짧은 휴식을 위한 1분 스트레칭 (Offline)
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {stretchingVideos.map(video => (
-                        <div key={video.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-all">
-                            <div className="aspect-video bg-slate-100 relative group cursor-pointer" onClick={() => setActiveVideo(video.url)}>
-                                {activeVideo === video.url ? (
-                                    <iframe
-                                        src={video.url}
-                                        className="w-full h-full"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-500">
-                                        <div className="text-white text-center">
-                                            <div className="text-4xl mb-2">▶️</div>
-                                            <p className="text-sm font-bold">영상 재생</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="p-4">
-                                <h4 className="font-bold text-slate-900">{video.title}</h4>
-                                <p className="text-xs text-slate-500 mt-1">소요 시간: {video.duration}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <StretchingGuide />
             </div>
 
-            {/* 집중력 향상 백색소음 */}
+            {/* 오프라인 백색 소음 생성기 */}
             <div>
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🎵</span> 집중력 향상 백색소음
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <span className="text-2xl">🎧</span> 집중력 향상 백색소음 (Offline)
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {whitenoise.map(sound => (
-                        <div key={sound.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-all">
-                            <div className="aspect-video bg-slate-100">
-                                <iframe
-                                    src={sound.url}
-                                    className="w-full h-full"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                />
-                            </div>
-                            <div className="p-4">
-                                <h4 className="font-bold text-slate-900">{sound.title}</h4>
-                                <span className="inline-block mt-2 px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded font-bold">
-                                    {sound.type}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+                    <LocalWhiteNoise type="Rain" title="집중력을 돕는 빗소리" />
+                    <LocalWhiteNoise type="Ocean" title="긴장 완화를 돕는 파도 소리" />
                 </div>
             </div>
 
