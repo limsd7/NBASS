@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SleepRecord, SleepGoal, StudentInfo } from '../../../types';
+import { AIAssistantPanel } from '../../common/AIAssistantPanel';
 
 interface SleepSimulationViewProps {
   records: SleepRecord[];
@@ -18,6 +19,9 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
     stressResistance: number;
     overallCondition: string;
     advice: string;
+    targetBedtime: string;
+    targetWakeTime: string;
+    duration: number;
   } | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
@@ -42,7 +46,7 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
       let memoryRetention = 75;
       let stressResistance = 80;
       let overallCondition = '최상의 컨디션을 기대할 수 있습니다.';
-      let advice = '충분한 수면 시간이 확보되었습니다. 취침 전 스마트폰 사용만 줄인다면 깊은 수면을 취할 수 있을 것입니다.';
+      let baseAdvice = '충분한 수면 시간이 확보되었습니다. 취침 전 스마트폰 사용만 줄인다면 깊은 수면을 취할 수 있을 것입니다.';
 
       if (duration < 6) {
         energyLevel = 40;
@@ -50,21 +54,21 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
         memoryRetention = 45;
         stressResistance = 30;
         overallCondition = '수면 부족으로 인한 피로감이 예상됩니다.';
-        advice = '최소 6시간 이상의 수면을 권장합니다. 부득이한 경우 낮잠(20분)을 통해 에너지를 보충하세요.';
+        baseAdvice = '최소 6시간 이상의 수면을 권장합니다. 부득이한 경우 낮잠(20분)을 통해 에너지를 보충하세요.';
       } else if (duration > 9) {
         energyLevel = 60;
         focusLevel = 50;
         memoryRetention = 65;
         stressResistance = 70;
         overallCondition = '과수면으로 인해 일시적인 무기력증이 나타날 수 있습니다.';
-        advice = '너무 긴 수면은 오히려 뇌를 둔하게 만들 수 있습니다. 기상 후 가벼운 스트레칭과 햇빛 노출로 뇌를 깨워주세요.';
+        baseAdvice = '너무 긴 수면은 오히려 뇌를 둔하게 만들 수 있습니다. 기상 후 가벼운 스트레칭과 햇빛 노출로 뇌를 깨워주세요.';
       } else if (bParts[0] >= 2 || bParts[0] < 5) {
         energyLevel = 65;
         focusLevel = 60;
         memoryRetention = 70;
         stressResistance = 60;
         overallCondition = '수면 시간은 적절하나, 취침 시간이 너무 늦어 회복 효율이 떨어질 수 있습니다.';
-        advice = '골든타임(밤 10시~새벽 2시)을 놓쳐 멜라토닌과 성장 호르몬의 혜택을 온전히 받기 어렵습니다. 취침 시간을 1~2시간 앞당기는 것을 목표로 해보세요.';
+        baseAdvice = '골든타임(밤 10시~새벽 2시)을 놓쳐 멜라토닌과 성장 호르몬의 혜택을 온전히 받기 어렵습니다. 취침 시간을 1~2시간 앞당기는 것을 목표로 해보세요.';
       }
 
       setSimulationResult({
@@ -73,10 +77,13 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
         memoryRetention,
         stressResistance,
         overallCondition,
-        advice
+        advice: baseAdvice,
+        targetBedtime,
+        targetWakeTime,
+        duration
       });
       setIsSimulating(false);
-    }, 1500);
+    }, 500);
   };
 
   const getDuration = () => {
@@ -216,11 +223,33 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
             <p className="text-slate-700 dark:text-slate-300 mb-4">{simulationResult.overallCondition}</p>
             
             <h5 className="font-bold text-slate-800 dark:text-white mb-2 mt-4 flex items-center gap-2">
-              <span>🤖</span> AI 맞춤 조언
+              <span>💡</span> 기본 수면 조언
             </h5>
             <p className="text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 p-4 rounded-lg border border-indigo-100 dark:border-indigo-900/50">
               {simulationResult.advice}
             </p>
+
+            {aiModels && (
+              <div className="mt-6">
+                <AIAssistantPanel 
+                  contextData={{
+                    targetBedtime: simulationResult.targetBedtime,
+                    targetWakeTime: simulationResult.targetWakeTime,
+                    duration: simulationResult.duration,
+                    energyLevel: simulationResult.energyLevel,
+                    focusLevel: simulationResult.focusLevel,
+                    memoryRetention: simulationResult.memoryRetention,
+                    stressResistance: simulationResult.stressResistance,
+                    overallCondition: simulationResult.overallCondition,
+                    studentData: student
+                  }}
+                  systemPrompt="당신은 뇌파, 심박변이도, 심리설문 결과를 종합 분석하는 NBASS 시스템의 전문 AI입니다. 학생의 수면 시뮬레이션 결과를 바탕으로, 학부모와 학생이 실천할 수 있는 구체적이고 깊이 있는 수면 건강 조언을 3~4문단으로 친절하게 작성해 주세요."
+                  aiModels={aiModels}
+                  buttonLabel="🧠 AI 심층 분석 및 맞춤 솔루션 생성하기"
+                  membershipTier={student?.membershipTier || 'standard'}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
