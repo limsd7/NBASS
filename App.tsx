@@ -1521,7 +1521,12 @@ const App: React.FC = () => {
                     <div className="w-full px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm font-bold text-blue-700">{student.bmi}</div>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">MBTI</label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">MBTI</label>
+                      <a href="https://www.16personalities.com/ko/%EB%AC%B4%EB%A3%8C-%EC%84%B1%EA%B2%A9-%EC%9C%A0%ED%98%95-%EA%B2%80%EC%82%AC" target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 hover:underline">
+                        모르시나요? 검사하기 ↗
+                      </a>
+                    </div>
                     <select value={student.mbti} onChange={e => setStudent({ ...student, mbti: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                       {['ISTJ', 'ISFJ', 'INFJ', 'INTJ', 'ISTP', 'ISFP', 'INFP', 'INTP', 'ESTP', 'ESFP', 'ENFP', 'ENTP', 'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ'].map(m => (
                         <option key={m} value={m}>{m}</option>

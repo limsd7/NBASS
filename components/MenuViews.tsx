@@ -420,8 +420,6 @@ export const ResourcesView: React.FC = () => {
 
     const whitenoise = [
         { id: '1', title: '빗소리', url: 'https://www.youtube.com/embed/mPZkdNFkNps', type: 'Rain' },
-        { id: '2', title: '도서관 소음', url: 'https://www.youtube.com/embed/3oKMa2d6Ue8', type: 'Library' },
-        { id: '3', title: '카페 소음', url: 'https://www.youtube.com/embed/gaGltwHXRK0', type: 'Cafe' },
         { id: '4', title: '파도 소리', url: 'https://www.youtube.com/embed/WHPEKLQID4U', type: 'Ocean' },
     ];
 
