@@ -15,6 +15,9 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
   const [memo, setMemo] = useState(goal?.memo || '');
   const [isSaving, setIsSaving] = useState(false);
 
+  const [isDdayMode, setIsDdayMode] = useState(false);
+  const [dDayDate, setDdayDate] = useState('');
+
   useEffect(() => {
     // Calculate duration when times change
     const bParts = targetBedtime.split(':').map(Number);
@@ -71,7 +74,7 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
         {/* Gamification Dashboard */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <span>🎮</span> 수면 챌린지 및 달성도
+            <span>🏆</span> 수면 챌린지 달성도
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 rounded-xl flex items-center justify-between">
@@ -79,11 +82,11 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
                 <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">현재 스트릭 (연속 달성)</p>
                 <div className="flex items-end gap-1 mt-1">
                   <span className="text-3xl font-black text-orange-600 dark:text-orange-400">12</span>
-                  <span className="text-slate-500 mb-1">일 🔥</span>
+                  <span className="text-slate-500 mb-1">일째</span>
                 </div>
               </div>
               <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-800 flex items-center justify-center text-xl">
-                🏆
+                🔥
               </div>
             </div>
             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl flex items-center justify-between">
@@ -95,15 +98,76 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
                 </div>
               </div>
               <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center text-xl">
-                📈
+                ⭐
               </div>
             </div>
           </div>
         </div>
 
+        {/* D-Day Mode Dashboard */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <span>🎯</span> 시험 대비 생체 리듬 최적화 (수능/내신 모드)
+            </h3>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer" checked={isDdayMode} onChange={() => setIsDdayMode(!isDdayMode)} />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+            </label>
+          </div>
+
+          {isDdayMode ? (
+            <div className="animate-fade-in bg-indigo-50 dark:bg-indigo-900/10 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">시험 날짜 (D-Day)</label>
+                  <input 
+                    type="date" 
+                    value={dDayDate}
+                    onChange={(e) => setDdayDate(e.target.value)}
+                    className="w-full p-3 rounded-lg border border-slate-200 focus:border-indigo-500 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">시험 당일 기상 목표</label>
+                  <input 
+                    type="time" 
+                    value="06:00"
+                    readOnly
+                    className="w-full p-3 rounded-lg border border-slate-200 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              <div className="text-sm text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
+                <p className="font-bold mb-2">🧠 수능 뇌 최적화 시뮬레이션</p>
+                <p>뇌가 완전히 깨어나려면 기상 후 최소 2~3시간이 필요합니다. 시험 당일 오전 8시 40분 국어 영역에 두뇌를 100% 가동하기 위해, 오늘부터 D-Day까지 기상 시간을 점진적으로 앞당깁니다 (매 3일마다 15분씩 조절).</p>
+                {dDayDate && (
+                  <div className="mt-3 flex items-center justify-between border-t border-indigo-100 dark:border-indigo-800 pt-3">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-500">현재 기상</p>
+                      <p className="font-bold text-slate-800 dark:text-white">{targetWakeTime}</p>
+                    </div>
+                    <div className="flex-1 px-4">
+                      <div className="h-1 bg-indigo-200 rounded-full relative">
+                        <div className="absolute right-0 w-2 h-2 bg-indigo-600 rounded-full -top-[2px]"></div>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-indigo-500 font-bold">D-Day 기상</p>
+                      <p className="font-black text-indigo-700 dark:text-indigo-400">06:00</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">D-Day 모드를 켜면 중요한 시험 당일 아침에 두뇌 컨디션을 최고조로 끌어올릴 수 있도록 생체 리듬 시차 적응 스케줄을 자동으로 계산합니다.</p>
+          )}
+        </div>
+
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <span>🎯</span> 수면 목표 설정
+            <span>🎯</span> 일반 수면 목표 설정
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -142,8 +206,8 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
             <textarea 
               value={memo} 
               onChange={(e) => setMemo(e.target.value)} 
-              placeholder="예: 자기 전 30분은 스마트폰 보지 않기, 커피는 오후 2시 이전에만 마시기 등" 
-              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white resize-none" 
+              placeholder="예: 자기 전 30분은 스마트폰 보지 않기, 커피는 오후 2시 이전에만 마시기..." 
+              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white resize-none focus:border-indigo-500" 
               rows={4} 
             />
           </div>
@@ -181,35 +245,74 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
         </div>
 
         <div className="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-          <h3 className="text-base font-bold text-indigo-800 dark:text-indigo-300 mb-3 flex items-center gap-2">
-            <span>💊</span> Care Type 맞춤 처방
+          <h3 className="text-base font-bold text-indigo-800 dark:text-indigo-300 mb-4 flex items-center gap-2">
+            <span>💊</span> Care Type별 맞춤 수면 액션 플랜
           </h3>
-          <ul className="space-y-4">
+          <div className="space-y-4">
             {currentAssessment?.careType === CareType.BURNOUT && (
-              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">NSDR (Non-Sleep Deep Rest) 요법</span>
-                <span className="text-sm text-slate-600 dark:text-slate-300">오후 2-3시경 20분간 요가 니드라 또는 NSDR 오디오를 들으며 뇌 피로를 리셋하세요.</span>
-              </li>
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-400">NSDR (Non-Sleep Deep Rest) 요법</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-md font-bold">10분 소요</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">오후 2-3시경 깊은 휴식을 취하는 NSDR 오디오를 들으며 피로를 리셋하세요. 누워서 눈을 감고 진행합니다.</p>
+                <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-colors">
+                  <span>▶️</span> NSDR 오디오 재생
+                </button>
+              </div>
             )}
             {currentAssessment?.careType === CareType.BRAIN_FATIGUE && (
-              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">아침 햇빛 10분 챌린지</span>
-                <span className="text-sm text-slate-600 dark:text-slate-300">브레인 포그 해소를 위해 기상 직후 30분 이내에 10분간 야외 햇빛을 쬐어 코르티솔 사이클을 정상화하세요.</span>
-              </li>
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-400">아침 햇빛 10분 챌린지</span>
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-md font-bold">기상 직후</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">브레인 포그 해소를 위해 기상 직후 30분 이내에 창문을 열거나 밖으로 나가 10분간 야외 햇빛을 쬐어 코르티솔 사이클을 정상화하세요.</p>
+                <div className="bg-yellow-50 p-3 rounded-lg flex items-center gap-3">
+                  <div className="text-3xl animate-pulse">☀️</div>
+                  <div className="text-xs text-yellow-700 font-medium">내일 아침 기상 시간에 맞춰 '햇빛 쬐기 알림'을 설정할까요?</div>
+                </div>
+              </div>
             )}
             {currentAssessment?.careType === CareType.STRESS_OVERLOAD && (
-              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">수면 지연 방지 루틴</span>
-                <span className="text-sm text-slate-600 dark:text-slate-300">취침 전 불안감(Anxiety)으로 인한 폰 사용을 막기 위해 1시간 전부터 '박스 호흡법(Box Breathing)'을 실시하세요.</span>
-              </li>
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-400">4-7-8 수면 호흡법</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-md font-bold">취침 직전</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">교감신경을 낮추고 긴장을 풀어주는 호흡법입니다. 4초 들이마시고, 7초 참은 뒤, 8초간 길게 내쉽니다.</p>
+                <div className="flex justify-center my-6">
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-blue-200 rounded-full animate-ping opacity-75"></div>
+                    <div className="relative w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+                      호흡
+                    </div>
+                  </div>
+                </div>
+                <button className="w-full py-2 border-2 border-blue-500 text-blue-600 hover:bg-blue-50 rounded-lg font-bold transition-colors">
+                  타이머 시작하기
+                </button>
+              </div>
             )}
-            {!([CareType.BURNOUT, CareType.BRAIN_FATIGUE, CareType.STRESS_OVERLOAD] as string[]).includes(currentAssessment?.careType || '') && (
-              <li className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50">
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">주말 수면 보충 가이드</span>
-                <span className="text-sm text-slate-600 dark:text-slate-300">주말에 부족한 잠을 보충할 때는 1~2시간만 추가로 자고, 기상 시간은 평일과 동일하게 유지하는 것이 좋습니다.</span>
-              </li>
+            {currentAssessment?.careType === CareType.ATTENTION_DEFICIT && (
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-400">화이트 노이즈 (ASMR) 요법</span>
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-md font-bold">학습/취침 시</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">주의력이 분산될 때 뇌파를 안정시키는 백색 소음을 활용하세요.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium flex justify-center items-center gap-1">🌧️ 빗소리</button>
+                  <button className="py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium flex justify-center items-center gap-1">🔥 모닥불</button>
+                </div>
+              </div>
             )}
-          </ul>
+            {!currentAssessment?.careType && (
+              <div className="text-sm text-indigo-600 dark:text-indigo-400 text-center py-4 bg-white/50 rounded-lg">
+                심리 진단 검사를 완료하면 맞춤형 수면 액션 플랜이 활성화됩니다.
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700">

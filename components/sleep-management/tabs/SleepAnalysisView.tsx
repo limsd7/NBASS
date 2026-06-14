@@ -73,28 +73,58 @@ export const SleepAnalysisView: React.FC<SleepAnalysisViewProps> = ({ records, c
             <div className="p-4 border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-xl">
               <div className="font-bold text-lg text-indigo-800 dark:text-indigo-300 mb-2">Deep Sleep & Memory</div>
               <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
-                최근 7일간 <span className="font-bold text-indigo-600">깊은 수면(Deep Sleep) 비율이 15% 미만</span>인 날 다음 날의 <strong>인지 기능(Cognitive Function) 점수가 평균 20% 하락</strong>하는 패턴이 감지되었습니다.
+                최근 7일간 <span className="font-bold text-indigo-600">깊은 수면(Deep Sleep) 비율이 15% 미만</span>이었을 때, 다음 날의 <strong>인지 기능(Cognitive Function) 점수가 평균 20% 하락</strong>하는 패턴이 감지되었습니다.
               </p>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm items-center">
-                  <span className="text-slate-500">깊은 수면 정상 시 인지력</span>
+                  <span className="text-slate-500">깊은 수면 정상 (20%+)</span>
                   <div className="flex-1 ml-4 h-2 bg-slate-200 rounded-full overflow-hidden">
                     <div className="h-full bg-green-500" style={{ width: '92%' }}></div>
                   </div>
                   <span className="font-semibold text-slate-800 dark:text-white w-10 text-right">92점</span>
                 </div>
                 <div className="flex justify-between text-sm items-center">
-                  <span className="text-slate-500">깊은 수면 부족 시 인지력</span>
+                  <span className="text-slate-500">깊은 수면 부족 (15%-)</span>
                   <div className="flex-1 ml-4 h-2 bg-slate-200 rounded-full overflow-hidden">
                     <div className="h-full bg-red-400" style={{ width: '74%' }}></div>
                   </div>
                   <span className="font-semibold text-slate-800 dark:text-white w-10 text-right">74점</span>
                 </div>
-                <div className="mt-4 pt-3 border-t border-indigo-100 dark:border-indigo-800/50">
-                  <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                    💡 AI 인사이트: 야간 스마트폰 사용(Screen Time)이 깊은 수면 진입을 24분 지연시키고 있습니다. 취침 30분 전 스마트폰 사용을 제한하세요.
-                  </p>
-                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl">
+              <div className="font-bold text-lg text-blue-800 dark:text-blue-300 mb-2 flex justify-between items-center">
+                <span>Screen Time & Sleep Latency</span>
+                <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-md">상관계수 r = 0.82</span>
+              </div>
+              <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
+                취침 전 스크린타임과 수면 잠복기(침대에 누워 잠들기까지 걸리는 시간)의 높은 양의 상관관계가 발견되었습니다.
+              </p>
+              
+              <div className="relative h-32 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-2 overflow-hidden mb-4">
+                <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ background: 'linear-gradient(to top right, transparent 40%, rgba(59, 130, 246, 0.2) 50%, transparent 60%)' }}></div>
+                {/* Mock Scatter Plot */}
+                <div className="absolute bottom-4 left-4 w-2 h-2 rounded-full bg-blue-500" title="스크린타임 10분, 잠복기 15분"></div>
+                <div className="absolute bottom-6 left-12 w-2 h-2 rounded-full bg-blue-500" title="스크린타임 25분, 잠복기 20분"></div>
+                <div className="absolute bottom-10 left-20 w-2 h-2 rounded-full bg-blue-500" title="스크린타임 45분, 잠복기 35분"></div>
+                <div className="absolute bottom-16 left-32 w-2 h-2 rounded-full bg-blue-600" title="스크린타임 70분, 잠복기 50분"></div>
+                <div className="absolute bottom-20 left-48 w-2 h-2 rounded-full bg-blue-600" title="스크린타임 100분, 잠복기 70분"></div>
+                <div className="absolute bottom-24 left-64 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" title="어제: 스크린타임 130분, 잠복기 90분"></div>
+                
+                {/* Trend line */}
+                <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                  <line x1="10" y1="110" x2="280" y2="20" stroke="rgba(59, 130, 246, 0.4)" strokeWidth="2" strokeDasharray="4 4" />
+                </svg>
+
+                <div className="absolute bottom-1 left-2 text-[10px] text-slate-400">스크린타임(분) →</div>
+                <div className="absolute top-2 left-2 text-[10px] text-slate-400 -rotate-90 origin-left">← 잠복기(분)</div>
+              </div>
+
+              <div className="pt-3 border-t border-blue-100 dark:border-blue-800/50">
+                <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">
+                  💡 AI 인사이트: 야간 스마트폰 사용이 수면 지연의 주원인입니다. 특히 어제는 취침 전 2시간 이상 폰을 사용하여 잠드는 데 1시간 반이 걸렸습니다.
+                </p>
               </div>
             </div>
           </div>
