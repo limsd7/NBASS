@@ -411,6 +411,7 @@ export const HistoryView: React.FC<{
 export const ResourcesView: React.FC = () => {
     const [showBreathingGuide, setShowBreathingGuide] = React.useState(false);
     const [activeVideo, setActiveVideo] = React.useState<string | null>(null);
+    const [isNutritionModalOpen, setIsNutritionModalOpen] = React.useState(false);
 
     const stretchingVideos = [
         { id: '1', title: '목/어깨 스트레칭', url: 'https://www.youtube.com/embed/RqcOCBb4arc', duration: '5분' },
@@ -424,7 +425,7 @@ export const ResourcesView: React.FC = () => {
     ];
 
     return (
-        <div className="max-w-6xl mx-auto animate-in fade-in duration-300 space-y-8">
+        <div className="max-w-6xl mx-auto animate-in fade-in duration-300 space-y-8 relative">
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <span className="text-3xl">📚</span> 수험생 자료실 (Wellness Center)
             </h2>
@@ -520,14 +521,12 @@ export const ResourcesView: React.FC = () => {
                     <p className="text-slate-500 text-sm mb-4">
                         아침, 점심, 저녁 식단표 및 두뇌 영양 간식 추천 리스트
                     </p>
-                    <a
-                        href="https://www.mfds.go.kr/brd/m_99/view.do?seq=43892"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <button
+                        onClick={() => setIsNutritionModalOpen(true)}
                         className="inline-block px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition-colors"
                     >
-                        가이드 다운로드 →
-                    </a>
+                        가이드 보기 →
+                    </button>
                 </div>
 
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all">
@@ -551,6 +550,106 @@ export const ResourcesView: React.FC = () => {
             {/* 호흡 가이드 모달 */}
             {showBreathingGuide && (
                 <BreathingGuide onClose={() => setShowBreathingGuide(false)} />
+            )}
+
+            {/* 영양 가이드 모달 */}
+            {isNutritionModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
+                        <button
+                            onClick={() => setIsNutritionModalOpen(false)}
+                            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        <div className="p-8">
+                            <h2 className="text-3xl font-black text-slate-900 mb-2 flex items-center gap-3">
+                                <span>🍎</span> 수험생 두뇌 영양 가이드
+                            </h2>
+                            <p className="text-slate-500 mb-8">
+                                하루 종일 최고의 집중력과 체력을 유지하기 위한 시간대별 맞춤 식단 및 간식 추천입니다.
+                            </p>
+
+                            <div className="space-y-8">
+                                {/* 아침 */}
+                                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
+                                    <h3 className="text-xl font-bold text-amber-900 flex items-center gap-2 mb-3">
+                                        🌅 아침 (Breakfast): 뇌를 깨우는 에너지
+                                    </h3>
+                                    <p className="text-amber-800 text-sm mb-4 leading-relaxed">
+                                        아침 식사는 수면 중에 소비된 뇌의 에너지원(포도당)을 보충하는 가장 중요한 시간입니다. 
+                                        급격한 혈당 상승을 피하기 위해 <strong>복합 탄수화물</strong>과 <strong>단백질</strong> 위주로 구성하세요.
+                                    </p>
+                                    <ul className="space-y-2 text-amber-900 text-sm">
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>추천 메뉴:</strong> 현미밥/잡곡밥, 계란 프라이/계란말이, 두부 조림, 맑은 국</li>
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>간편식:</strong> 통밀 식빵 1~2장 + 삶은 계란 + 무가당 두유, 오트밀 + 바나나</li>
+                                        <li className="flex items-start gap-2"><span>⚠️</span> <strong>피해야 할 음식:</strong> 시리얼, 빵 등 단순 당이 많은 음식 (식곤증 유발 및 집중력 저하)</li>
+                                    </ul>
+                                </div>
+
+                                {/* 점심 */}
+                                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                                    <h3 className="text-xl font-bold text-emerald-900 flex items-center gap-2 mb-3">
+                                        ☀️ 점심 (Lunch): 졸음 방지와 활력 유지
+                                    </h3>
+                                    <p className="text-emerald-800 text-sm mb-4 leading-relaxed">
+                                        오후의 식곤증을 예방하려면 과식을 피하고, 위장에 부담이 적은 <strong>단백질과 비타민, 미네랄</strong> 위주로 섭취해야 합니다.
+                                    </p>
+                                    <ul className="space-y-2 text-emerald-900 text-sm">
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>추천 메뉴:</strong> 닭가슴살 샐러드, 생선 구이(연어, 고등어), 비빔밥(밥 양은 적게, 나물 듬뿍)</li>
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>간편식:</strong> 닭가슴살/연어 샌드위치 (통밀빵), 닭가슴살 소시지</li>
+                                        <li className="flex items-start gap-2"><span>⚠️</span> <strong>피해야 할 음식:</strong> 돈까스, 짜장면 등 기름지고 탄수화물이 과도한 배달 음식</li>
+                                    </ul>
+                                </div>
+
+                                {/* 저녁 */}
+                                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                                    <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2 mb-3">
+                                        🌙 저녁 (Dinner): 소화 촉진 및 숙면 준비
+                                    </h3>
+                                    <p className="text-blue-800 text-sm mb-4 leading-relaxed">
+                                        야간 자율학습과 숙면을 위해 위에 부담이 없고 소화가 잘 되는 식단이 필요합니다. 
+                                        취침 전 위장이 쉴 수 있도록 식사는 취침 3~4시간 전에 마치는 것이 좋습니다.
+                                    </p>
+                                    <ul className="space-y-2 text-blue-900 text-sm">
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>추천 메뉴:</strong> 소고기 무국, 미역국, 두부 샐러드, 생선 구이, 상추쌈(적당량)</li>
+                                        <li className="flex items-start gap-2"><span>✅</span> <strong>야식(필요시):</strong> 따뜻한 우유 반 잔, 바나나 반 개, 방울토마토 (맵고 짠 라면, 치킨 절대 금지)</li>
+                                        <li className="flex items-start gap-2"><span>⚠️</span> <strong>피해야 할 음식:</strong> 매운 떡볶이, 기름진 야식 (수면 질을 극도로 저하시키고 다음날 피로도 증가)</li>
+                                    </ul>
+                                </div>
+
+                                {/* 두뇌 영양 간식 */}
+                                <div className="p-6 bg-purple-50 rounded-2xl border border-purple-100">
+                                    <h3 className="text-xl font-bold text-purple-900 flex items-center gap-2 mb-3">
+                                        🧠 집중력 부스터: 두뇌 영양 간식
+                                    </h3>
+                                    <p className="text-purple-800 text-sm mb-4 leading-relaxed">
+                                        공부 중 당이 떨어지거나 출출할 때, 뇌세포를 보호하고 집중력을 단숨에 끌어올리는 간식입니다.
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100/50">
+                                            <h4 className="font-bold text-purple-900 mb-1">견과류 (호두, 아몬드)</h4>
+                                            <p className="text-xs text-purple-700">오메가-3와 비타민 E가 풍부해 인지 기능 향상. 하루 한 줌(약 30g) 권장.</p>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100/50">
+                                            <h4 className="font-bold text-purple-900 mb-1">다크 초콜릿 (카카오 70% 이상)</h4>
+                                            <p className="text-xs text-purple-700">플라보노이드 성분이 뇌 혈류량을 증가시켜 집중력과 기억력 단기 향상.</p>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100/50">
+                                            <h4 className="font-bold text-purple-900 mb-1">블루베리</h4>
+                                            <p className="text-xs text-purple-700">강력한 항산화 작용으로 뇌세포 노화를 막고 학업 스트레스로 인한 뇌 피로 회복.</p>
+                                        </div>
+                                        <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100/50">
+                                            <h4 className="font-bold text-purple-900 mb-1">그릭 요거트</h4>
+                                            <p className="text-xs text-purple-700">장 건강(제2의 뇌)을 지키고 단백질을 공급해 포만감을 오래 유지.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
