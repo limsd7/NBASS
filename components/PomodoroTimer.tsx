@@ -65,6 +65,29 @@ export const PomodoroTimer: React.FC = () => {
                     {isSettingsOpen ? (
                         <div className="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-200">
                             <h4 className="text-sm font-bold text-slate-700 mb-3">타이머 설정</h4>
+                            
+                            {/* Preset Buttons */}
+                            <div className="flex gap-2 mb-4">
+                                <button 
+                                    onClick={() => { setFocusDuration(25); setBreakDuration(5); if(mode==='FOCUS') setTimeLeft(25*60); else setTimeLeft(5*60); }}
+                                    className="flex-1 py-1 px-2 text-xs font-bold bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-600"
+                                >
+                                    기본<br/>(25/5)
+                                </button>
+                                <button 
+                                    onClick={() => { setFocusDuration(50); setBreakDuration(10); if(mode==='FOCUS') setTimeLeft(50*60); else setTimeLeft(10*60); }}
+                                    className="flex-1 py-1 px-2 text-xs font-bold bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-600"
+                                >
+                                    딥워크<br/>(50/10)
+                                </button>
+                                <button 
+                                    onClick={() => { setFocusDuration(90); setBreakDuration(15); if(mode==='FOCUS') setTimeLeft(90*60); else setTimeLeft(15*60); }}
+                                    className="flex-1 py-1 px-2 text-xs font-bold bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-600"
+                                >
+                                    모의고사<br/>(90/15)
+                                </button>
+                            </div>
+
                             <div className="flex flex-col gap-3">
                                 <label className="flex items-center justify-between text-sm">
                                     <span className="text-slate-600">집중 시간 (분)</span>
