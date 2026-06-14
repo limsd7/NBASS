@@ -15,17 +15,20 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  if (event.request.url.startsWith('chrome-extension://')) return;
+  if (event.request.url.includes('socket.io') || event.request.url.includes('ws://')) return;
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).catch(() => {
-          // Fallback if offline
+    fetch(event.request)
+      .catch(() => {
+        return caches.match(event.request).then(response => {
+          if (response) return response;
+          // Return cached index.html for navigation requests if offline
+          if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
         });
-      }
-    )
+      })
   );
 });
