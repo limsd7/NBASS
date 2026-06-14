@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부신 피로 자가진단</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #6366f1;
+            border-bottom: 3px solid #6366f1;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #4f46e5;
+            margin-top: 30px;
+        }
+        .checkbox-item {
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #6366f1;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .scoring {
+            background: #f0f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .score-range {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #6366f1;
+            background: white;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 12px;
+        }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <div class="header">
+        <h1>🔬 부신 피로 자가진단 체크리스트</h1>
+        <p style="color: #6b7280;">부신 피로 증상을 체크하여 현재 상태를 확인하세요</p>
+    </div>
+
+    <h2>📋 증상 체크리스트</h2>
+    <p><strong>해당되는 항목에 체크해주세요:</strong></p>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>1. 아침에 일어나기 힘들고 피곤하다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>2. 오후 2-4시에 극심한 피로를 느낀다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>3. 단 음식이나 짠 음식이 자주 당긴다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>4. 커피나 에너지 음료 없이는 하루를 시작하기 어렵다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>5. 스트레스에 쉽게 압도되고 대처하기 어렵다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>6. 집중력이 떨어지고 기억력이 감퇴했다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>7. 사소한 일에도 짜증이 나고 감정 기복이 심하다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>8. 업무나 학습 후 회복하는데 시간이 오래 걸린다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>9. 면역력이 약해져 감기에 자주 걸린다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>10. 성욕이 감퇴하거나 생리 주기가 불규칙하다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>11. 밤에 잠들기 어렵거나 자주 깬다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>12. 근육통이나 관절통이 있다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>13. 어지럽거나 일어날 때 현기증을 느낀다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>14. 소화가 잘 안 되고 복부 팽만감이 있다</span>
+    </div>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>
+        <span>15. 체중이 특히 복부에 증가했다</span>
+    </div>
+
+    <div class="scoring">
+        <h2>📊 점수 해석</h2>
+        
+        <div class="score-range" style="border-color: #10b981;">
+            <strong>0-3개: 정상</strong><br>
+            부신 기능이 양호합니다. 현재 상태를 유지하세요.
+        </div>
+
+        <div class="score-range" style="border-color: #f59e0b;">
+            <strong>4-7개: 경미한 부신 피로</strong><br>
+            가벼운 부신 피로가 있습니다. 수면, 영양, 스트레스 관리에 주의를 기울이세요.
+        </div>
+
+        <div class="score-range" style="border-color: #f97316;">
+            <strong>8-11개: 중등도 부신 피로</strong><br>
+            중등도 부신 피로입니다. 생활습관 개선이 필요하며, 전문가 상담을 권장합니다.
+        </div>
+
+        <div class="score-range" style="border-color: #ef4444;">
+            <strong>12-15개: 심각한 부신 피로</strong><br>
+            심각한 부신 피로입니다. 즉시 전문가 상담 및 적극적인 관리가 필요합니다.
+        </div>
+    </div>
+
+    <h2>💡 부신 피로 관리 팁</h2>
+    <ul>
+        <li><strong>충분한 수면:</strong> 매일 밤 10시 이전에 잠자리에 들기</li>
+        <li><strong>균형 잡힌 영양:</strong> 비타민 B, C, 마그네슘이 풍부한 식사</li>
+        <li><strong>스트레스 관리:</strong> 명상, 요가, 심호흡 등 이완 기법 실천</li>
+        <li><strong>규칙적인 운동:</strong> 가벼운 유산소 운동 (과도한 운동 피하기)</li>
+        <li><strong>카페인 제한:</strong> 오전에만 1-2잔으로 제한</li>
+        <li><strong>혈당 관리:</strong> 규칙적인 식사, 간식으로 혈당 안정화</li>
+    </ul>
+
+    <div class="footer">
+        <p>이 자료는 참고용이며, 전문의의 진단을 대체할 수 없습니다.</p>
+        <p>© 2024 마음-몸 연결 전문가 가이드</p>
+    </div>
+
+    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px; background: #6366f1; color: white; padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.print()">
+        🖨️ PDF로 저장하기
+    </div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+</html>

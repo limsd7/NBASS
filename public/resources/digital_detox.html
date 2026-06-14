@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>디지털 디톡스 가이드</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #7c3aed;
+            border-bottom: 3px solid #7c3aed;
+            padding-bottom: 10px;
+        }
+
+        .step {
+            background: #f5f3ff;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border-left: 5px solid #7c3aed;
+        }
+
+        .challenge {
+            background: #fef3c7;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>📱 디지털 디톡스 가이드</h1>
+    <p>스크린 타임 줄이기 실천 가이드입니다.</p>
+
+    <div class="step">
+        <h2>1️⃣ 현재 상태 파악하기</h2>
+        <p><strong>오늘의 스크린 타임:</strong> ________시간</p>
+        <p><strong>가장 많이 사용한 앱:</strong> ________________</p>
+        <p><strong>목표 스크린 타임:</strong> ________시간</p>
+    </div>
+
+    <div class="step">
+        <h2>2️⃣ 디지털 금식 시간 설정</h2>
+        <ul>
+            <li><strong>아침:</strong> 기상 후 1시간 스마트폰 X</li>
+            <li><strong>식사:</strong> 식사 중 스마트폰 완전 금지</li>
+            <li><strong>저녁:</strong> 취침 2시간 전 스마트폰 끄기</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h2>3️⃣ 앱 정리하기</h2>
+        <p>✅ 알림 끄기: SNS, 게임, 쇼핑 앱</p>
+        <p>✅ 홈 화면 정리: 필수 앱만 남기기</p>
+        <p>✅ 그레이스케일 모드: 스마트폰을 덜 매력적으로</p>
+    </div>
+
+    <div class="step">
+        <h2>4️⃣ 대안 활동 찾기</h2>
+        <ul>
+            <li>📚 책 읽기</li>
+            <li>🚶 산책하기</li>
+            <li>🎨 취미 활동</li>
+            <li>👥 친구/가족과 대화</li>
+            <li>🧘 명상/스트레칭</li>
+        </ul>
+    </div>
+
+    <div class="challenge">
+        <h2>🏆 7일 챌린지</h2>
+        <p>✅ Day 1: 취침 전 1시간 스마트폰 끄기</p>
+        <p>✅ Day 2: 식사 중 스마트폰 금지</p>
+        <p>✅ Day 3: SNS 앱 삭제 or 시간 제한</p>
+        <p>✅ Day 4: 아침 루틴에 스마트폰 제외</p>
+        <p>✅ Day 5: 침실에 스마트폰 두지 않기</p>
+        <p>✅ Day 6: 하루 종일 알림 끄기</p>
+        <p>✅ Day 7: 디지털 안식일 (하루 완전 금식)</p>
+    </div>
+
+    <div class="no-print"
+        style="position: fixed; bottom: 20px; right: 20px; background: #7c3aed; color: white; padding: 15px 20px; border-radius: 10px; cursor: pointer;"
+        onclick="window.print()">
+        🖨️ PDF로 저장
+    </div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

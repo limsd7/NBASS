@@ -1,0 +1,2555 @@
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { Layout } from './components/Layout';
+import { DashboardView, HistoryView, ResourcesView, ProgressView } from './components/MenuViews';
+import { AdminExpertiseView } from './components/AdminExpertiseView';
+import { ExpertOverlay } from './components/ExpertOverlay';
+import { PrescriptionZenMode } from './components/PrescriptionZenMode';
+import { BalanceChart, VitalityBarChart, RRVPhasePlot, BrainRadarChart, StressGaugeChart } from './components/Charts';
+import { PRODUCTS } from './data/products';
+import { DEFAULT_STRATEGIES } from './data/strategies';
+import { SUBJECT_OPTIONS_MAP, StrategyOption } from './data/subjectOptions';
+import { CareType, HRVData, SurveyData, ProtocolData, LearningAnalyticsData, AssessmentResult, StudentInfo, StrategyMap } from './types';
+import { CLASSIFY_STUDENT, SOLUTIONS } from './constants';
+import { generateClinicalAnalysis } from './services/clinicalEngine';
+import { generateAISchedule, ScheduleItem } from './services/schedulingEngine';
+import { MENTAL_PRESCRIPTIONS } from './data/prescriptions';
+import {
+  BAI_QUESTIONS,
+  ISI_QUESTIONS,
+  FATIGUE_SYMPTOMS,
+  SYMPATHETIC_SYMPTOMS,
+  PARASYMPATHETIC_SYMPTOMS,
+  CONCENTRATION_QUESTIONS
+} from './data/questions';
+
+const generateSerialID = () => {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `ID-${dateStr}-${randomStr}`;
+};
+
+const getTodayStr = () => new Date().toISOString().split('T')[0];
+
+const initialStudent: StudentInfo = {
+  id: generateSerialID(),
+  name: '',
+  birthDate: '2008-05-20',
+  testDate: getTodayStr(),
+  age: 16,
+  gender: 'Male',
+  grade: '고등 3학년',
+  height: 175,
+  weight: 65,
+  activityLevel: 2,
+  mbti: 'ISTJ',
+  bmi: 21.2
+};
+
+const initialHRV: HRVData = {
+  sns: 50,
+  pns: 50,
+  ansAge: 19,
+  fatigue: 30,
+  vitality: 70,
+  physicalStress: 40,
+  vlf: 5.0,
+  lf: 4.7,
+  hf: 3.5,
+  tp: 6.7,
+  hrvIndex: 7.22,
+  meanHr: 70,
+  ppgLevel: 2,
+  // EEG 초기값
+  brainScore: 75,
+  dominantEEG: 'Alpha',
+  eegGamma: 17.3,
+  eegHBeta: 20.7,
+  eegMBeta: 10.7,
+  eegLBeta: 4.8,
+  eegAlpha: 26.5,
+  eegTheta: 20.0,
+  brainBalanceL: 49.9,
+  brainBalanceR: 50.1,
+  brainStressCategory: '중간',
+  concentrationLevel: 4,
+  concentrationCategory: '보통',
+  attentionLevel: 4,
+  attentionCategory: '보통'
+};
+
+const initialProtocol: ProtocolData = {
+  location: '집(Home)',
+  noiseLevel: 3,
+  stressLevel: 5,
+  avgSleep: 6,
+  emotionalFactor: 2,
+  motivationalFactor: 3,
+  behavioralFactor: 2,
+  taskDifficulty: 3,
+  timeDistortion: 2
+};
+
+const initialAnalytics: LearningAnalyticsData = {
+  pureStudyRatio: 70,
+  avgFocusDuration: 50,
+  distractionCount: 3,
+  goldenTimeStart: "09:00",
+  goldenTimeEnd: "11:00",
+  lowEfficiencyTime: "14:00-16:00",
+  chronotype: 'neutral',
+  weekdayWeekendGap: 20,
+  subjectRatios: {
+    korean: 20,
+    math: 40,
+    english: 20,
+    science: 10,
+    social: 5,
+    other: 5
+  },
+  goalAchievementRate: 80,
+  perceivedDifficulty: 3,
+  avgSleepHours: 6,
+  sleepQuality: 3,
+  preferredLocation: '독서실',
+  studyStreak: 12,
+  breakAdequacy: 3,
+  burnoutCycle: 21,
+  energyPattern: 'stable'
+};
+
+const GRADE_OPTIONS = [
+  "중등 1학년", "중등 2학년", "중등 3학년",
+  "고등 1학년", "고등 2학년", "고등 3학년",
+  "N수생"
+];
+
+const getNoiseDescription = (level: number) => {
+  const descriptions: Record<number, string> = {
+    1: "1: 완전 차단 (무음실 수준)",
+    2: "2: 극히 조용 (심야 한적한 주거지)",
+    3: "3: 조용함 (독서실/도서관 수준)",
+    4: "4: 약한 소음 (조용한 사무실의 정보기기 소리)",
+    5: "5: 보통 (카페 백색소음/잔잔한 음악)",
+    6: "6: 다소 시끄러움 (학교 교실 수준 활동 소음)",
+    7: "7: 시끄러움 (사무실 대화/복도 소음)",
+    8: "8: 매우 시끄러움 (사람이 많은 식당/대기실)",
+    9: "9: 소음 심각 (진공청소기나 공사현장 근접)",
+    10: "10: 극한 소음 (공사현장/지하철 플랫폼)"
+  };
+  return descriptions[level] || "";
+};
+
+const getStressDescription = (level: number) => {
+  const descriptions: Record<number, string> = {
+    1: "1: 최상의 안온 (명상 직후 같은 안정 상태)",
+    2: "2: 매우 안정 (충분한 휴식을 취하고 있는 상태)",
+    3: "3: 안정 (적절한 자극과 정상적인 공부 상태)",
+    4: "4: 보통 이하 (무난하게 일상을 소화하는 상태)",
+    5: "5: 보통 (마감 압박이나 적당한 부담감 존재)",
+    6: "6: 약간 높음 (피로가 누적되기 시작하고 다소 지침)",
+    7: "7: 높음 (지속적인 피로와 긴장감이 느껴짐)",
+    8: "8: 매우 높음 (심한 압박감과 두통/긴장 동반)",
+    9: "9: 번아웃 직전 (감정 조절이 어렵고 무력함)",
+    10: "10: 한계 상태 (공황 또는 정신적 마비 상태)"
+  };
+  return descriptions[level] || "";
+};
+
+type SurveyTab = 'ans' | 'bai' | 'isi' | 'concentration' | 'cfs';
+
+const App: React.FC = () => {
+  const [step, setStep] = useState<'register' | 'surveys' | 'protocol' | 'analytics' | 'hrv' | 'eeg' | 'loading' | 'results' | 'admin_expertise'>('register');
+  const [activeMenu, setActiveMenu] = useState<'dashboard' | 'assessment' | 'history' | 'progress' | 'resources'>('dashboard');
+  const [activeTab, setActiveTab] = useState<SurveyTab>('ans');
+  const [student, setStudent] = useState<StudentInfo>(initialStudent);
+  const [hrv, setHrv] = useState<HRVData>(initialHRV);
+  const [protocol, setProtocol] = useState<ProtocolData>(initialProtocol);
+  const [analytics, setAnalytics] = useState<LearningAnalyticsData>(initialAnalytics);
+  const [isCustomLoc, setIsCustomLoc] = useState(false);
+
+  // Survey States
+  const [snsSymptomSelection, setSnsSymptomSelection] = useState<string[]>([]);
+  const [pnsSymptomSelection, setPnsSymptomSelection] = useState<string[]>([]);
+  const [baiAnswers, setBaiAnswers] = useState<number[]>(new Array(21).fill(0));
+  const [isiAnswers, setIsiAnswers] = useState<number[]>(new Array(7).fill(0));
+  const [concentrationAnswers, setConcentrationAnswers] = useState<number[]>(new Array(7).fill(0));
+  const [fatigueCore, setFatigueCore] = useState<boolean>(false);
+  const [fatigueSymptoms, setFatigueSymptoms] = useState<boolean[]>(new Array(8).fill(false));
+
+  // BAI specific sub-tab state
+  const [baiSubPage, setBaiSubPage] = useState<1 | 2>(1);
+
+
+  const [result, setResult] = useState<AssessmentResult | null>(null);
+
+  // Configuration State
+  const [showConfig, setShowConfig] = useState(false);
+  const [config, setConfig] = useState({
+    isExamMode: true,
+    showDetail: true
+  });
+
+  // Strategy State needed for customization
+  const [strategies, setStrategies] = useState<StrategyMap>(DEFAULT_STRATEGIES);
+
+  // 과목별 전략 선택 State (Checkbox IDs)
+  const [selectedSubjectOptions, setSelectedSubjectOptions] = useState<Record<string, string[]>>({
+    korean: ['kor_1'],
+    math: ['math_psy_1', 'math_phy_1', 'math_routine_1'],
+    english: ['eng_1']
+  });
+
+  // Student Checklist State (학생의 추천 항목 체크)
+  const [completedItems, setCompletedItems] = useState<string[]>([]);
+
+  // History State
+  const [history, setHistory] = useState<(AssessmentResult & { date: string })[]>([]);
+
+  const [activeConfigTab, setActiveConfigTab] = useState<'general' | 'strategy' | 'subject'>('general');
+  const [showZenMode, setShowZenMode] = useState(false);
+  const [editingStrategyType, setEditingStrategyType] = useState<CareType>(CareType.BURNOUT);
+
+  // Dark Mode State
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved !== null) return saved === 'true';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  // Apply Dark Mode
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', isDarkMode.toString());
+  }, [isDarkMode]);
+
+  // Load History on Mount
+  useEffect(() => {
+    const saved = localStorage.getItem('sn1_history');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Validate that the data has the new format (AssessmentResult with date)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if first item has the new format (has student, careType, etc.)
+          const firstItem = parsed[0];
+          if (firstItem && typeof firstItem === 'object' && 'student' in firstItem && 'careType' in firstItem) {
+            setHistory(parsed);
+          } else {
+            // Old format detected, clear it
+            console.log('Old history format detected, clearing...');
+            localStorage.removeItem('sn1_history');
+            setHistory([]);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse history', e);
+        localStorage.removeItem('sn1_history');
+        setHistory([]);
+      }
+    }
+  }, []);
+
+  // Save Result to History when result is generated
+  useEffect(() => {
+    if (step === 'results' && result) {
+      setHistory(prev => {
+        // Strict duplicate check: Check for same Student ID, Test Date check, and Score/Type
+        // to avoid duplicate entries on re-renders or slight updates.
+        const isDuplicate = prev.some(item =>
+          item.student.id === result.student.id &&
+          item.student.testDate === result.student.testDate &&
+          item.score === (result.score || 0) &&
+          item.careType === result.careType
+        );
+
+        if (isDuplicate) {
+          return prev;
+        }
+
+        const newEntry = {
+          ...result,
+          date: new Date().toISOString()
+        };
+
+        const updated = [newEntry, ...prev].slice(0, 50); // Keep last 50
+        localStorage.setItem('sn1_history', JSON.stringify(updated));
+        return updated;
+      });
+    }
+  }, [step, result]);
+
+  const toggleCompleted = (id: string) => {
+    setCompletedItems(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // Hidden Admin Menu State
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+
+  const handleAdminUnlock = () => {
+    if (adminPasswordInput === '3123') {
+      setShowAdminPassword(false);
+      setShowConfig(true);
+      setActiveConfigTab('subject'); // 바로 과목 설정 탭으로 이동
+      // Security: Do NOT persist unlock state. Password required every time.
+      setAdminPasswordInput('');
+
+    } else {
+      alert('Password Incorrect');
+    }
+  };
+
+  const AdminPasswordModal = () => (
+    showAdminPassword ? (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs">
+          <h3 className="font-bold text-lg mb-4 text-slate-800">Admin Access Required</h3>
+          <input
+            type="password"
+            className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="Enter Password"
+            value={adminPasswordInput}
+            onChange={e => setAdminPasswordInput(e.target.value)}
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && handleAdminUnlock()}
+          />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+            <button onClick={handleAdminUnlock} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Confirm</button>
+          </div>
+        </div>
+      </div>
+    ) : null
+  );
+
+  const ConfigModal = () => (
+    showConfig ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="flex gap-4">
+              <button onClick={() => setActiveConfigTab('general')} className={`text-sm font-bold pb-1 border-b-2 transition-colors ${activeConfigTab === 'general' ? 'border-slate-800 text-slate-800' : 'border-transparent text-slate-400'}`}>General</button>
+              <button onClick={() => setActiveConfigTab('strategy')} className={`text-sm font-bold pb-1 border-b-2 transition-colors ${activeConfigTab === 'strategy' ? 'border-slate-800 text-slate-800' : 'border-transparent text-slate-400'}`}>Type Strategy</button>
+              {isAdminUnlocked && (
+                <button onClick={() => setActiveConfigTab('subject')} className={`text-sm font-bold pb-1 border-b-2 transition-colors ${activeConfigTab === 'subject' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'}`}>Subject Strategy</button>
+              )}
+            </div>
+            <button onClick={() => setShowConfig(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+
+          <div className="p-6 overflow-y-auto custom-scrollbar">
+            {activeConfigTab === 'general' ? (
+              <div className="space-y-4">
+                <label className="flex items-center justify-between p-4 border rounded-xl cursor-pointer hover:bg-slate-50">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">시험대비 모드 (Exam Mode)</p>
+                    <p className="text-xs text-slate-500">리포트에 시험 전략 및 시험대비 코멘트 포함</p>
+                  </div>
+                  <input type="checkbox" checked={config.isExamMode} onChange={e => setConfig({ ...config, isExamMode: e.target.checked })} className="toggle accent-blue-600 w-5 h-5" />
+                </label>
+                <label className="flex items-center justify-between p-4 border rounded-xl cursor-pointer hover:bg-slate-50">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-900">상세 설명 모드 (Verbose)</p>
+                    <p className="text-xs text-slate-500">분석 텍스트 길이 및 문구 언어 설명 강화</p>
+                  </div>
+                  <input type="checkbox" checked={config.showDetail} onChange={e => setConfig({ ...config, showDetail: e.target.checked })} className="toggle accent-blue-600 w-5 h-5" />
+                </label>
+              </div>
+            ) : activeConfigTab === 'subject' ? (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="bg-indigo-50 p-4 rounded-xl text-indigo-900 text-sm mb-4">
+                  <strong>관리자 모드 (Admin)</strong>: 학생에게 적용할 과목별 학습 전략을 체크하십시오.
+                </div>
+                {(['korean', 'math', 'english'] as const).map(subj => {
+                  const options = SUBJECT_OPTIONS_MAP[subj] || [];
+                  const categories = Array.from(new Set(options.map(o => o.category)));
+
+                  return (
+                    <div key={subj} className="border-b border-slate-100 pb-6 mb-6 last:border-0 last:mb-0">
+                      <h4 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+                        <span className="w-2 h-8 bg-indigo-500 rounded-full"></span>
+                        {subj === 'korean' ? '국어 (Korean)' : subj === 'math' ? '수학 (Math)' : '영어 (English)'}
+                      </h4>
+                      <div className="space-y-6">
+                        {categories.map(cat => (
+                          <div key={cat}>
+                            <h5 className="text-xs font-bold text-slate-400 uppercase mb-3">{cat}</h5>
+                            <div className="space-y-3">
+                              {options.filter(o => o.category === cat).map(option => (
+                                <label key={option.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-200 transition-all">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1 w-5 h-5 accent-indigo-600"
+                                    checked={selectedSubjectOptions[subj]?.includes(option.id)}
+                                    onChange={e => {
+                                      const current = selectedSubjectOptions[subj] || [];
+                                      const next = e.target.checked
+                                        ? [...current, option.id]
+                                        : current.filter(id => id !== option.id);
+                                      setSelectedSubjectOptions({ ...selectedSubjectOptions, [subj]: next });
+                                    }}
+                                  />
+                                  <div>
+                                    <p className="font-bold text-slate-800 text-sm">{option.title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{option.content}</p>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-bold text-slate-500">CareType:</label>
+                  <select
+                    value={editingStrategyType}
+                    onChange={(e) => setEditingStrategyType(e.target.value as CareType)}
+                    className="p-2 border rounded-lg text-sm font-bold text-slate-800 bg-white"
+                  >
+                    {Object.values(CareType).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nutrition Guide</label>
+                    <textarea
+                      className="w-full h-24 p-3 text-sm border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 ring-blue-100 outline-none resize-none"
+                      value={strategies[editingStrategyType].nutritionGuide}
+                      onChange={e => setStrategies({
+                        ...strategies,
+                        [editingStrategyType]: { ...strategies[editingStrategyType], nutritionGuide: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Study Strategy</label>
+                    <textarea
+                      className="w-full h-24 p-3 text-sm border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 ring-blue-100 outline-none resize-none"
+                      value={strategies[editingStrategyType].studyStrategy}
+                      onChange={e => setStrategies({
+                        ...strategies,
+                        [editingStrategyType]: { ...strategies[editingStrategyType], studyStrategy: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Exercise Guide</label>
+                    <textarea
+                      className="w-full h-24 p-3 text-sm border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 ring-blue-100 outline-none resize-none"
+                      value={strategies[editingStrategyType].exerciseGuide}
+                      onChange={e => setStrategies({
+                        ...strategies,
+                        [editingStrategyType]: { ...strategies[editingStrategyType], exerciseGuide: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Pre-Study Routine</label>
+                    <textarea
+                      className="w-full h-24 p-3 text-sm border rounded-xl bg-slate-50 focus:bg-white focus:ring-2 ring-blue-100 outline-none resize-none"
+                      value={strategies[editingStrategyType].preStudyRoutine}
+                      onChange={e => setStrategies({
+                        ...strategies,
+                        [editingStrategyType]: { ...strategies[editingStrategyType], preStudyRoutine: e.target.value }
+                      })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-2">
+            <button onClick={() => { setShowConfig(false); setStep('admin_expertise'); }} className="flex-1 py-3 bg-white border border-indigo-200 text-indigo-700 font-bold rounded-xl hover:bg-indigo-50 transition">
+              View Consultant Manual
+            </button>
+            <button onClick={() => setShowConfig(false)} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition">Close & Apply</button>
+          </div>
+        </div>
+      </div>
+    ) : null
+  );
+
+  useEffect(() => {
+    setStudent(prev => ({ ...prev, age: calculateAge(prev.birthDate) }));
+  }, [student.birthDate]);
+
+  const bmiValue = useMemo(() => {
+    if (student.height && student.weight) {
+      const h = student.height / 100;
+      return parseFloat((student.weight / (h * h)).toFixed(1));
+    }
+    return 0;
+  }, [student.height, student.weight]);
+
+  useEffect(() => {
+    setStudent(prev => ({ ...prev, bmi: bmiValue }));
+  }, [bmiValue]);
+
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 0;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
+  const handleBirthDateChange = (date: string) => {
+    setStudent(prev => ({
+      ...prev,
+      birthDate: date,
+      age: calculateAge(date)
+    }));
+  };
+
+  const surveyScores = useMemo(() => {
+    const bai = baiAnswers.reduce((a, b) => a + b, 0);
+    const isi = isiAnswers.reduce((a, b) => a + b, 0);
+    const concentration = concentrationAnswers.reduce((a, b) => a + b, 0);
+    const fatigueCount = fatigueSymptoms.filter(s => s).length;
+    const snsCount = snsSymptomSelection.length;
+    const pnsCount = pnsSymptomSelection.length;
+    return { bai, isi, concentration, fatigueCount, snsCount, pnsCount, isChronicFatigue: fatigueCore && fatigueCount >= 4 };
+  }, [baiAnswers, isiAnswers, concentrationAnswers, fatigueCore, fatigueSymptoms, snsSymptomSelection, pnsSymptomSelection]);
+
+  const baiEvaluation = useMemo(() => {
+    const score = surveyScores.bai;
+    if (score <= 9) return { text: "정상 범위", color: "text-emerald-600" };
+    if (score <= 18) return { text: "경미한 수준의 불안", color: "text-blue-600" };
+    if (score <= 29) return { text: "상당한 수준의 불안 (관심 필요)", color: "text-orange-600" };
+    return { text: "심한 수준의 불안 (전문가 상담 권고)", color: "text-red-600" };
+  }, [surveyScores.bai]);
+
+  const isiEvaluation = useMemo(() => {
+    const score = surveyScores.isi;
+    if (score <= 7) return { text: "걱정할 만큼의 불면증이 없습니다.", color: "text-emerald-600" };
+    if (score <= 14) return { text: "약간의 불면경향이 있습니다.", color: "text-blue-600" };
+    if (score <= 21) return { text: "중등도의 불면증이 있습니다.", color: "text-orange-600" };
+    return { text: "심한 불면증이 있습니다.", color: "text-red-600" };
+  }, [surveyScores.isi]);
+
+  const handleFinalAssessment = async () => {
+    setStep('loading');
+
+    const surveyData: SurveyData = {
+      gad7: 5,
+      bai: surveyScores.bai,
+      isi: surveyScores.isi,
+      concentrationScore: surveyScores.concentration,
+      chronicFatigue: surveyScores.isChronicFatigue,
+      fatigueSymptomsCount: surveyScores.fatigueCount,
+      symptoms: FATIGUE_SYMPTOMS.filter((_, i) => fatigueSymptoms[i]),
+      sympatheticSymptoms: snsSymptomSelection,
+      parasympatheticSymptoms: pnsSymptomSelection
+    };
+
+    // UX를 위한 의도적인 대기 (분석 느낌)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+
+    const type = CLASSIFY_STUDENT(hrv, surveyData);
+    // NEW: Logic Engine Analysis with Config
+    const analysis = generateClinicalAnalysis(student, hrv, surveyData, protocol, analytics, type, config.isExamMode);
+
+    setResult({
+      student,
+      careType: type,
+      hrv,
+      survey: surveyData,
+      protocol,
+      analytics,
+      nutrition: SOLUTIONS[type].nutrition,
+      careGuide: SOLUTIONS[type].care,
+      analysisText: analysis,
+      score: surveyScores.bai // Using BAI score as a representative score for history
+    });
+    setStep('results');
+  };
+
+  // --- Menu Views ---
+  if (activeMenu === 'dashboard') {
+    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}><DashboardView onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} onHistoryClick={() => setActiveMenu('history')} onResourcesClick={() => setActiveMenu('resources')} history={history} /><AdminPasswordModal /><ConfigModal /></Layout>;
+  }
+  if (activeMenu === 'history') {
+    const handleViewDetail = (record: AssessmentResult) => {
+      setResult(record);
+      setStep('results');
+      setActiveMenu('assessment');
+    };
+
+    const handleImportData = (data: (AssessmentResult & { date: string })[], merge: boolean) => {
+      if (merge) {
+        // 병합: 중복 제거 (날짜 기준)
+        const existingDates = new Set(history.map(h => h.date));
+        const newData = data.filter(d => !existingDates.has(d.date));
+        const merged = [...history, ...newData].sort((a, b) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        ).slice(0, 50); // 최대 50건 유지
+        setHistory(merged);
+        localStorage.setItem('sn1_history', JSON.stringify(merged));
+      } else {
+        // 덮어쓰기
+        setHistory(data);
+        localStorage.setItem('sn1_history', JSON.stringify(data));
+      }
+    };
+
+    const handleExportJSON = () => {
+      const jsonStr = JSON.stringify(history, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mind-body-history-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    const handleExportCSV = () => {
+      if (history.length === 0) {
+        alert('내보낼 데이터가 없습니다.');
+        return;
+      }
+
+      const headers = ['날짜', '이름', '나이', '성별', '진단 유형', '점수', 'BAI', 'ISI', '집중력', 'Brain Score', 'SNS', 'PNS', '피로도', '활력도'];
+      const rows = history.map(record => [
+        new Date(record.date).toLocaleString('ko-KR'),
+        record.student.name,
+        record.student.age,
+        record.student.gender === 'Male' ? '남성' : '여성',
+        record.careType,
+        record.score,
+        record.survey.bai,
+        record.survey.isi,
+        record.survey.concentrationScore,
+        record.hrv.brainScore,
+        record.hrv.sns,
+        record.hrv.pns,
+        record.hrv.fatigue,
+        record.hrv.vitality
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mind-body-history-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+        <HistoryView
+          history={history}
+          onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }}
+          onViewDetail={handleViewDetail}
+          onImportData={handleImportData}
+          onExportJSON={handleExportJSON}
+          onExportCSV={handleExportCSV}
+        />
+        <AdminPasswordModal />
+        <ConfigModal />
+      </Layout>
+    );
+  }
+  if (activeMenu === 'progress') {
+    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}><ProgressView history={history} onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} /><AdminPasswordModal /><ConfigModal /></Layout>;
+  }
+  if (activeMenu === 'resources') {
+    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}><ResourcesView /><AdminPasswordModal /><ConfigModal /></Layout>;
+  }
+  // ------------------
+
+  const toggleSnsSymptom = (s: string) => {
+    setSnsSymptomSelection(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s]);
+  };
+
+  const togglePnsSymptom = (s: string) => {
+    setPnsSymptomSelection(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s]);
+  };
+
+  if (step === 'register') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+        <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="bg-blue-600 p-8 text-white">
+            <h2 className="text-2xl font-bold">Student Registration</h2>
+            <p className="text-blue-100 mt-1">기본 정보를 입력하여 진단을 시작하십시오.</p>
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Serial ID (자동 생성)</label>
+                <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-mono text-sm">{student.id}</div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">검사일자 (Test Date)</label>
+                <input type="date" value={student.testDate} onChange={e => setStudent({ ...student, testDate: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">이름 (Full Name)</label>
+                <input type="text" placeholder="이름을 입력하세요" value={student.name} onChange={e => setStudent({ ...student, name: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">학년 (Grade)</label>
+                <select value={student.grade} onChange={e => setStudent({ ...student, grade: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+                  {GRADE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">생년월일 (Birthdate)</label>
+                <input type="date" value={student.birthDate} onChange={e => handleBirthDateChange(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">나이 (Age)</label>
+                <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 font-bold">{student.age} 세</div>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-slate-700">성별 (Gender)</label>
+                <div className="flex gap-4">
+                  {['Male', 'Female'].map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setStudent({ ...student, gender: g as any })}
+                      className={`flex-1 py-3 rounded-xl font-bold transition-all border ${student.gender === g ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}
+                    >
+                      {g === 'Male' ? '남성' : '여성'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-bold text-slate-700">가장 부담되는 과목 (Focus Subject)</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {(['korean', 'math', 'english'] as const).map(subj => (
+                    <button
+                      key={subj}
+                      onClick={() => setStudent({ ...student, weakSubject: subj })}
+                      className={`py-3 rounded-xl font-bold border transition-all ${student.weakSubject === subj ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}
+                    >
+                      {subj === 'korean' ? '국어 (Korean)' : subj === 'math' ? '수학 (Math)' : '영어 (English)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* NEW Physical & Personality Section */}
+              <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-2">
+                <h3 className="text-sm font-black text-blue-600 uppercase tracking-wider mb-4">신체 및 성향 정보 (Physical & Personality)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">키 (Height cm)</label>
+                    <input type="number" value={student.height} onChange={e => setStudent({ ...student, height: Number(e.target.value) })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">몸무게 (Weight kg)</label>
+                    <input type="number" value={student.weight} onChange={e => setStudent({ ...student, weight: Number(e.target.value) })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">BMI (자동계산)</label>
+                    <div className="w-full px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm font-bold text-blue-700">{student.bmi}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">MBTI</label>
+                    <select value={student.mbti} onChange={e => setStudent({ ...student, mbti: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                      {['ISTJ', 'ISFJ', 'INFJ', 'INTJ', 'ISTP', 'ISFP', 'INFP', 'INTP', 'ESTP', 'ESFP', 'ENFP', 'ENTP', 'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">평소 활동량 (Activity Level)</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4].map(level => (
+                      <button
+                        key={level}
+                        onClick={() => setStudent({ ...student, activityLevel: level })}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${student.activityLevel === level ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'}`}
+                      >
+                        Level {level}
+                        <span className="block text-[8px] font-normal opacity-70">
+                          {level === 1 ? '매우 낮음' : level === 2 ? '보통' : level === 3 ? '활발함' : '운동 매니아'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setStep('surveys')} disabled={!student.name} className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-all mt-4">검사 시작 (Start Assessment)</button>
+          </div>
+        </div>
+        <AdminPasswordModal />
+      </Layout>
+    );
+  }
+
+  if (step === 'surveys') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+        <AdminPasswordModal />
+        <ConfigModal />
+        <div className="max-w-4xl mx-auto space-y-6 pb-20">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-20 z-40 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900">Psychological Assessment</h3>
+            <div className="flex gap-4 overflow-x-auto pb-1">
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Sym</p>
+                <p className="text-lg font-bold text-red-600">{surveyScores.snsCount}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Para</p>
+                <p className="text-lg font-bold text-blue-600">{surveyScores.pnsCount}</p>
+              </div>
+              <div className="text-right border-l pl-4">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Focus</p>
+                <p className="text-lg font-bold text-amber-600">{surveyScores.concentration}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">BAI</p>
+                <p className="text-lg font-bold text-indigo-600">{surveyScores.bai}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-400 uppercase font-bold">ISI</p>
+                <p className="text-lg font-bold text-emerald-600">{surveyScores.isi}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+            {['ans', 'bai', 'isi', 'concentration', 'cfs'].map(t => (
+              <button key={t} onClick={() => setActiveTab(t as any)} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all ${activeTab === t ? 'bg-slate-900 text-white' : 'text-slate-400 hover:bg-slate-50'}`}>
+                {t === 'bai' ? '불안 (BAI)' : t === 'isi' ? '수면 (ISI)' : t === 'concentration' ? '집중력' : t.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          <div className="animate-in fade-in duration-300">
+            {activeTab === 'ans' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+                  <div className="p-4 bg-red-600 text-white font-bold text-center">Sympathetic</div>
+                  <div className="p-6 grid gap-2 bg-slate-50">
+                    {SYMPATHETIC_SYMPTOMS.map(s => (
+                      <label key={s} className={`flex items-center gap-3 p-3 rounded-xl border ${snsSymptomSelection.includes(s) ? 'bg-red-50 border-red-500' : 'bg-white'}`}>
+                        <input type="checkbox" checked={snsSymptomSelection.includes(s)} onChange={() => toggleSnsSymptom(s)} className="accent-red-600" />
+                        <span className="text-sm font-medium">{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+                  <div className="p-4 bg-blue-700 text-white font-bold text-center">Parasympathetic</div>
+                  <div className="p-6 grid gap-2 bg-slate-50">
+                    {PARASYMPATHETIC_SYMPTOMS.map(s => (
+                      <label key={s} className={`flex items-center gap-3 p-3 rounded-xl border ${pnsSymptomSelection.includes(s) ? 'bg-blue-50 border-blue-500' : 'bg-white'}`}>
+                        <input type="checkbox" checked={pnsSymptomSelection.includes(s)} onChange={() => togglePnsSymptom(s)} className="accent-blue-700" />
+                        <span className="text-sm font-medium">{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'bai' && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 flex gap-1">
+                  {([1, 2] as const).map(p => (
+                    <button key={p} onClick={() => setBaiSubPage(p)} className={`px-4 py-1.5 text-xs font-bold rounded-t-lg border-x border-t transition-all ${baiSubPage === p ? 'bg-white border-slate-200 -mb-[25px] z-10 text-slate-900' : 'bg-slate-50 border-transparent text-slate-400'}`}>페이지{p === 2 ? '2' : ''}</button>
+                  ))}
+                </div>
+
+                <div className="p-8 space-y-6">
+                  <h2 className="text-2xl font-bold text-slate-800">Beck 불안 척도 Beck Anxiety Inventory : BAI</h2>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 leading-relaxed">
+                    각 문장을 자세히 읽어보시고 오늘을 포함해서 지난 1주일 동안 당신의 상태가 어떠했는지 가장 잘 나타낸다고 생각하는 번호를 표시하여 주십시오. 응답방식은 다음과 같습니다.
+                  </div>
+
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-[11px] md:text-xs font-bold text-slate-500 uppercase">
+                        <th className="pb-4 font-bold text-slate-900">질문 내용</th>
+                        {["전혀 느끼지 않았다(0점)", "조금 느꼈다(1점)", "상당히 느꼈다(2점)", "심하게 느꼈다(3점)"].map((h, i) => (
+                          <th key={i} className="pb-4 text-center px-2 w-20 leading-tight">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {BAI_QUESTIONS.map((q, idx) => {
+                        const startIdx = baiSubPage === 1 ? 0 : 10;
+                        const endIdx = baiSubPage === 1 ? 10 : 21;
+                        if (idx < startIdx || idx >= endIdx) return null;
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-4 pr-4 text-sm font-medium text-slate-700">
+                              {idx + 1}. {q}
+                            </td>
+                            {[0, 1, 2, 3].map(score => (
+                              <td key={score} className="py-4 text-center">
+                                <div className="flex justify-center">
+                                  <button
+                                    onClick={() => { const a = [...baiAnswers]; a[idx] = score; setBaiAnswers(a); }}
+                                    className={`w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center ${baiAnswers[idx] === score ? 'bg-blue-600 border-blue-600 shadow-sm' : 'bg-white border-slate-200 hover:border-blue-200'}`}
+                                  >
+                                    {baiAnswers[idx] === score && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                  </button>
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs font-bold text-slate-400 uppercase mb-1">총점 (Total Score)</p>
+                      <p className="text-2xl font-black text-blue-600">{surveyScores.bai} <span className="text-sm font-bold text-slate-400">/ 63</span></p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <p className="text-xs font-bold text-slate-400 uppercase mb-1">상태 평가 (Evaluation)</p>
+                      <p className={`text-lg font-bold ${baiEvaluation.color}`}>{baiEvaluation.text}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'isi' && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-8 space-y-6">
+                  <h2 className="text-2xl font-bold text-slate-800">ISI <span className="text-base font-normal text-slate-500 ml-2">Insomnia Severity Index</span></h2>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 leading-relaxed">
+                    지난 2주간 동안 귀하의 불면증 문제에 해당하는 정도를 선택해 주시기 바랍니다.
+                  </div>
+
+                  <div className="space-y-8">
+                    {ISI_QUESTIONS.map((q, idx) => (
+                      <div key={idx} className="space-y-4">
+                        <p className="text-sm font-bold text-slate-800">{idx + 1}. {q.label}</p>
+                        <div className="grid grid-cols-5 gap-2">
+                          {q.options.map((option, score) => (
+                            <button
+                              key={score}
+                              onClick={() => { const a = [...isiAnswers]; a[idx] = score; setIsiAnswers(a); }}
+                              className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${isiAnswers[idx] === score ? 'bg-violet-600 border-violet-600 shadow-md scale-[1.02]' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                            >
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isiAnswers[idx] === score ? 'bg-white border-white' : 'border-slate-300'}`}>
+                                {isiAnswers[idx] === score && <div className="w-2 h-2 bg-violet-600 rounded-full"></div>}
+                              </div>
+                              <span className={`text-[10px] md:text-xs font-bold text-center leading-tight ${isiAnswers[idx] === score ? 'text-white' : 'text-slate-500'}`}>{option}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-slate-100 bg-slate-50 p-6 rounded-2xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                      <div className="space-y-1 text-xs text-slate-400 font-medium">
+                        <p>0-7점: 정상적인 불면증이 아닙니다.</p>
+                        <p>8-14점: 경미한 불면경향이 있습니다.</p>
+                        <p>15-21점: 중등도의 불면증이 있습니다.</p>
+                        <p>22점 이상: 심한 불면증이 있습니다.</p>
+                      </div>
+                      <div className="text-right flex items-center justify-end gap-6">
+                        <span className="text-2xl font-black text-slate-800">총합</span>
+                        <div className="px-8 py-3 bg-white border border-slate-200 rounded-xl shadow-inner text-4xl font-black text-violet-600">{surveyScores.isi}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'concentration' && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-8 space-y-6">
+                  <h2 className="text-2xl font-bold text-slate-800">학습 집중력 자가진단</h2>
+                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-900 leading-relaxed">
+                    수업 비집중력을 유발시키는 요인들과 최소 한 달간의 경험을 바탕으로 체크해 주세요.
+                  </div>
+
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-[11px] md:text-xs font-bold text-slate-500 uppercase">
+                        <th className="pb-4 font-bold text-slate-900">질문 내용</th>
+                        {["전혀 그렇지 않다", "가끔 그렇다", "자주 그렇다", "매우 자주 그렇다", "항상 그렇다"].map((h, i) => (
+                          <th key={i} className="pb-4 text-center px-2 w-20 leading-tight">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {CONCENTRATION_QUESTIONS.map((q, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-4 pr-4 text-sm font-medium text-slate-700">{idx + 1}. {q}</td>
+                          {[0, 1, 2, 3, 4].map(score => (
+                            <td key={score} className="py-4 text-center">
+                              <div className="flex justify-center">
+                                <button
+                                  onClick={() => { const a = [...concentrationAnswers]; a[idx] = score; setConcentrationAnswers(a); }}
+                                  className={`w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center ${concentrationAnswers[idx] === score ? 'bg-amber-600 border-amber-600 shadow-sm' : 'bg-white border-slate-200 hover:border-amber-200'}`}
+                                >
+                                  {concentrationAnswers[idx] === score && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                </button>
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end items-center gap-6">
+                    <span className="text-sm font-bold text-slate-400">학습 집중력 지수 (Concentration Score)</span>
+                    <div className="text-3xl font-black text-amber-600">{surveyScores.concentration} <span className="text-base font-bold text-slate-300">/ 28</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'cfs' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-6 shadow-sm">
+                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                  <p className="text-sm font-bold text-emerald-800">Are you experiencing chronic fatigue ({'>'}6 months)?</p>
+                  <div className="flex gap-4 mt-2">
+                    <button onClick={() => setFatigueCore(true)} className={`px-6 py-2 rounded-lg font-bold transition-all ${fatigueCore ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-emerald-200 text-emerald-600'}`}>Yes</button>
+                    <button onClick={() => setFatigueCore(false)} className={`px-6 py-2 rounded-lg font-bold transition-all ${!fatigueCore ? 'bg-slate-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600'}`}>No</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {FATIGUE_SYMPTOMS.map((s, i) => (
+                    <label key={i} className={`p-4 rounded-xl border cursor-pointer transition-all ${fatigueSymptoms[i] ? 'bg-emerald-50 border-emerald-500 shadow-sm' : 'bg-white border-slate-200'}`}>
+                      <input type="checkbox" checked={fatigueSymptoms[i]} onChange={() => { const a = [...fatigueSymptoms]; a[i] = !a[i]; setFatigueSymptoms(a); }} className="mr-3" />
+                      <span className="text-sm font-medium">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-4">
+            {activeTab !== 'ans' && <button onClick={() => { const t: any[] = ['ans', 'bai', 'isi', 'concentration', 'cfs']; setActiveTab(t[t.indexOf(activeTab) - 1]); }} className="flex-1 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all">Previous</button>}
+            <button
+              onClick={() => {
+                if (activeTab === 'ans') setActiveTab('bai');
+                else if (activeTab === 'bai') setActiveTab('isi');
+                else if (activeTab === 'isi') setActiveTab('concentration');
+                else if (activeTab === 'concentration') setActiveTab('cfs');
+                else setStep('protocol');
+              }}
+              className="flex-[2] py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg hover:bg-slate-800 transition-all"
+            >
+              {activeTab === 'cfs' ? 'Go to Learning Protocol' : 'Next Step'}
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'protocol') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}>
+        <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900">학습 집중력 분석 프로토콜</h2>
+            <p className="text-slate-500 mt-2">단순 설문을 넘어 본질적인 집중력 요인을 확인 분석합니다.</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-8">
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">1</span>
+                <h3 className="text-xl font-bold text-slate-800">사전 준비 (Setting the Baseline)</h3>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-3">주로 공부하는 장소 (Place)</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['학교 (School)', '학원 (Academy)', '도서관 (Library)', '카페 (Cafe)', '집 (Home)', '독서실 (Study Room)', '기타'].map(loc => (
+                      <button
+                        key={loc}
+                        onClick={() => {
+                          if (loc === '기타') {
+                            setIsCustomLoc(true);
+                            setProtocol({ ...protocol, location: '' });
+                          } else {
+                            setIsCustomLoc(false);
+                            setProtocol({ ...protocol, location: loc });
+                          }
+                        }}
+                        className={`p-3 text-xs font-bold rounded-xl border transition-all ${(!isCustomLoc && protocol.location === loc) || (loc === '기타' && isCustomLoc) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                  {isCustomLoc && (
+                    <input
+                      type="text"
+                      placeholder="공부하는 장소를 직접 입력하세요"
+                      value={protocol.location}
+                      onChange={e => setProtocol({ ...protocol, location: e.target.value })}
+                      className="mt-4 w-full px-4 py-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-sm"
+                      autoFocus
+                    />
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                      <label className="text-sm font-bold text-slate-700">주변 소음 수준 (Noise)</label>
+                      <span className="text-blue-600 font-bold text-lg">{protocol.noiseLevel}<span className="text-slate-300 text-sm ml-0.5">/10</span></span>
+                    </div>
+                    <input type="range" min="1" max="10" step="1" value={protocol.noiseLevel} onChange={e => setProtocol({ ...protocol, noiseLevel: Number(e.target.value) })} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                    <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 min-h-[48px] flex items-center">
+                      <p className="text-[11px] font-bold text-blue-600 leading-snug">{getNoiseDescription(protocol.noiseLevel)}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                      <label className="text-sm font-bold text-slate-700">현재 스트레스 정도 (Stress)</label>
+                      <span className="text-red-600 font-bold text-lg">{protocol.stressLevel}<span className="text-slate-300 text-sm ml-0.5">/10</span></span>
+                    </div>
+                    <input type="range" min="1" max="10" step="1" value={protocol.stressLevel} onChange={e => setProtocol({ ...protocol, stressLevel: Number(e.target.value) })} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-red-600" />
+                    <div className="bg-red-50/50 p-3 rounded-xl border border-red-100/50 min-h-[48px] flex items-center">
+                      <p className="text-[11px] font-bold text-red-600 leading-snug">{getStressDescription(protocol.stressLevel)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold text-sm">2</span>
+                <h3 className="text-xl font-bold text-slate-800">심층 집중력 측정 (Detailed Assessment)</h3>
+              </div>
+              <div className="space-y-8">
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex justify-between items-start mb-4">
+                    <p className="text-sm font-bold text-slate-700 uppercase tracking-wider">A. 심리/전략적 요인</p>
+                    <span className="text-[10px] bg-white px-2 py-1 rounded border border-slate-200 text-slate-400 font-bold">1(전혀 아님) ~ 5(매우 그러함)</span>
+                  </div>
+                  <div className="space-y-5">
+                    {[
+                      { label: "심리적 요인 (불안/우울)", key: "emotionalFactor", low: "매우 안정", high: "매우 불안" },
+                      { label: "동기적 요인 (목표 의식)", key: "motivationalFactor", low: "의욕 없음", high: "목표 명확" },
+                      { label: "행동적 요인 (산만함)", key: "behavioralFactor", low: "매우 산만", high: "매우 차분" }
+                    ].map(item => (
+                      <div key={item.key} className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500">{item.label}</label>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map(v => (
+                            <button key={v} onClick={() => setProtocol({ ...protocol, [item.key]: v })} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${protocol[item.key as keyof ProtocolData] === v ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}>{v}</button>
+                          ))}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 font-medium px-1">
+                          <span>{item.low} (1점)</span>
+                          <span>{item.high} (5점)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
+                  <div className="flex justify-between items-start mb-4">
+                    <p className="text-sm font-bold text-indigo-800 uppercase tracking-wider">B. 학습 몰입도</p>
+                    <span className="text-[10px] bg-white px-2 py-1 rounded border border-indigo-200 text-indigo-300 font-bold">1(전혀 아님) ~ 5(매우 그러함)</span>
+                  </div>
+                  <div className="space-y-5">
+                    {[
+                      { label: "과제 난이도 적합성", key: "taskDifficulty", low: "매우 쉬움", high: "매우 어려움" },
+                      { label: "시간 왕곡 경험 (몰입도)", key: "timeDistortion", low: "시간이 느림", high: "순식간에 지남" }
+                    ].map(item => (
+                      <div key={item.key} className="space-y-2">
+                        <label className="text-xs font-bold text-indigo-600">{item.label}</label>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map(v => (
+                            <button key={v} onClick={() => setProtocol({ ...protocol, [item.key]: v })} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${protocol[item.key as keyof ProtocolData] === v ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-indigo-400 border-indigo-200'}`}>{v}</button>
+                          ))}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-indigo-400 font-medium px-1">
+                          <span>{item.low} (1점)</span>
+                          <span>{item.high} (5점)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setStep('surveys')} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Back</button>
+            <button onClick={() => setStep('analytics')} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all">Next: 학습 분석 (Analytics)</button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'analytics') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}>
+        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900">Step 3.5: 학습 밀도 및 패턴 분석</h2>
+            <p className="text-slate-500 mt-2">단순 투입 시간보다 중요한 실제 학습의 질을 분석합니다.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* 1. 학습 밀도 분석 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">1. 학습 밀도 및 집중력</h3>
+              </div>
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <label className="text-sm font-bold text-slate-700">순공 시간 비율 (%)</label>
+                    <span className="text-blue-600 font-bold">{analytics.pureStudyRatio}%</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    * 전체 공부 시간 중 스마트폰 확인, 잡념, 단순 착석 시간 등을 제외하고 <b>온전하게 몰입한 실질적인 시간</b>의 비중을 선택하세요.
+                  </p>
+                  <input type="range" min="0" max="100" value={analytics.pureStudyRatio} onChange={e => setAnalytics({ ...analytics, pureStudyRatio: Number(e.target.value) })} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">평균 집중 시간 (분)</label>
+                    <input type="number" value={analytics.avgFocusDuration} onChange={e => setAnalytics({ ...analytics, avgFocusDuration: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">산만도 (시간당 주의분산 횟수)</label>
+                    <input type="number" value={analytics.distractionCount} onChange={e => setAnalytics({ ...analytics, distractionCount: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. 시간대별 효율성 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">2. 시간대별 효율성</h3>
+              </div>
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">골든타임 시작</label>
+                    <input type="time" value={analytics.goldenTimeStart} onChange={e => setAnalytics({ ...analytics, goldenTimeStart: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">골든타임 종료</label>
+                    <input type="time" value={analytics.goldenTimeEnd} onChange={e => setAnalytics({ ...analytics, goldenTimeEnd: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-slate-700">일주기 유형 (Chronotype)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'morning', label: '아침형', desc: '07-09시 최고' },
+                      { id: 'neutral', label: '중간형', desc: '10-14시 최고' },
+                      { id: 'evening', label: '저녁형', desc: '20-24시 최고' }
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setAnalytics({ ...analytics, chronotype: t.id as any })} className={`flex flex-col items-center py-2.5 rounded-xl border transition-all ${analytics.chronotype === t.id ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}>
+                        <span className="text-xs font-bold">{t.label}</span>
+                        <span className={`text-[9px] ${analytics.chronotype === t.id ? 'text-amber-100' : 'text-slate-400'}`}>{t.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400">* 외부 자극 없이 본능적으로 뇌의 각성이 가장 높은 시간대를 선택하세요.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. 과목별 균형 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 md:col-span-2">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-indigo-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">3. 과목별 균형 및 취약점</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="space-y-4 md:col-span-2">
+                  <label className="text-sm font-bold text-slate-700">과목별 시간 배분 (%)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {Object.entries(analytics.subjectRatios).map(([key, val]) => {
+                      const labels: Record<string, string> = {
+                        korean: '국어', math: '수학', english: '영어', science: '과학', social: '사회', other: '기타'
+                      };
+                      return (
+                        <div key={key} className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">{labels[key] || key}</label>
+                          <input type="number" value={val} onChange={e => setAnalytics({ ...analytics, subjectRatios: { ...analytics.subjectRatios, [key]: Number(e.target.value) } })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-bold text-sm" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <label className="text-sm font-bold text-slate-700">목표 달성률</label>
+                      <span className="text-indigo-600 font-bold">{analytics.goalAchievementRate}%</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">* 계획한 분량(페이지/문제) 단순 끝내기가 아닌 <b>'완벽한 복습과 이해'</b>가 이루어진 정도를 포함하세요.</p>
+                    <input type="range" min="0" max="100" value={analytics.goalAchievementRate} onChange={e => setAnalytics({ ...analytics, goalAchievementRate: Number(e.target.value) })} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold text-slate-700">체감 학습 난이도 (Difficulty)</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map(v => (
+                        <button key={v} onClick={() => setAnalytics({ ...analytics, perceivedDifficulty: v })} className={`flex-1 py-2 rounded-lg font-bold border transition-all ${analytics.perceivedDifficulty === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-400 border-slate-200'}`}>{v}</button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 text-[8px] text-slate-400 text-center leading-tight">
+                      <span>1: 매우 쉬움<br />(단순 복습)</span>
+                      <span>2: 쉬움<br />(이해 완료)</span>
+                      <span>3: 보통<br />(적정 자극)</span>
+                      <span>4: 어려움<br />(심화 단계)</span>
+                      <span>5: 매우 어려움<br />(개념 생소)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. 환경 및 피로도 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-emerald-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">4. 환경 및 컨디션</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500">평균 수면 시간</label>
+                  <input type="number" value={analytics.avgSleepHours} onChange={e => setAnalytics({ ...analytics, avgSleepHours: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500">연속 학습 일수 (Study Streak)</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">하루 4시간 이상 학습을 쉬지 않고 이어온 기간입니다. (번아웃 예측용)</p>
+                  <input type="number" value={analytics.studyStreak} onChange={e => setAnalytics({ ...analytics, studyStreak: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-red-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">5. 피로도 및 휴식</h3>
+              </div>
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-slate-700">휴식 적절성 (Break Quality)</label>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      💡 <b>의미:</b> 학습 후 뇌의 인지적 과부하가 해소되고('머리가 맑아짐'), 다음 공부를 시작할 에너지가 충분히 충전되었는지 평가합니다.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {[
+                      { v: 1, l: '매우부족' },
+                      { v: 2, l: '부족' },
+                      { v: 3, l: '적당' },
+                      { v: 4, l: '충분' },
+                      { v: 5, l: '과다(루즈함)' }
+                    ].map(item => (
+                      <button key={item.v} onClick={() => setAnalytics({ ...analytics, breakAdequacy: item.v })} className={`flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all ${analytics.breakAdequacy === item.v ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}>
+                        {item.l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-slate-700">집중력 에너지 패턴 (Daily Pattern)</label>
+                  <p className="text-[10px] text-slate-400">하루 전체를 통틀어 집중력이 유지되는 흐름을 선택하세요.</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'stable', label: '안정적', desc: '기복 없이 꾸준한 상태' },
+                      { id: 'fluctuating', label: '기복있음', desc: '집중이 잘 되다 안되다 함' },
+                      { id: 'declining', label: '하락형', desc: '오후/저녁에 급격히 지침' }
+                    ].map(p => (
+                      <button key={p.id} onClick={() => setAnalytics({ ...analytics, energyPattern: p.id as any })} className={`flex flex-col items-center py-2.5 rounded-xl border transition-all ${analytics.energyPattern === p.id ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-400 border-slate-200'}`}>
+                        <span className="text-[11px] font-bold">{p.label}</span>
+                        <span className={`text-[8px] ${analytics.energyPattern === p.id ? 'text-red-100' : 'text-slate-400'}`}>{p.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button onClick={() => setStep('protocol')} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Back</button>
+            <button onClick={() => setStep('hrv')} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all">Next: HRV Biometrics</button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'hrv') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}>
+        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900">Step 4: Clinical Biometrics (HRV)</h2>
+            <p className="text-slate-500 mt-2">PPG/HRV 결과 분석 리포트의 데이터를 입력하십시오.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-lg">자율신경(ANS) 분석</h3>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label className="text-sm font-bold text-slate-700">SNS (교감신경) %</label>
+                    <span className="text-red-600 font-bold">{hrv.sns}%</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-bold text-slate-400">PNS</span>
+                    <input
+                      type="range" min="0" max="100" step="0.1" value={hrv.sns}
+                      onChange={(e) => setHrv({ ...hrv, sns: Number(e.target.value), pns: Number((100 - Number(e.target.value)).toFixed(1)) })}
+                      className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-red-600"
+                    />
+                    <span className="text-[10px] font-bold text-red-400">SNS</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">평균 심박수(HR)</label>
+                    <input type="number" value={hrv.meanHr} onChange={e => setHrv({ ...hrv, meanHr: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500">HRV-Index</label>
+                    <input type="number" step="0.01" value={hrv.hrvIndex} onChange={e => setHrv({ ...hrv, hrvIndex: Number(e.target.value) })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="w-1.5 h-4 bg-amber-500 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-lg">주파수 영역 분석</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {["tp", "vlf", "lf", "hf"].map(k => (
+                  <div key={k} className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase">{k}</label>
+                    <input type="number" step="0.01" value={hrv[k as keyof HRVData] as number} onChange={e => setHrv({ ...hrv, [k]: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border rounded-xl" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setStep('protocol')} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Back</button>
+            <button onClick={() => setStep('eeg')} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all">Next: EEG Analysis</button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'eeg') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}>
+        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900">Step 5: EEG Biometrics</h2>
+            <p className="text-slate-500 mt-2">종합 뇌파 분석 리포트의 데이터를 입력하십시오.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* 종합 뇌파 분석 */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                <div className="w-2 h-6 bg-violet-600 rounded-full"></div>
+                <h3 className="font-bold text-slate-800 text-xl">종합 뇌파 분석</h3>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-violet-50 p-6 rounded-2xl border border-violet-100">
+                  <label className="block text-sm font-bold text-violet-800 mb-2">뇌 건강점수 (Brain Score)</label>
+                  <div className="flex items-center gap-4">
+                    <input type="number" value={hrv.brainScore} onChange={e => setHrv({ ...hrv, brainScore: Number(e.target.value) })} className="flex-1 p-4 bg-white border border-violet-200 rounded-xl font-black text-2xl text-violet-600 text-center" />
+                    <span className="font-bold text-violet-400 text-xl">점</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block text-sm font-bold text-slate-700">뇌파 비율 (%) 및 우세 유형 선택</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'Gamma', key: 'eegGamma' },
+                      { label: 'H-Beta', key: 'eegHBeta' },
+                      { label: 'M-Beta', key: 'eegMBeta' },
+                      { label: 'L-Beta', key: 'eegLBeta' },
+                      { label: 'Alpha', key: 'eegAlpha' },
+                      { label: 'Theta', key: 'eegTheta' }
+                    ].map(item => (
+                      <div key={item.key} className={`p-4 rounded-2xl border transition-all flex flex-col gap-2 ${hrv.dominantEEG === item.label ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold uppercase tracking-wider">{item.label}</span>
+                          <input
+                            type="radio"
+                            name="dominantEEG"
+                            checked={hrv.dominantEEG === item.label}
+                            onChange={() => setHrv({ ...hrv, dominantEEG: item.label })}
+                            className="accent-white h-4 w-4"
+                          />
+                        </div>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={hrv[item.key as keyof HRVData] as number}
+                          onChange={e => setHrv({ ...hrv, [item.key]: Number(e.target.value) })}
+                          className={`w-full p-2 bg-white/10 border border-white/20 rounded-lg text-sm font-bold focus:outline-none ${hrv.dominantEEG === item.label ? 'text-white' : 'text-slate-900 bg-white border-slate-200'}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 뇌 균형 및 스트레스 */}
+            <div className="space-y-8">
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                  <div className="w-2 h-6 bg-red-500 rounded-full"></div>
+                  <h3 className="font-bold text-slate-800 text-xl">뇌 균형 및 스트레스</h3>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200">
+                    <label className="block text-sm font-bold text-slate-700 mb-4">뇌 균형도(%)</label>
+                    <div className="flex items-center gap-6">
+                      <div className="flex-1 space-y-2">
+                        <p className="text-[10px] font-bold text-slate-400 text-center uppercase">Left (좌측)</p>
+                        <input type="number" step="0.1" value={hrv.brainBalanceL} onChange={e => setHrv({ ...hrv, brainBalanceL: Number(e.target.value), brainBalanceR: Number((100 - Number(e.target.value)).toFixed(1)) })} className="w-full p-3 bg-white border rounded-xl text-center font-bold" />
+                      </div>
+                      <div className="text-slate-300 font-bold">:</div>
+                      <div className="flex-1 space-y-2">
+                        <p className="text-[10px] font-bold text-slate-400 text-center uppercase">Right (우측)</p>
+                        <input type="number" step="0.1" value={hrv.brainBalanceR} onChange={e => setHrv({ ...hrv, brainBalanceR: Number(e.target.value), brainBalanceL: Number((100 - Number(e.target.value)).toFixed(1)) })} className="w-full p-3 bg-white border rounded-xl text-center font-bold" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block text-sm font-bold text-slate-700">뇌 스트레스</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['낮음', '보통', '중간', '높음'].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setHrv({ ...hrv, brainStressCategory: cat })}
+                          className={`py-3 rounded-xl text-xs font-bold border transition-all ${hrv.brainStressCategory === cat ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-400 border-slate-200'}`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
+                  <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                  <h3 className="font-bold text-slate-800 text-xl">뇌 기능 평가</h3>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center"><label className="text-sm font-bold text-slate-700">집중력(Concentration)</label></div>
+                    <div className="flex gap-4">
+                      <input type="number" placeholder="Lv" value={hrv.concentrationLevel} onChange={e => setHrv({ ...hrv, concentrationLevel: Number(e.target.value) })} className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold" />
+                      <div className="flex-1 grid grid-cols-3 gap-1">
+                        {['낮음', '중간', '높음'].map(cat => (
+                          <button key={cat} onClick={() => setHrv({ ...hrv, concentrationCategory: cat })} className={`rounded-lg text-[10px] font-bold border transition-all ${hrv.concentrationCategory === cat ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-400 border-slate-200'}`}>{cat}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center"><label className="text-sm font-bold text-slate-700">주의력(Attention)</label></div>
+                    <div className="flex gap-4">
+                      <input type="number" placeholder="Lv" value={hrv.attentionLevel} onChange={e => setHrv({ ...hrv, attentionLevel: Number(e.target.value) })} className="w-20 p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold" />
+                      <div className="flex-1 grid grid-cols-3 gap-1">
+                        {['낮음', '중간', '높음'].map(cat => (
+                          <button key={cat} onClick={() => setHrv({ ...hrv, attentionCategory: cat })} className={`rounded-lg text-[10px] font-bold border transition-all ${hrv.attentionCategory === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-400 border-slate-200'}`}>{cat}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button onClick={() => setStep('hrv')} className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Back</button>
+            <button onClick={handleFinalAssessment} className="flex-[2] py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg hover:bg-slate-800 transition-all">Generate Integrated Report</button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'loading') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
+          <h2 className="text-2xl font-bold text-slate-800">종합 데이터 분석 중...</h2>
+          <p className="text-slate-500 mt-2">유형 식별 및 맞춤 솔루션을 생성하고 있습니다.</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (step === 'results' && result) {
+    // Helper to select products based on CareType & Biometrics
+    // PNT Mall 상세 기능 리서치 기반 추천 로직 (2024-12-30 Updated)
+    const getRecommendedProducts = () => {
+      const productIds = new Set<string>();
+
+      // Base: 모든 수험생에게 면역 관리는 필수 (신경안정/비타민B)
+      productIds.add('immune_one');
+
+      // 1. [칼슬립] 수면 효율 & 수면 장애
+      // ISI(불면증척도) 10점 이상이거나 부교감신경 활성이 너무 낮으면(이완 불가) 수면 진입이 어려운 경우
+      if (result.survey.isi >= 10 || result.hrv.pns < 20) {
+        productIds.add('calm_sleep');
+      }
+
+      // 2. [아이업] 스트레스와 피로 & 지구력 (혈경)
+      // 만성 피로가 있거나 무기력형(Motivation Low corresponds to Poor Circulation in legacy logic)인 경우
+      if (result.careType === CareType.CIRCULATION || result.survey.fatigueSymptomsCount >= 3 || result.survey.chronicFatigue) {
+        productIds.add('ad_up');
+      }
+
+      // 3. [에너지 밸런스] 과도한 긴장 억제 (이완)
+      // 교감신경(SNS) 항진(65+), 불안(Anxiety), 또는 BAI 점수가 높은 경우 -> 긴장 완화 필요
+      if (result.hrv.sns > 65 || result.careType === CareType.BURNOUT || result.survey.bai >= 15) {
+        productIds.add('energy_bal');
+      }
+
+      // 4. [노카디] 두뇌 활성화 & 기억력 시스텀 세포
+      // 집중력 결핍, 뇌 피로가 높음, 또는 순위 시간 내한 '집중력' 관련
+      if (result.careType === CareType.CONCENTRATION || result.hrv.brainScore < 75 || result.survey.concentrationScore < 12) {
+        productIds.add('no_cardi');
+      }
+
+      // 5. [마그네슘] 신경/근육 안정
+      // 신체적 증상(떨림 등)이거나 뇌파가 High-Beta(긴장) 우세인 경우
+      if (result.hrv.dominantEEG === 'H-Beta' || result.hrv.stressResistance < 40) {
+        productIds.add('magnesium');
+      }
+
+      return Array.from(productIds).map(id => PRODUCTS[id]).filter(Boolean);
+    };
+
+    const handlePrintWindow = () => {
+      const printContent = document.getElementById('report-section')?.innerHTML;
+      const printStyle = Array.from(document.styleSheets)
+        .map(styleSheet => {
+          try {
+            return Array.from(styleSheet.cssRules).map(rule => rule.cssText).join('');
+          } catch (e) {
+            return '';
+          }
+        }).join('');
+
+      const printWindow = window.open('', '_blank', 'width=1200,height=900');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>NBASS Assessment Report - ${result.student.name}</title>
+              <style>
+                ${printStyle}
+                body { background: white !important; }
+                .no-print { display: none !important; }
+                .print-container { padding: 40px; max-width: 1000px; margin: 0 auto; }
+                .floating-print-btn {
+                  position: fixed; top: 20px; right: 20px;
+                  background: #4f46e5; color: white; padding: 12px 24px;
+                  border-radius: 12px; font-weight: bold; cursor: pointer;
+                  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: none; z-index: 1000;
+                }
+                @media print { .floating-print-btn { display: none; } }
+              </style>
+            </head>
+            <body>
+              <button class="floating-print-btn" onclick="window.print()">🖨️ 이 리포트 출력하기</button>
+              <div class="print-container">
+                ${printContent}
+              </div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    };
+
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+        {/* Config Modal */}
+        <ConfigModal />
+
+
+
+        <div id="report-section" className="space-y-8 animate-in fade-in duration-500 pb-20 relative">
+          {/* Watermark for Print */}
+          <div className="report-watermark hidden print:block">NBASS</div>
+
+          {/* Official Report Header (Style 3) - Visible in both Screen & Print */}
+          <div className="report-official-header flex justify-between items-end bg-slate-50/50 p-4 rounded-t-2xl border-b-2 border-slate-200">
+            <div>
+              <h1 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+                Neuro-Bio Academic Strategy System <span className="text-indigo-600 font-bold">[NBASS]</span>
+              </h1>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 ml-4">뉴로바이오 학습전략시스템</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Official Diagnostic Report</p>
+              <p className="text-xs font-black text-indigo-900 italic mt-0.5">Chief Analyst: Dr Lim</p>
+            </div>
+          </div>
+
+          {/* Header & Controls */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-xl">
+                {result.student.gender === 'Male' ? 'M' : 'F'}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{result.student.name} <span className="text-sm font-normal text-slate-400">ID: {result.student.id}</span></h2>
+                <p className="text-sm text-slate-500">{result.student.grade} / {result.student.age}세 / {result.student.gender === 'Male' ? '남성' : '여성'} / 검사일: {result.student.testDate}</p>
+                {result.student.weakSubject && (
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded">
+                    Focus: {result.student.weakSubject.toUpperCase()}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-3 no-print">
+              <button onClick={() => setShowConfig(true)} className="p-3 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-xl transition-colors" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0-.73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
+              </button>
+              <button
+                onClick={handlePrintWindow}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-1 font-bold"
+              >
+                저장(PDF) / 인쇄
+              </button>
+              <button onClick={() => { setStep('register'); setProtocol(initialProtocol); setIsCustomLoc(false); }} className="px-6 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors">New Assessment</button>
+            </div>
+
+            {config.isExamMode && result.student.weakSubject && (() => {
+              // --- Dynamic Efficiency Boost Logic ---
+              let boostValue = 10; // Base value
+
+              // 1. Weak subject matching golden time (+20%)
+              const currentHour = new Date().getHours();
+              const goldenHour = parseInt(result.analytics.goldenTimeStart.split(':')[0]);
+              if (Math.abs(currentHour - goldenHour) <= 2) boostValue += 20;
+
+              // 2. High brain score (+10%)
+              if (result.hrv.brainScore >= 80) boostValue += 10;
+
+              // 3. High concentration category (+5%)
+              if (result.hrv.concentrationCategory === '높음') boostValue += 5;
+
+              // Determine Tier
+              const isHigh = boostValue > 40;
+              const isMid = boostValue >= 21 && boostValue <= 40;
+              const tierName = isHigh ? "HIGH" : isMid ? "MID" : "LOW";
+              const tierColor = isHigh ? "text-rose-500" : isMid ? "text-amber-500" : "text-blue-500";
+              const tierBg = isHigh ? "bg-rose-50" : isMid ? "bg-amber-50" : "bg-blue-50";
+              const tierBorder = isHigh ? "border-rose-200" : isMid ? "border-amber-200" : "border-blue-200";
+
+              return (
+                <div className={`${tierBg} border ${tierBorder} p-4 rounded-2xl flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-4 duration-500 no-print`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-full ${isHigh ? 'bg-rose-100' : isMid ? 'bg-amber-100' : 'bg-blue-100'} flex items-center justify-center text-2xl`}>
+                      {isHigh ? '🚀' : isMid ? '⚡' : '🌱'}
+                    </div>
+                    <div>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${tierColor}`}>
+                        {tierName} Efficiency Status
+                      </p>
+                      <p className={`text-sm font-medium ${isHigh ? 'text-rose-900' : isMid ? 'text-amber-900' : 'text-blue-900'}`}>
+                        {isHigh ? (
+                          <>현재 <b>초몰입 임계 단계</b>입니다. 고난도 과제 수행의 최적기입니다.</>
+                        ) : isMid ? (
+                          <>현재 <b>전략적 가속 단계</b>입니다. 학습 효율이 상승 중입니다.</>
+                        ) : (
+                          <>현재 <b>기초 최적화 단계</b>입니다. 루틴 정착에 집중하십시오.</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right relative group">
+                    <div className="cursor-help flex flex-col items-end">
+                      <p className={`text-[10px] font-bold uppercase flex items-center gap-1 ${tierColor}`}>
+                        Efficiency Boost
+                        <span className={`w-3 h-3 rounded-full flex items-center justify-center text-[8px] border ${isHigh ? 'border-rose-300 text-rose-500' : isMid ? 'border-amber-300 text-amber-500' : 'border-blue-300 text-blue-500'}`}>?</span>
+                      </p>
+                      <p className={`text-2xl font-black ${tierColor}`}>+{boostValue}%</p>
+                    </div>
+
+                    {/* Consultant Secret Manual (Positioned Downward & Enhanced for Visibility) */}
+                    <div className="absolute right-0 top-full mt-3 w-[380px] p-6 bg-slate-900 text-white text-[11px] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-[60] border border-slate-700 no-print">
+                      <div className="absolute top-[-6px] right-8 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-slate-700"></div>
+
+                      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-white/10">
+                        <span className="text-xl">🧠</span>
+                        <p className="font-bold text-amber-400 text-sm uppercase tracking-tight">Consultant Master Guide</p>
+                      </div>
+
+                      {/* Section 1: Classification Table */}
+                      <div className="space-y-3 mb-5">
+                        <div className={`p-2 rounded-lg border ${!isHigh && !isMid ? 'bg-blue-500/30 border-blue-400' : 'bg-white/5 border-transparent opacity-40'}`}>
+                          <p className="font-black text-blue-400 text-[10px]">LOW: 기초 최적화 (Base Level)</p>
+                          <p className="text-slate-300 leading-tight">인지 기능 초기 단계. 루틴 형성에 집중.</p>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${isMid ? 'bg-amber-500/30 border-amber-400' : 'bg-white/5 border-transparent opacity-40'}`}>
+                          <p className="font-black text-amber-400 text-[10px]">MID: 전략적 가속 (Strategic Boost)</p>
+                          <p className="text-slate-300 leading-tight">골든타임-취약과목 매칭 성공 상태.</p>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${isHigh ? 'bg-rose-500/30 border-rose-400' : 'bg-white/5 border-transparent opacity-40'}`}>
+                          <p className="font-black text-rose-400 text-[10px]">HIGH: 초몰입 임계 (Peak Performance)</p>
+                          <p className="text-slate-300 leading-tight">심리·신체·환경의 완벽한 앙상블.</p>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Deep Definition & Rationale (ADMIN ONLY) */}
+                      <div className="bg-white/5 p-4 rounded-xl space-y-3 border border-white/10">
+                        <p className="text-amber-300 font-bold border-b border-white/10 pb-1 underline decoration-amber-500/50">Efficiency Boost 심화 상세 매뉴얼</p>
+
+                        <div>
+                          <p className="text-slate-100 font-bold mb-1">1. 지표의 본질 (Core Definition)</p>
+                          <p className="text-slate-400 leading-relaxed">
+                            수험생의 생체 리듬 분석으로 도출된 <b>'골든타임(집중력 정점 시간)'</b>에 취약 과목을 배치했을 때 발생하는 추가적인 효율 상승분입니다.
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-slate-100 font-bold mb-1">2. 뇌 과학적 근거 (Scientific Rationale)</p>
+                          <p className="text-slate-400 leading-relaxed">
+                            에너지가 가장 충만한 시간에 고난도 과제를 수행함으로써, <b>에너지 소모는 줄이고 정보 처리 속도는 높이는 '학습 경제성'</b>의 원리를 따릅니다.
+                          </p>
+                        </div>
+
+                        <div className="pt-2">
+                          <p className="text-slate-100 font-bold mb-1 underline decoration-indigo-400">학부모 설득용 멘트 (Key Script)</p>
+                          <p className="text-blue-200 italic leading-snug bg-blue-500/10 p-2 rounded">
+                            "이 수치는 단순히 열심히 하는 것을 넘어, 뇌가 가장 잘 돌아갈 때 가장 무거운 공부를 함으로써 얻는 <b>'보너스 공부 시간'</b>입니다. 만약 +40%라면 매일 남들보다 2시간 이상의 시간을 벌고 있는 셈입니다."
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 text-[10px] text-slate-500 text-right italic">
+                        * 본 가이드는 관리자 전용이며 인쇄물에는 포함되지 않습니다.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl print-avoid-break">
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Selected Environment</p>
+              <h3 className="text-2xl font-bold mt-1 text-blue-400">{result.protocol.location}</h3>
+              <div className="mt-8 space-y-4">
+                <div className="bg-white/5 p-4 rounded-xl">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Brain Health Score</p>
+                  <p className="text-xl font-bold">{result.hrv.brainScore} pts</p>
+                </div>
+                <div className="bg-white/5 p-4 rounded-xl">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Dominant EEG</p>
+                  <p className="text-xl font-bold text-indigo-400">{result.hrv.dominantEEG}</p>
+                </div>
+                <div className="bg-white/5 p-4 rounded-xl">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Anxiety (BAI)</p>
+                  <p className="text-xl font-bold">{result.survey.bai} / 63</p>
+                </div>
+              </div>
+            </div>
+            <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm print-avoid-break">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                  <h3 className="text-xl font-bold text-slate-900">Expert Integrated Neuro-Insight</h3>
+                  {/* Admin Trigger (Hidden Lock) */}
+                  <button onClick={() => setShowAdminPassword(true)} className="opacity-0 hover:opacity-100 p-1 text-slate-300 hover:text-slate-500 transition-opacity">?</button>
+                </div>
+                {/* Digital Seal (Style 1) */}
+                <div className="digital-signature-seal">
+                  <span className="text-blue-500">✓</span> Verified by YES_YOU | <span className="text-slate-800">Dr Lim's Choice</span>
+                </div>
+              </div>
+
+              {/* Subject Strategy Card (Conditional) */}
+              {config.isExamMode && result.student.weakSubject && (
+                <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-8 rounded-3xl mb-8 shadow-sm">
+                  <h4 className="font-bold text-indigo-900 flex items-center gap-3 mb-6 text-xl">
+                    <span className="text-2xl">?</span>
+                    {result.student.weakSubject === 'korean' ? '국어' : result.student.weakSubject === 'math' ? '수학' : '영어'} 시간/멘탈 관리 공략
+                  </h4>
+
+                  <div className="space-y-6">
+                    {/* Render selected options for the weak subject */}
+                    {(() => {
+                      const subj = result.student.weakSubject!;
+                      const selectedIds = selectedSubjectOptions[subj] || [];
+                      // Filter options that are selected
+                      const options = (SUBJECT_OPTIONS_MAP[subj] || []).filter(o => selectedIds.includes(o.id));
+
+                      if (options.length === 0) return <p className="text-sm text-slate-400">선택된 전략이 없습니다.</p>;
+
+                      // Group by category again for display
+                      const categories = Array.from(new Set(options.map(o => o.category))).sort();
+
+                      return categories.map(cat => (
+                        <div key={cat} className="bg-white/60 p-5 rounded-2xl border border-indigo-50/50 print-avoid-break">
+                          <h5 className="font-bold text-indigo-600 text-sm mb-3 uppercase tracking-wide border-b border-indigo-100 pb-2">{cat}</h5>
+                          <ul className="space-y-4">
+                            {options.filter(o => o.category === cat).map(opt => (
+                              <li key={opt.id} className="flex gap-3 text-sm text-slate-700 leading-relaxed cursor-pointer group" onClick={() => toggleCompleted(opt.id)}>
+                                <div className={`mt-1 min-w-[16px] h-4 rounded border flex items-center justify-center transition-colors ${completedItems.includes(opt.id) ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white group-hover:border-indigo-400'}`}>
+                                  {completedItems.includes(opt.id) && <span className="text-white text-[10px]">✓</span>}
+                                </div>
+                                <div className={`${completedItems.includes(opt.id) ? 'opacity-50 line-through decoration-slate-400' : ''}`}>
+                                  <span className="font-bold text-slate-900 block mb-1">{opt.title}</span>
+                                  <span className="text-slate-600">{opt.content}</span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              <div className={`prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap ${config.showDetail ? 'text-base' : 'text-sm'}`}>
+                {result.analysisText}
+
+                {/* Expert Signature (Style 2) */}
+                <div className="mt-12 pt-8 border-t border-slate-50 flex flex-col items-end">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1 italic">Analysed and Supervised by</p>
+                  <div className="flex items-baseline gap-3">
+                    <span className="signature-font">Dr Lim</span>
+                    <span className="text-xs font-black text-slate-800">Chief Health Strategist, YES_YOU</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Learning Analytics Visual Dashboard */}
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 print-avoid-break">
+            <h4 className="text-sm font-bold text-slate-400 uppercase mb-6 tracking-widest flex items-center gap-2">
+              <span className="w-1 h-4 bg-indigo-500 rounded-full"></span>
+              Learning Analytics Dashboard
+            </h4>
+            <div className="space-y-6">
+              {/* 1. Focus & Goals */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Focus Quality</p>
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-black text-indigo-600">{result.analytics.pureStudyRatio}%</span>
+                    <span className="text-[10px] text-slate-400 mb-1">순공 비율</span>
+                  </div>
+                  <div className="w-full h-1 bg-slate-100 rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-indigo-500" style={{ width: `${result.analytics.pureStudyRatio}%` }}></div>
+                  </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Goal Achievement</p>
+                  <div className="flex items-end gap-2">
+                    <span className="text-2xl font-black text-emerald-600">{result.analytics.goalAchievementRate}%</span>
+                    <span className="text-[10px] text-slate-400 mb-1">목표 달성</span>
+                  </div>
+                  <div className="w-full h-1 bg-slate-100 rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-emerald-500" style={{ width: `${result.analytics.goalAchievementRate}%` }}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Chronotype & Location */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-bold text-slate-600">Golden Time</span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full font-bold text-xs">{result.analytics.goldenTimeStart} ~ {result.analytics.goldenTimeEnd}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm border-t border-slate-50 pt-3">
+                  <span className="font-bold text-slate-600">Preferred Location</span>
+                  <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-bold text-xs">{result.analytics.preferredLocation}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm border-t border-slate-50 pt-3">
+                  <span className="font-bold text-slate-600">Study Streak</span>
+                  <span className="flex items-center gap-1 font-bold text-orange-600">
+                    ? {result.analytics.studyStreak} Days
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Subject Balance Mini Charts */}
+              <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-4 tracking-widest">Subject Time Distribution (%)</p>
+                <div className="flex items-end gap-3 h-28">
+                  {Object.entries(result.analytics.subjectRatios).map(([key, val]) => {
+                    const colors: Record<string, string> = {
+                      korean: 'bg-rose-500', math: 'bg-blue-600', english: 'bg-emerald-500',
+                      science: 'bg-violet-500', social: 'bg-amber-500', other: 'bg-slate-500'
+                    };
+                    const displayVal = val as number;
+                    const barHeight = Math.max(displayVal * 0.9, 10); // Minimum height for visibility
+                    return (
+                      <div key={key} className="flex-1 flex flex-col items-center gap-2 group relative">
+                        {/* Value Label */}
+                        <span className="text-[10px] font-black text-slate-700">{displayVal}%</span>
+                        {/* Bar */}
+                        <div
+                          className={`${colors[key] || 'bg-slate-400'} w-full rounded-lg transition-all duration-500 shadow-md group-hover:shadow-lg group-hover:scale-105`}
+                          style={{ height: `${barHeight}%`, minHeight: '12px' }}
+                        ></div>
+                        {/* Label */}
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{key.slice(0, 3)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI 맞춤형 처방전 (NEW FEATURES: 1,3) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+            {/* 1. AI Personalized Schedule */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm print-avoid-break">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                  <h3 className="text-xl font-bold text-slate-900">AI 최적 학습 스케줄링</h3>
+                </div>
+                <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded font-bold uppercase no-print">Bio-Rhythm Logic v1.2</span>
+              </div>
+              <div className="space-y-4">
+                {generateAISchedule(result.analytics, result.student).map((item, idx) => (
+                  <div key={idx} className="flex gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 group">
+                    <div className="w-24 shrink-0">
+                      <p className="text-xs font-black text-slate-400 group-hover:text-blue-600 transition-colors text-right">{item.time}</p>
+                      <div className="text-right">
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase ${item.intensity === 'High' ? 'bg-red-50 text-red-500' :
+                          item.intensity === 'Medium' ? 'bg-amber-50 text-amber-500' : 'bg-green-50 text-green-500'
+                          }`}>
+                          {item.intensity} Energy
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-800 text-sm">{item.activity}</p>
+                      <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div >
+
+            {/* 2. Mental Prescription Card */}
+            < div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden print-avoid-break" >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full blur-[60px] opacity-20"></div>
+              <div className="relative z-10 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-1.5 h-6 bg-indigo-400 rounded-full"></div>
+                  <h3 className="text-xl font-bold">증상 맞춤형 정신건강 처방전</h3>
+                </div>
+                {result.careType && MENTAL_PRESCRIPTIONS[result.careType] && (() => {
+                  const p = MENTAL_PRESCRIPTIONS[result.careType];
+                  return (
+                    <div className="space-y-6 flex-1 flex flex-col">
+                      <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
+                        <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">{p.activity}</p>
+                        <h4 className="text-2xl font-black mb-2">{p.title}</h4>
+                        <div className="flex items-center gap-2 text-indigo-200 text-xs">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                          소요 시간: {p.duration}
+                          {p.audioTag && (
+                            <span className="ml-4 px-2 py-0.5 bg-indigo-500 text-white rounded text-[9px] font-bold">Recommended: {p.audioTag}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-3 flex-1">
+                        {p.guide.map((step, i) => (
+                          <div key={i} className="flex gap-3 text-sm text-indigo-100/80 items-start">
+                            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500/30 text-[10px] font-bold shrink-0 mt-0.5">{i + 1}</span>
+                            <p>{step}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setShowZenMode(true)}
+                        className="w-full py-4 mt-auto bg-white text-indigo-900 font-bold rounded-2xl hover:bg-slate-100 transition-all shadow-lg active:scale-[0.98]"
+                      >
+                        처방 가이드 시작하기
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div >
+
+            {showZenMode && result.careType && MENTAL_PRESCRIPTIONS[result.careType] && (
+              <PrescriptionZenMode
+                prescription={MENTAL_PRESCRIPTIONS[result.careType]}
+                onClose={() => setShowZenMode(false)}
+              />
+            )}
+          </div >
+
+          {/* Before & After Comparison Dashboard */}
+          {
+            (() => {
+              // Find previous record for the same student (by name)
+              const previousRecords = history.filter(
+                h => h.student.name === result.student.name && h.date !== result.student.testDate
+              ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+              const prev = previousRecords[0]; // Most recent previous record
+
+              if (!prev) return null; // No previous data to compare
+
+              // Helper function for calculating change
+              const getChange = (current: number, previous: number) => {
+                const diff = current - previous;
+                const percent = previous !== 0 ? ((diff / previous) * 100).toFixed(1) : '0';
+                return { diff, percent, isPositive: diff > 0 };
+              };
+
+              // Metrics to compare
+              const metrics = [
+                {
+                  label: 'Brain Score',
+                  current: result.hrv.brainScore,
+                  prev: prev.hrv.brainScore,
+                  unit: '점',
+                  icon: '🧠',
+                  goodIfUp: true
+                },
+                {
+                  label: 'Vitality Index',
+                  current: result.hrv.vitality,
+                  prev: prev.hrv.vitality,
+                  unit: '%',
+                  icon: '⚡',
+                  goodIfUp: true
+                },
+                {
+                  label: 'Fatigue Level',
+                  current: result.hrv.fatigue,
+                  prev: prev.hrv.fatigue,
+                  unit: '%',
+                  icon: '😴',
+                  goodIfUp: false // Lower is better
+                },
+                {
+                  label: 'Stress Resistance',
+                  current: result.hrv.sns,
+                  prev: prev.hrv.sns,
+                  unit: '',
+                  icon: '🛡️',
+                  goodIfUp: false // Lower SNS is calmer
+                },
+                {
+                  label: 'Sleep Quality (ISI)',
+                  current: 21 - result.survey.isi, // Inverted for "quality"
+                  prev: 21 - prev.survey.isi,
+                  unit: '점',
+                  icon: '🌙',
+                  goodIfUp: true
+                },
+                {
+                  label: 'Concentration',
+                  current: result.hrv.concentrationLevel || 5,
+                  prev: prev.hrv.concentrationLevel || 5,
+                  unit: 'Lv',
+                  icon: '🎯',
+                  goodIfUp: true
+                }
+              ];
+
+              return (
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 p-8 rounded-3xl shadow-2xl text-white print-avoid-break mb-8">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-2xl shadow-lg">
+                        📊
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black tracking-tight">Progress Tracker</h3>
+                        <p className="text-white/50 text-sm font-medium">Before & After Comparison</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Previous Assessment</p>
+                      <p className="text-lg font-bold text-white/80">{prev.date}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {metrics.map((m, idx) => {
+                      const change = getChange(m.current, m.prev);
+                      const isImproved = m.goodIfUp ? change.isPositive : !change.isPositive;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-5 rounded-2xl border transition-all duration-300 ${isImproved
+                            ? 'bg-emerald-500/10 border-emerald-500/30'
+                            : change.diff === 0
+                              ? 'bg-white/5 border-white/10'
+                              : 'bg-rose-500/10 border-rose-500/30'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-xl">{m.icon}</span>
+                            <span className="text-xs font-bold text-white/60 uppercase tracking-wider">{m.label}</span>
+                          </div>
+
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <p className="text-[10px] text-white/30 font-bold mb-0.5">BEFORE</p>
+                              <p className="text-lg font-bold text-white/50">{m.prev}{m.unit}</p>
+                            </div>
+
+                            <div className={`text-2xl font-black ${isImproved ? 'text-emerald-400' : change.diff === 0 ? 'text-white/40' : 'text-rose-400'}`}>
+                              {change.diff > 0 ? '↑' : change.diff < 0 ? '↓' : '—'}
+                            </div>
+
+                            <div className="text-right">
+                              <p className="text-[10px] text-white/30 font-bold mb-0.5">AFTER</p>
+                              <p className="text-lg font-black text-white">{m.current}{m.unit}</p>
+                            </div>
+                          </div>
+
+                          <div className={`mt-3 text-center text-xs font-bold py-1 rounded-lg ${isImproved
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : change.diff === 0
+                              ? 'bg-white/5 text-white/30'
+                              : 'bg-rose-500/20 text-rose-300'
+                            }`}>
+                            {change.diff === 0 ? 'No Change' : `${change.isPositive ? '+' : ''}${change.percent}%`}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-white/40 text-xs">
+                      <span className="w-3 h-3 rounded bg-emerald-500/50"></span> Improved
+                      <span className="w-3 h-3 rounded bg-rose-500/50 ml-4"></span> Needs Attention
+                    </div>
+                    <p className="text-[10px] text-white/30 italic">
+                      Based on {previousRecords.length} previous record(s) for {result.student.name}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()
+          }
+
+
+          {/* Expanded 2x2 Chart Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-80 print-avoid-break">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-4">Autonomic Balance (ANS)</h4>
+              <BalanceChart sns={result.hrv.sns} pns={result.hrv.pns} />
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-80 print-avoid-break">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-4">Vitality & Fatigue Index</h4>
+              <VitalityBarChart vitality={result.hrv.vitality} fatigue={result.hrv.fatigue} />
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-80 print-avoid-break">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-4">Brain Balance Radar</h4>
+              <BrainRadarChart
+                gamma={result.hrv.eegGamma}
+                hBeta={result.hrv.eegHBeta}
+                mBeta={result.hrv.eegMBeta}
+                lBeta={result.hrv.eegLBeta}
+                alpha={result.hrv.eegAlpha}
+                theta={result.hrv.eegTheta}
+              />
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-80 print-avoid-break">
+              <h4 className="text-sm font-bold text-slate-500 uppercase mb-6">Stress & Concentration Gauge</h4>
+              <div className="space-y-6 pt-4">
+                <StressGaugeChart stress={result.protocol.stressLevel} label="Self-Reported Stress" color="text-red-600" />
+                <StressGaugeChart stress={result.hrv.concentrationLevel || 5} label="Clinical Concentration" color="text-emerald-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* PNT Mall Targeted Nutrition (NEW PAGE) */}
+          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm print-page-break print-avoid-break">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
+              <h3 className="text-xl font-bold text-slate-900">Targeted Nutrition Recommendation</h3>
+            </div>
+
+            {getRecommendedProducts().length === 0 ? (
+              <p className="text-slate-500 text-sm">현재 상태는 정상 범위로 필수 영양제만 권장합니다.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 gap-6 print:gap-3">
+                {getRecommendedProducts().map(product => (
+                  <div key={product.id} className="group block bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-lg hover:border-slate-200 transition-all duration-300 print:border-slate-300 print:rounded-lg">
+                    <div className="aspect-[4/3] print:aspect-[3/1] bg-slate-50 overflow-hidden relative">
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-1">
+                        {product.tags.map(tag => (
+                          <span key={tag} className="px-2 py-1 bg-white/90 backdrop-blur text-[10px] font-bold text-slate-700 rounded-lg print:border print:border-slate-200">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-5 print:p-3">
+                      <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors print:text-sm">{product.name}</h4>
+                      <p className="text-xs text-slate-500 mt-1 print:text-[10px]">{product.subName}</p>
+                      <div className="mt-4 pt-4 border-t border-slate-50 print:mt-2 print:pt-2">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Key Ingredients</p>
+                        <div className="flex flex-wrap gap-y-1 gap-x-2">
+                          {product.ingredients.map((ing, i) => (
+                            <span key={i} className="text-xs text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded">{ing}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* NEW: Personalized Exam Strategy Section */}
+          {
+            config.isExamMode && result.careType && strategies[result.careType] && (
+              <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden mt-8 print-avoid-break">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 transform translate-x-1/2 -translate-y-1/2 no-print"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-1.5 h-6 bg-blue-400 rounded-full"></div>
+                    <div>
+                      <h3 className="text-xl font-bold">Personalized Exam Strategy</h3>
+                      <p className="text-slate-400 text-sm">Type-Based Optimization : {result.careType}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 1. Nutrition */}
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 hover:bg-white/15 transition-colors print-avoid-break">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">?</span>
+                        <h4 className="font-bold text-blue-300">Nutrition Routine</h4>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{strategies[result.careType].nutritionGuide}</p>
+                    </div>
+                    {/* 2. Study */}
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 hover:bg-white/15 transition-colors print-avoid-break">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">?</span>
+                        <h4 className="font-bold text-indigo-300">Study Strategy</h4>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{strategies[result.careType].studyStrategy}</p>
+                    </div>
+                    {/* 3. Exercise */}
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 hover:bg-white/15 transition-colors print-avoid-break">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">?</span>
+                        <h4 className="font-bold text-emerald-300">Exercise Guide</h4>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{strategies[result.careType].exerciseGuide}</p>
+                    </div>
+                    {/* 4. Ritual */}
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/10 hover:bg-white/15 transition-colors print-avoid-break">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">?</span>
+                        <h4 className="font-bold text-amber-300">Pre-Study Ritual</h4>
+                      </div>
+                      <p className="text-sm text-slate-300 whitespace-pre-line leading-relaxed">{strategies[result.careType].preStudyRoutine}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+        </div >
+        <ExpertOverlay careType={result.careType} />
+
+        {/* Global Admin Components */}
+        {
+          !showConfig && (
+            <button
+              onClick={() => setShowAdminPassword(true)}
+              className="fixed bottom-6 left-6 z-50 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center justify-center print:hidden opacity-30 hover:opacity-100"
+              title="Admin Settings"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            </button>
+          )
+        }
+
+        {
+          showAdminPassword && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs">
+                <h3 className="font-bold text-lg mb-4 text-slate-800">Admin Access Required</h3>
+                <input
+                  type="password"
+                  className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Enter Password"
+                  value={adminPasswordInput}
+                  onChange={e => setAdminPasswordInput(e.target.value)}
+                  autoFocus
+                  onKeyDown={e => e.key === 'Enter' && handleAdminUnlock()}
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+                  <button onClick={handleAdminUnlock} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Confirm</button>
+                </div>
+              </div>
+            </div>
+          )
+        }
+      </Layout >
+    );
+  }
+
+
+  if (step === 'admin_expertise') {
+    return (
+      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+        <AdminExpertiseView
+          onBack={() => { setStep('results'); setShowConfig(true); }}
+          studentName={student.name}
+          studentId={student.id}
+        />
+
+        {showAdminPassword && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs">
+              <h3 className="font-bold text-lg mb-4 text-slate-800">Admin Access Required</h3>
+              <input
+                type="password"
+                className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="Enter Password"
+                value={adminPasswordInput}
+                onChange={e => setAdminPasswordInput(e.target.value)}
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleAdminUnlock()}
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button onClick={handleAdminUnlock} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Layout>
+    );
+  }
+
+  // Move component definitions to top or use directly.
+  // Ideally, we should place them before return.
+  // For now, let's keep the return at the end simple.
+  return (
+    <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} onAdminClick={() => setShowAdminPassword(true)}>
+      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 min-h-screen pb-20 pt-12 text-center">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+          <h2 className="text-3xl font-black text-slate-900 mb-4">YES_YOU Assessment</h2>
+          <p className="text-slate-500 mb-8">새로운 진단을 시작시겠습니까?</p>
+          <button onClick={() => setStep('register')} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">
+            Start New Assessment
+          </button>
+        </div>
+      </div>
+
+      {showAdminPassword && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs">
+            <h3 className="font-bold text-lg mb-4 text-slate-800">Admin Access Required</h3>
+            <input
+              type="password"
+              className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
+              placeholder="Enter Password"
+              value={adminPasswordInput}
+              onChange={e => setAdminPasswordInput(e.target.value)}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleAdminUnlock()}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+              <button onClick={handleAdminUnlock} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+};
+export default App;

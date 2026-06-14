@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Psychological Assessment - 관리자 조회</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-in {
+            animation: fade-in 0.3s ease-out;
+        }
+
+        .tab-active {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+        }
+
+        .checked-item {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen">
+    <div id="app" class="max-w-4xl mx-auto p-6">
+        <!-- Header -->
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 mb-6">
+            <div class="flex items-center gap-4">
+                <img src="/psychological_logo.jpg" alt="Logo" class="w-14 h-14 object-contain"
+                    onerror="this.style.display='none'">
+                <div class="flex-1">
+                    <h1 class="text-2xl font-black text-slate-900">Psychological Assessment</h1>
+                    <p class="text-sm text-blue-600 font-bold uppercase tracking-widest">관리자 설문 조회</p>
+                </div>
+                <div class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
+                    👨‍💼 관리자용
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Message (shown when no data) -->
+        <div id="waiting-message" class="bg-white rounded-2xl p-12 shadow-sm border border-slate-200 text-center">
+            <div class="text-6xl mb-4">📋</div>
+            <h2 class="text-xl font-bold text-slate-700 mb-2">학생 응답 대기 중...</h2>
+            <p class="text-slate-500">학생이 설문을 제출하면 자동으로 표시됩니다.</p>
+            <div class="mt-6 flex justify-center">
+                <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            </div>
+        </div>
+
+        <!-- Survey Content (hidden until data received) -->
+        <div id="survey-content" class="hidden">
+            <!-- Score Display -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 mb-6">
+                <div class="flex justify-between items-center">
+                    <div class="text-sm text-slate-500">
+                        <span id="submitted-time"></span>
+                    </div>
+                    <div class="flex gap-6 text-sm">
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase">SYM</p>
+                            <p id="score-sym" class="text-lg font-black text-rose-500">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase">PARA</p>
+                            <p id="score-para" class="text-lg font-black text-blue-500">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase">FOCUS</p>
+                            <p id="score-focus" class="text-lg font-black text-amber-500">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase">BAI</p>
+                            <p id="score-bai" class="text-lg font-black text-indigo-500">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-slate-400 uppercase">ISI</p>
+                            <p id="score-isi" class="text-lg font-black text-purple-500">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-6 flex-wrap">
+                <button onclick="switchTab('ans')" id="tab-ans"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all tab-active">ANS</button>
+                <button onclick="switchTab('bai')" id="tab-bai"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">불안
+                    (BAI)</button>
+                <button onclick="switchTab('isi')" id="tab-isi"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">수면
+                    (ISI)</button>
+                <button onclick="switchTab('focus')" id="tab-focus"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">집중력</button>
+                <button onclick="switchTab('adrenal')" id="tab-adrenal"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">부신피로</button>
+                <button onclick="switchTab('cfs')" id="tab-cfs"
+                    class="tab-btn px-4 py-2 rounded-xl font-bold text-sm transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">CFS</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div id="content-ans" class="tab-content animate-in">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <div
+                            class="bg-gradient-to-r from-rose-500 to-rose-600 text-white px-4 py-3 rounded-t-2xl font-bold">
+                            Sympathetic
+                        </div>
+                        <div class="bg-white rounded-b-2xl border border-slate-200 border-t-0 divide-y divide-slate-100"
+                            id="sym-list"></div>
+                    </div>
+                    <div>
+                        <div
+                            class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-t-2xl font-bold">
+                            Parasympathetic
+                        </div>
+                        <div class="bg-white rounded-b-2xl border border-slate-200 border-t-0 divide-y divide-slate-100"
+                            id="para-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-bai" class="tab-content hidden">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6">
+                    <div id="bai-list" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div id="content-isi" class="tab-content hidden">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6">
+                    <div id="isi-list" class="space-y-6"></div>
+                </div>
+            </div>
+
+            <div id="content-focus" class="tab-content hidden">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6">
+                    <div id="focus-list" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div id="content-adrenal" class="tab-content hidden">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6">
+                    <div id="adrenal-list" class="space-y-6"></div>
+                </div>
+            </div>
+
+            <div id="content-cfs" class="tab-content hidden">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6">
+                    <div id="cfs-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Survey Data Constants
+        const SYMPATHETIC_SYMPTOMS = [
+            "빈맥 (Tachycardia)", "손발떨림 (Tremors)", "과호흡 (Hyperventilation)",
+            "얕은호흡 (Shallow Breathing)", "다한증 (Hyperhidrosis)", "식은땀 (Cold Sweats)",
+            "소화불량 (Indigestion)", "변비 (Constipation)", "불안 (Anxiety)",
+            "공황 (Panic)", "수면장애 (Sleep Disorder)", "과민반응 (Hypersensitivity)",
+            "배뇨억제 (Urinary Suppression)"
+        ];
+
+        const PARASYMPATHETIC_SYMPTOMS = [
+            "서맥 (Bradycardia)", "어지러움 (Dizziness)", "호흡저하 (Hypoventilation)",
+            "느린호흡 (Slow Breathing)", "체온저하 (Hypothermia)", "수족냉증 (Cold hands/feet)",
+            "속쓰림 (Heartburn)", "설사 (Diarrhea)", "무기력 (Lethargy)",
+            "우울감 (Depression)", "졸림 (Drowsiness)", "감정반응 둔화 (Emotional Blunting)",
+            "빈뇨 (Frequent Urination)"
+        ];
+
+        const BAI_QUESTIONS = [
+            "가끔씩 몸이 저리고 쑤시며 감각이 마비된 느낌을 받는다.",
+            "흥분된 느낌을 받는다.", "가끔씩 다리가 떨리곤 한다.",
+            "편안하게 쉴 수가 없다.", "매우 나쁜 일이 일어날 것 같은 두려움을 느낀다.",
+            "어지러움(현기증)을 느낀다.", "가끔씩 심장이 두근거리고 빨리 뛴다.",
+            "침착하지 못하다.", "자주 겁을 먹고 무서움을 느낀다.",
+            "신경이 과민 되어 있다.", "가끔씩 숨이 막히고 질식할 것 같다.",
+            "자주 손이 떨린다.", "안절부절 못한다.",
+            "미칠 것 같은 두려움을 느낀다.", "가끔씩 숨쉬기 곤란할 때가 있다.",
+            "죽을 것 같은 두려움을 느낀다.", "불안한 상태이다.",
+            "자주 소화가 잘 안되고 뱃속이 불편하다.", "가끔 기절할 것 같다.",
+            "자주 얼굴이 붉어지곤 한다.", "땀을 많이 흘린다."
+        ];
+
+        const ISI_QUESTIONS = [
+            { label: "잠들기 어렵다.", options: ["전혀 없다", "약간", "중간 정도", "심하다", "매우 심하다"] },
+            { label: "잠을 유지하기 어렵다.", options: ["전혀 없다", "약간", "중간 정도", "심하다", "매우 심하다"] },
+            { label: "쉽게 깬다.", options: ["전혀 없다", "약간", "중간 정도", "심하다", "매우 심하다"] },
+            { label: "현재 수면패턴에 대해 얼마나 만족하십니까?", options: ["매우 만족", "만족", "중간", "불만족", "매우 불만족"] },
+            { label: "수면장애가 일상기능을 어느 정도로 방해합니까?", options: ["전혀 방해 안됨", "조금", "다소", "많이", "매우 많이"] },
+            { label: "수면 장애가 삶의 질에 영향을 줍니까?", options: ["전혀 아님", "조금", "다소", "많이", "매우 많이"] },
+            { label: "수면장애에 관해 얼마나 걱정하십니까?", options: ["전혀", "조금", "다소", "많이", "매우 많이"] }
+        ];
+
+        const CONCENTRATION_QUESTIONS = [
+            "세부적인 일에 주의를 기울이기 힘들다.",
+            "집중력을 유지하기가 어렵다.",
+            "다른 사람 말을 귀 기울여 듣지 않는다.",
+            "학업을 끝까지 마치지 못한다.",
+            "정신적 노력이 필요한 일을 피한다.",
+            "외부 자극에 쉽게 산만해진다.",
+            "일상적인 활동을 자주 잊어버린다."
+        ];
+
+        const ADRENAL_QUESTIONS = [
+            {
+                category: "1. 수면과 활력", questions: [
+                    "아침에 일어날 때 몸이 천근만근이다.",
+                    "낮 시간에 계속 졸음이 쏟아진다.",
+                    "오후 3~4시쯤 기운이 빠진다.",
+                    "밤에 피곤해도 잠들기 어렵다."
+                ]
+            },
+            {
+                category: "2. 식습관 및 대사", questions: [
+                    "짠/단 음식이 강렬하게 당긴다.",
+                    "카페인 없이 하루를 버티기 힘들다.",
+                    "식사를 거르면 어지럽거나 예민하다.",
+                    "복부 비만이 심해졌다."
+                ]
+            },
+            {
+                category: "3. 심리 및 면역", questions: [
+                    "스트레스 대처 능력이 떨어졌다.",
+                    "감정 기복이 심하다.",
+                    "감기 회복이 매우 더디다.",
+                    "브레인 포그가 자주 든다."
+                ]
+            },
+            {
+                category: "4. 신체 반응", questions: [
+                    "기립성 저혈압을 느낀다.",
+                    "피부가 건조하거나 알러지가 심해졌다.",
+                    "PMS가 심해지거나 성욕이 줄었다."
+                ]
+            }
+        ];
+
+        const CFS_SYMPTOMS = [
+            "기억력/집중력 감소",
+            "인후통",
+            "림프절 통증",
+            "근육통",
+            "관절통",
+            "두통",
+            "잠을 자도 개운하지 않음",
+            "운동 후 24h 이상 피로감"
+        ];
+
+        let surveyData = null;
+
+        // Listen for localStorage changes
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'surveyFormData' && event.newValue) {
+                try {
+                    surveyData = JSON.parse(event.newValue);
+                    displaySurveyData(surveyData);
+                    showNotification();
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            }
+        });
+
+        // Listen for postMessage
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'SURVEY_SUBMITTED') {
+                surveyData = event.data.data;
+                displaySurveyData(surveyData);
+                showNotification();
+            }
+        });
+
+        // Check for existing data on load
+        const existingData = localStorage.getItem('surveyFormData');
+        if (existingData) {
+            try {
+                surveyData = JSON.parse(existingData);
+                displaySurveyData(surveyData);
+            } catch (e) {
+                console.error('Parse error:', e);
+            }
+        }
+
+        function displaySurveyData(data) {
+            document.getElementById('waiting-message').classList.add('hidden');
+            document.getElementById('survey-content').classList.remove('hidden');
+
+            // Update scores
+            document.getElementById('score-sym').textContent = data.scores?.sympathetic || data.sympathetic?.length || 0;
+            document.getElementById('score-para').textContent = data.scores?.parasympathetic || data.parasympathetic?.length || 0;
+            document.getElementById('score-focus').textContent = data.scores?.concentration || 0;
+            document.getElementById('score-bai').textContent = data.scores?.bai || 0;
+            document.getElementById('score-isi').textContent = data.scores?.isi || 0;
+
+            // Update time
+            if (data.submittedAt) {
+                const date = new Date(data.submittedAt);
+                document.getElementById('submitted-time').textContent = `제출: ${date.toLocaleString('ko-KR')}`;
+            }
+
+            // Render all tabs
+            renderANS(data);
+            renderBAI(data);
+            renderISI(data);
+            renderConcentration(data);
+            renderAdrenal(data);
+            renderCFS(data);
+        }
+
+        function renderANS(data) {
+            const symList = document.getElementById('sym-list');
+            const paraList = document.getElementById('para-list');
+
+            symList.innerHTML = SYMPATHETIC_SYMPTOMS.map(s => {
+                const isChecked = data.sympathetic?.includes(s);
+                return `<div class="flex items-center gap-3 p-4 ${isChecked ? 'bg-rose-50' : ''}">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-rose-500 border-rose-500 text-white' : 'border-slate-300'}">
+                        ${isChecked ? '✓' : ''}
+                    </div>
+                    <span class="text-sm ${isChecked ? 'text-rose-700 font-bold' : 'text-slate-500'}">${s}</span>
+                </div>`;
+            }).join('');
+
+            paraList.innerHTML = PARASYMPATHETIC_SYMPTOMS.map(s => {
+                const isChecked = data.parasympathetic?.includes(s);
+                return `<div class="flex items-center gap-3 p-4 ${isChecked ? 'bg-blue-50' : ''}">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300'}">
+                        ${isChecked ? '✓' : ''}
+                    </div>
+                    <span class="text-sm ${isChecked ? 'text-blue-700 font-bold' : 'text-slate-500'}">${s}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function renderBAI(data) {
+            document.getElementById('bai-list').innerHTML = BAI_QUESTIONS.map((q, i) => {
+                const value = data.bai?.[i] || 0;
+                return `<div class="p-4 bg-slate-50 rounded-xl">
+                    <p class="text-sm font-medium text-slate-700 mb-3">${i + 1}. ${q}</p>
+                    <div class="flex gap-2">
+                        ${[0, 1, 2, 3].map(v => `
+                            <div class="flex-1 py-2 px-3 rounded-lg text-xs font-bold text-center
+                                ${value === v ? 'bg-indigo-500 text-white' : 'bg-white border border-slate-200 text-slate-400'}">
+                                ${v}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderISI(data) {
+            document.getElementById('isi-list').innerHTML = ISI_QUESTIONS.map((q, i) => {
+                const value = data.isi?.[i] || 0;
+                return `<div class="p-4 bg-slate-50 rounded-xl">
+                    <p class="text-sm font-medium text-slate-700 mb-3">${i + 1}. ${q.label}</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${q.options.map((opt, v) => `
+                            <div class="py-2 px-3 rounded-lg text-xs font-bold
+                                ${value === v ? 'bg-purple-500 text-white' : 'bg-white border border-slate-200 text-slate-400'}">
+                                ${opt}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderConcentration(data) {
+            const options = ['전혀 아니다', '드물게', '가끔', '자주', '매우 자주'];
+            document.getElementById('focus-list').innerHTML = CONCENTRATION_QUESTIONS.map((q, i) => {
+                const value = data.concentration?.[i] || 0;
+                return `<div class="p-4 bg-slate-50 rounded-xl">
+                    <p class="text-sm font-medium text-slate-700 mb-3">${i + 1}. ${q}</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${options.map((opt, v) => `
+                            <div class="py-2 px-3 rounded-lg text-xs font-bold
+                                ${value === v ? 'bg-amber-500 text-white' : 'bg-white border border-slate-200 text-slate-400'}">
+                                ${opt}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderAdrenal(data) {
+            document.getElementById('adrenal-list').innerHTML = ADRENAL_QUESTIONS.map((cat, catIdx) => `
+                <div class="mb-4">
+                    <h3 class="font-bold text-slate-800 mb-3">${cat.category}</h3>
+                    <div class="space-y-2">
+                        ${cat.questions.map((q, qIdx) => {
+                const isChecked = data.adrenal?.includes(`${catIdx}-${qIdx}`);
+                return `<div class="flex items-center gap-3 p-3 rounded-xl ${isChecked ? 'bg-teal-50' : 'bg-slate-50'}">
+                                <div class="w-5 h-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-teal-500 border-teal-500 text-white' : 'border-slate-300'}">
+                                    ${isChecked ? '✓' : ''}
+                                </div>
+                                <span class="text-sm ${isChecked ? 'text-teal-700 font-bold' : 'text-slate-500'}">${q}</span>
+                            </div>`;
+            }).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderCFS(data) {
+            document.getElementById('cfs-list').innerHTML = CFS_SYMPTOMS.map((s, i) => {
+                const originalSymptom = [
+                    "Memory or concentration decrease (기억력 혹은 집중력 감소)",
+                    "Sore throat (인후통)",
+                    "Tender lymph nodes (목이나 겨드랑이 부위 통증)",
+                    "Muscle pain (근육통)",
+                    "Joint pain without swelling (관절통)",
+                    "Headaches of a new type (두통)",
+                    "Unrefreshing sleep (잠을 자도 개운하지 않음)",
+                    "Post-exertional malaise > 24h (운동 후 하루 이상 피로감)"
+                ][i];
+                const isChecked = data.cfs?.includes(originalSymptom);
+                return `<div class="flex items-center gap-3 p-4 rounded-xl ${isChecked ? 'bg-orange-50' : 'bg-slate-50'}">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-300'}">
+                        ${isChecked ? '✓' : ''}
+                    </div>
+                    <span class="text-sm ${isChecked ? 'text-orange-700 font-bold' : 'text-slate-500'}">${s}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('tab-active');
+                el.classList.add('bg-slate-100', 'text-slate-600');
+            });
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('bg-slate-100', 'text-slate-600');
+        }
+
+        function showNotification() {
+            const notification = document.createElement('div');
+            notification.innerHTML = `
+                <div style="position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 24px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 9999; animation: slideIn 0.3s ease-out;">
+                    <div style="font-weight: bold;">✅ 학생 설문 응답 수신</div>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">설문 결과가 자동으로 표시됩니다.</div>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+    </script>
+</body>
+
+</html>

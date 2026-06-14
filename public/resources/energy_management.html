@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>에너지 관리 가이드</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px
+        }
+
+        h1 {
+            color: #fb923c;
+            border-bottom: 3px solid #fb923c;
+            padding-bottom: 10px
+        }
+
+        .tip {
+            background: #ffedd5;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px
+        }
+
+        @media print {
+            .no-print {
+                display: none
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>⚡ 에너지 관리 가이드</h1>
+    <h2>📊 에너지 레벨 추적</h2>
+    <p>아침: □ 1 □ 2 □ 3 □ 4 □ 5</p>
+    <p>점심: □ 1 □ 2 □ 3 □ 4 □ 5</p>
+    <p>저녁: □ 1 □ 2 □ 3 □ 4 □ 5</p>
+    <div class="tip">
+        <h3>에너지 충전 전략</h3>
+        <ul>
+            <li>충분한 수면 (7-9시간)</li>
+            <li>규칙적인 식사 (혈당 안정)</li>
+            <li>적당한 운동 (과하지 않게)</li>
+            <li>햇빛 노출 (비타민 D)</li>
+            <li>수분 섭취 (하루 2L)</li>
+        </ul>
+    </div>
+    <div class="tip">
+        <h3>에너지 낭비 줄이기</h3>
+        <ul>
+            <li>멀티태스킹 피하기</li>
+            <li>NO 말하기 연습</li>
+            <li>완벽주의 내려놓기</li>
+            <li>디지털 디톡스</li>
+        </ul>
+    </div>
+    <div class="no-print"
+        style="position:fixed;bottom:20px;right:20px;background:#fb923c;color:white;padding:15px 20px;border-radius:10px;cursor:pointer"
+        onclick="window.print()">🖨️ PDF로 저장</div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "Neuro-Bio Academic Strategy System [NBASS] 뉴로바이오 학습전략시스템",
+  "description": "NBASS는 뇌파·자율신경의 정밀 지표와 수험생 고유의 신체 프로파일(BMI) 및 인지 성향(MBTI)을 다각도로 통합 분석하여, 개인의 생체 생태계에 최적화된 학습 로드맵과 멘탈 솔루션을 처방하는 과학적 전략 시스템입니다.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

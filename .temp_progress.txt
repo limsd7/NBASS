@@ -1,0 +1,10 @@
+이 파일은 나머지 CareType들의 설명을 담고 있습니다.
+각 CareType별로 공부와 관련된 맞춤형 설명이 포함됩니다.
+
+STRESS_OVERLOAD부터 UNASSESSED까지 12개 CareType에 대한
+environmentExplanation (200자)
+brainScoreExplanation (500자)
+eegExplanation (500자)
+anxietyExplanation (500자)
+
+작성 중...

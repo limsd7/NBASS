@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>PHQ-9 가이드</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px
+        }
+
+        h1 {
+            color: #7c3aed;
+            border-bottom: 3px solid #7c3aed;
+            padding-bottom: 10px
+        }
+
+        .info {
+            background: #f5f3ff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px
+        }
+
+        @media print {
+            .no-print {
+                display: none
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>📋 PHQ-9 (Patient Health Questionnaire) 가이드</h1>
+    <h2>PHQ-9란?</h2>
+    <p>PHQ-9는 우울증 선별 및 심각도를 측정하는 9문항 자가보고식 검사입니다.</p>
+    <div class="info">
+        <h3>점수 해석</h3>
+        <p><strong>0-4점:</strong> 우울증 아님</p>
+        <p><strong>5-9점:</strong> 가벼운 우울증</p>
+        <p><strong>10-14점:</strong> 중등도 우울증</p>
+        <p><strong>15-19점:</strong> 중고도 우울증</p>
+        <p><strong>20-27점:</strong> 심각한 우울증</p>
+    </div>
+    <h2>주요 측정 증상</h2>
+    <ul>
+        <li>흥미나 즐거움 저하</li>
+        <li>우울감, 절망감</li>
+        <li>수면 문제</li>
+        <li>피로, 활력 저하</li>
+        <li>식욕 변화</li>
+        <li>자신에 대한 부정적 feeling</li>
+        <li>집중력 저하</li>
+        <li>느린/초조한 행동</li>
+        <li>자해/자살 생각</li>
+    </ul>
+    <div class="info" style="background:#fee2e2;border-left:5px solid #dc2626">
+        <h3>⚠️ 중요</h3>
+        <p>10점 이상이거나 9번 문항(자살 생각)에 답한 경우 즉시 전문가 상담이 필요합니다.</p>
+    </div>
+    <div class="no-print"
+        style="position:fixed;bottom:20px;right:20px;background:#7c3aed;color:white;padding:15px 20px;border-radius:10px;cursor:pointer"
+        onclick="window.print()">🖨️ PDF로 저장</div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

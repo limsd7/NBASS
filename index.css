@@ -1,0 +1,160 @@
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm 10mm 15mm 10mm;
+  }
+
+  body {
+    background: white !important;
+    color: #1a1a1b !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 10pt;
+  }
+
+  /* 숨길 요소들 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 카드 및 섹션 잘림 방지 */
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  /* 특정 섹션 강제 새 페이지 시작 (필요시) */
+  .print-page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* 인쇄 시 레이아웃 조정 */
+  .prose {
+    max-width: 100% !important;
+    font-size: 10.5pt !important;
+    line-height: 1.6;
+  }
+
+  /* 마크다운 내부 제목 다음에서 잘리지 않도록 */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+    color: #1e293b !important;
+  }
+
+  /* 리스트 항목 잘림 방지 */
+  li {
+    break-inside: avoid;
+  }
+
+  /* 카드 디자인 최적화 */
+  .bg-white {
+    background: white !important;
+  }
+
+  .bg-slate-900,
+  .bg-slate-800,
+  .bg-indigo-900,
+  .bg-slate-50,
+  .bg-amber-50,
+  .bg-indigo-50 {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .border,
+  .border-slate-200 {
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* 레이아웃 폭 조정 */
+  .max-w-4xl,
+  .max-w-6xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 스케줄 아이템 등 좁은 영역 조정 */
+  .grid {
+    display: block !important;
+  }
+
+  .grid-cols-2>*,
+  .grid-cols-3>*,
+  .lg\:grid-cols-3>*,
+  .lg\:grid-cols-2>* {
+    width: 100% !important;
+    margin-bottom: 15px !important;
+  }
+
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
+
+/* Branding Styles */
+.report-official-header {
+  border-bottom: 1.5px solid #e2e8f0;
+  padding-bottom: 8px;
+  margin-bottom: 24px;
+}
+
+.digital-signature-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: -0.02em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.signature-font {
+  font-family: 'Dancing Script', 'Apple Chancery', cursive;
+  font-size: 1.4rem;
+  color: #1e293b;
+}
+
+.report-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 8rem;
+  font-weight: 900;
+  color: rgba(0, 0, 0, 0.02);
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 0;
+}

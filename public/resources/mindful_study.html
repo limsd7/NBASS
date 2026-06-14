@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>마음챙김 학습법</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px
+        }
+
+        h1 {
+            color: #14b8a6;
+            border-bottom: 3px solid #14b8a6;
+            padding-bottom: 10px
+        }
+
+        .practice {
+            background: #ccfbf1;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px
+        }
+
+        @media print {
+            .no-print {
+                display: none
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>🧘 마음챙김 학습법</h1>
+    <h2>학습 전 마음 챙김 (5분)</h2>
+    <div class="practice">
+        <ol>
+            <li>편하게 앉기</li>
+            <li>눈감고 호흡에 집중</li>
+            <li>3번 깊게 숨쉬기</li>
+            <li>오늘 학습 의도 정하기</li>
+            <li>천천히 눈 뜨기</li>
+        </ol>
+    </div>
+    <h2>학습 중 마음챙김</h2>
+    <div class="practice">
+        <h3>산만해질 때</h3>
+        <ul>
+            <li>잠시멈추기</li>
+            <li>현재 하는 일 인식</li>
+            <li>호흡 3회</li>
+            <li>다시 집중</li>
+        </ul>
+    </div>
+    <div class="practice">
+        <h3>50분 학습 사이클</h3>
+        <ul>
+            <li>0-10분: 준비, 복습</li>
+            <li>10-40분: 깊은 집중</li>
+            <li>40-50분: 정리, 요약</li>
+            <li>휴식 10분 (완전히 쉬기)</li>
+        </ul>
+    </div>
+    <h2>학습 후 마음챙김 (3분)</h2>
+    <div class="practice">
+        <ol>
+            <li>오늘 배운것 3가지</li>
+            <li>잘한 것 1가지</li>
+            <li>감사한 것 1가지</li>
+        </ol>
+    </div>
+    <div class="no-print"
+        style="position:fixed;bottom:20px;right:20px;background:#14b8a6;color:white;padding:15px 20px;border-radius:10px;cursor:pointer"
+        onclick="window.print()">🖨️ PDF로 저장</div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

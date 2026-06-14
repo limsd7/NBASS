@@ -1,0 +1,56 @@
+{
+  "name": "mind-body-connect-student-integrated-care",
+  "private": true,
+  "description": "Mind-Body Connect Student Integrated Care System",
+  "author": "MindBodyConnect",
+  "version": "26.6.6",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "node scripts/start-dev.js",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.mindbodyconnect.app",
+    "productName": "MindBodyConnect",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "npmRebuild": "false"
+  },
+  "dependencies": {
+    "@google/genai": "^1.34.0",
+    "dexie": "^4.2.1",
+    "pdfjs-dist": "^4.0.379",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "recharts": "^3.6.0",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^9.0.3"
+  }
+}

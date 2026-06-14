@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>행동 활성화</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px
+        }
+
+        h1 {
+            color: #ec4899;
+            border-bottom: 3px solid #ec4899;
+            padding-bottom: 10px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border: 1px solid#fbcfe8;
+            text-align: left
+        }
+
+        th {
+            background: #f9a8d4
+        }
+
+        @media print {
+            .no-print {
+                display: none
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>🎯 행동 활성화 계획표</h1>
+    <p>우울감을 극복하기 위해 작은 활동부터 시작하세요.</p>
+    <h2>주간 활동 계획</h2>
+    <table>
+        <tr>
+            <th>요일</th>
+            <th>아침</th>
+            <th>오후</th>
+            <th>저녁</th>
+            <th>달성 여부</th>
+        </tr>
+        <tr>
+            <td>월</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>화</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>수</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>목</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>금</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>토</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+        <tr>
+            <td>일</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>□</td>
+        </tr>
+    </table>
+    <h2>💡 활동 아이디어</h2>
+    <ul>
+        <li>산책 10분</li>
+        <li>친구에게 문자 보내기</li>
+        <li>좋아하는 음악 듣기</li>
+        <li>간단한 요리</li>
+        <li>식물에 물 주기</li>
+        <li>창문 열고 환기</li>
+        <li>샤워하기</li>
+    </ul>
+    <div style="background:#fef3c7;padding:15px;margin-top:20px;border-radius:10px">
+        <p><strong>TIP:</strong>완벽하지 않아도 괜찮습니다. 작은 것부터 시작하세요!</p>
+    </div>
+    <div class="no-print"
+        style="position:fixed;bottom:20px;right:20px;background:#ec4899;color:white;padding:15px 20px;border-radius:10px;cursor:pointer"
+        onclick="window.print()">🖨️ PDF로 저장</div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

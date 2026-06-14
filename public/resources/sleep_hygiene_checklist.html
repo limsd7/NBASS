@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>수면 위생 체크리스트</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #6366f1;
+            border-bottom: 3px solid #6366f1;
+            padding-bottom: 10px;
+        }
+
+        .checkbox-item {
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid #e0e7ff;
+            border-radius: 8px;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #6366f1;
+            display: inline-block;
+            margin-right: 12px;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+
+    <style id="medical-print-style">
+        @media print {
+            @page {
+                margin: 1.5cm;
+                size: A4 portrait;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+                font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .no-print { display: none !important; }
+            .medical-header {
+                display: block !important;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 15px;
+                margin-bottom: 30px;
+            }
+            .medical-header .clinic-name {
+                font-size: 24px;
+                font-weight: 900;
+                color: #1e3a8a;
+                letter-spacing: -0.5px;
+            }
+            .medical-header .doc-type {
+                font-size: 14px;
+                color: #64748b;
+                margin-top: 5px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            .patient-info {
+                display: flex !important;
+                border: 2px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 15px;
+                margin-bottom: 30px;
+                gap: 20px;
+            }
+            .patient-info div {
+                flex: 1;
+                font-size: 13px;
+                border-right: 1px solid #e2e8f0;
+            }
+            .patient-info div:last-child {
+                border-right: none;
+            }
+            .patient-info strong {
+                display: inline-block;
+                width: 60px;
+                color: #475569;
+            }
+            .patient-info span {
+                display: inline-block;
+                width: 120px;
+                border-bottom: 1px solid #94a3b8;
+            }
+            .checkbox-item {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                margin-bottom: 5px !important;
+                padding: 10px !important;
+            }
+            h1 { font-size: 22px !important; color: #0f172a !important; border-bottom: none !important; margin-top:0; }
+            h2 { font-size: 18px !important; color: #1e293b !important; margin-top: 25px !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+            .medical-footer {
+                display: block !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 11px;
+                color: #94a3b8;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 10px;
+            }
+        }
+        @media screen {
+            .medical-header, .patient-info, .medical-footer { display: none !important; }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="medical-header">
+        <div class="clinic-name">마음-몸 연결 전문가 가이드</div>
+        <div class="doc-type">Expert Clinical Guidelines & Assessment</div>
+    </div>
+    <div class="patient-info">
+        <div><strong>Name</strong> <span></span></div>
+        <div><strong>Chart No</strong> <span></span></div>
+        <div><strong>Date</strong> <span></span></div>
+    </div>
+
+    <h1>😴 수면 위생 체크리스트</h1>
+    <p>양질의 수면을 위한 습관을 체크하세요.</p>
+
+    <h2>📋 수면 위생 실천 항목</h2>
+
+    <div class="checkbox-item">
+        <div class="checkbox"></div>매일 같은 시간에 잠들고 일어나기
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>취침 3시간 전 카페인 피하기
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>취침 2시간 전 음주 피하기
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>취침 1시간 전 스마트폰/TV 끄기
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>침실을 어둡고 시원하게 유지 (18-20°C)
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>침대는 수면과 휴식 용도로만 사용
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>낮잠은 오후 3시 이전, 20분 이내
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>저녁 식사는 가볍게, 취침 3시간 전 마무리
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>규칙적인 운동 (단, 취침 4시간 전까지)
+    </div>
+    <div class="checkbox-item">
+        <div class="checkbox"></div>잠들기전 이완 루틴 실천 (독서, 명상 등)
+    </div>
+
+    <h2>💡 수면 개선 팁</h2>
+    <ul>
+        <li>아침에 햇빛을 쬐어 생체 리듬 조절</li>
+        <li>침실 온도는 18-20도가 적정</li>
+        <li>20분 내 잠들지 못하면 일어나서 이완 활동</li>
+        <li>수면 일기 작성으로 패턴 파악</li>
+    </ul>
+
+    <div class="no-print"
+        style="position: fixed; bottom: 20px; right: 20px; background: #6366f1; color: white; padding: 15px 20px; border-radius: 10px; cursor: pointer;"
+        onclick="window.print()">
+        🖨️ PDF로 저장
+    </div>
+
+    <div class="medical-footer">
+        CONFIDENTIAL & PRIVILEGED CLINICAL DOCUMENT<br>
+        이 문서는 마음-몸 연결 전문가 시스템에서 생성된 공식 임상 가이드입니다.
+    </div>
+
+</body>
+
+</html>

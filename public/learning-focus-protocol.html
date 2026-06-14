@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학습 집중력 분석 프로토콜 검사</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slide-in-from-right-4 {
+            from {
+                transform: translateX(1rem);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-in {
+            animation: fade-in 0.5s ease-out, slide-in-from-right-4 0.5s ease-out;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50">
+    <div id="app"></div>
+
+    <script>
+        // Helper functions (from utils/constants.ts)
+        const getNoiseDescription = (level) => {
+            const descriptions = {
+                1: "1: 완전 차단 (무음실 수준)",
+                2: "2: 극히 조용 (심야 한적한 주거지)",
+                3: "3: 조용함 (독서실/도서관 수준)",
+                4: "4: 약한 소음 (조용한 사무실의 정보기기 소리)",
+                5: "5: 보통 (카페 백색소음/잔잔한 음악)",
+                6: "6: 다소 시끄러움 (학교 교실 수준 활동 소음)",
+                7: "7: 시끄러움 (사무실 대화/복도 소음)",
+                8: "8: 매우 시끄러움 (사람이 많은 식당/대기실)",
+                9: "9: 소음 심각 (진공청소기나 공사현장 근접)",
+                10: "10: 극한 소음 (공사현장/지하철 플랫폼)"
+            };
+            return descriptions[level] || "";
+        };
+
+        const getStressDescription = (level) => {
+            const descriptions = {
+                1: "1: 최상의 안온 (명상 직후 같은 안정 상태)",
+                2: "2: 매우 안정 (충분한 휴식을 취하고 있는 상태)",
+                3: "3: 안정 (적절한 자극과 정상적인 공부 상태)",
+                4: "4: 보통 이하 (무난하게 일상을 소화하는 상태)",
+                5: "5: 보통 (마감 압박이나 적당한 부담감 존재)",
+                6: "6: 약간 높음 (피로가 누적되기 시작하고 다소 지침)",
+                7: "7: 높음 (지속적인 피로와 긴장감이 느껴짐)",
+                8: "8: 매우 높음 (심한 압박감과 두통/긴장 동반)",
+                9: "9: 번아웃 직전 (감정 조절이 어렵고 무력함)",
+                10: "10: 한계 상태 (공황 또는 정신적 마비 상태)"
+            };
+            return descriptions[level] || "";
+        };
+
+        // State
+        let protocol = {
+            location: '',
+            noiseLevel: 3,
+            stressLevel: 5,
+            emotionalFactor: null,
+            motivationalFactor: null,
+            behavioralFactor: null,
+            taskDifficulty: null,
+            timeDistortion: null
+        };
+
+        let isCustomLoc = false;
+
+        // Render function
+        function render() {
+            const locations = ['학교 (School)', '학원 (Academy)', '도서관 (Library)', '카페 (Cafe)', '집 (Home)', '독서실 (Study Room)', '기타'];
+
+            const psychologicalFactors = [
+                {
+                    label: "심리적 요인 (불안/우울)",
+                    key: "emotionalFactor",
+                    low: "매우 안정",
+                    high: "매우 불안",
+                    question: "평소에 걱정이 많거나, 기분이 자주 가라앉나요?",
+                    descriptions: [
+                        "1점: 마음이 편안하고 안정적",
+                        "2점: 가끔 걱정되는 일이 있음",
+                        "3점: 보통 수준의 스트레스",
+                        "4점: 자주 불안하거나 우울함",
+                        "5점: 늘 걱정되고 기분이 가라앉음"
+                    ]
+                },
+                {
+                    label: "동기적 요인 (목표 의식)",
+                    key: "motivationalFactor",
+                    low: "의욕 없음",
+                    high: "목표 명확",
+                    question: "공부하는 이유와 목표가 분명한가요?",
+                    descriptions: [
+                        "1점: 왜 공부하는지 모르겠음",
+                        "2점: 막연히 해야 할 것 같아서",
+                        "3점: 어느 정도 목표가 있음",
+                        "4점: 목표가 꽤 분명함",
+                        "5점: 확실한 목표와 의욕이 넘침"
+                    ]
+                },
+                {
+                    label: "행동적 요인 (산만함)",
+                    key: "behavioralFactor",
+                    low: "매우 산만",
+                    high: "매우 차분",
+                    question: "공부할 때 집중이 잘 되는 편인가요?",
+                    descriptions: [
+                        "1점: 자꾸 딴 생각, 폰 확인",
+                        "2점: 집중이 자주 흐트러짐",
+                        "3점: 보통 수준으로 집중",
+                        "4점: 대체로 잘 집중함",
+                        "5점: 오래 집중할 수 있음"
+                    ]
+                }
+            ];
+
+            const immersionFactors = [
+                {
+                    label: "과제 난이도 적합성",
+                    key: "taskDifficulty",
+                    low: "매우 쉬움",
+                    high: "매우 어려움",
+                    question: "지금 공부하는 내용이 나에게 얼마나 어려운가요?",
+                    descriptions: [
+                        "1점: 이미 다 아는 내용이라 너무 쉬움",
+                        "2점: 대부분 이해했고 복습 수준",
+                        "3점: 노력하면 이해할 수 있는 수준",
+                        "4점: 꽤 어렵고 시간이 많이 걸림",
+                        "5점: 개념 자체가 이해가 안 됨"
+                    ]
+                },
+                {
+                    label: "시간 왜곡 경험 (몰입도)",
+                    key: "timeDistortion",
+                    low: "시간이 느림",
+                    high: "순식간에 지남",
+                    question: "공부할 때 시간이 어떻게 느껴지나요?",
+                    descriptions: [
+                        "1점: 시간이 너무 안 가고 지루함",
+                        "2점: 시계를 자주 확인하게 됨",
+                        "3점: 보통으로 시간이 흐름",
+                        "4점: 시간이 꽤 빨리 감",
+                        "5점: 순식간에 지나가서 놀람 (몰입 상태)"
+                    ],
+                    note: "5점에 가까울수록 '몰입(Flow)' 상태를 경험하는 것입니다"
+                }
+            ];
+
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="max-w-3xl mx-auto space-y-8 animate-in pb-20 p-8">
+                    <div class="flex flex-col items-center text-center gap-4">
+                        <img src="/학습 집중력 분석 프로토콜 logo.jpg" alt="Logo" class="w-24 h-24 object-contain" onerror="this.style.display='none'" />
+                        <div>
+                            <h2 class="text-3xl font-extrabold text-slate-900">학습 집중력 분석 프로토콜 검사</h2>
+                            <p class="text-slate-500 mt-2">단순 설문을 넘어 본질적인 집중력 요인을 확인 분석합니다.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-8">
+                        <!-- Section 1: 사전 준비 -->
+                        <div class="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+                            <div class="flex items-center gap-3">
+                                <span class="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm">1</span>
+                                <h3 class="text-xl font-bold text-slate-800">사전 준비 (Setting the Baseline)</h3>
+                            </div>
+                            <div class="space-y-6">
+                                <!-- Location -->
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-700 mb-3">주로 공부하는 장소 (Place)</label>
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        ${locations.map(loc => `
+                                            <button 
+                                                onclick="selectLocation('${loc}')" 
+                                                class="p-3 text-xs font-bold rounded-xl border transition-all ${(!isCustomLoc && protocol.location === loc) || (loc === '기타' && isCustomLoc)
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }"
+                                            >
+                                                ${loc}
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                    ${isCustomLoc ? `
+                                        <input 
+                                            type="text" 
+                                            placeholder="공부하는 장소를 직접 입력하세요"
+                                            value="${protocol.location}"
+                                            oninput="customLocationInput(event)"
+                                            class="mt-4 w-full px-4 py-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-sm"
+                                            autofocus
+                                        />
+                                    ` : ''}
+                                </div>
+
+                                <!-- Noise & Stress Levels -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <!-- Noise Level -->
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-end">
+                                            <label class="text-sm font-bold text-slate-700">주변 소음 수준 (Noise)</label>
+                                            <span class="text-blue-600 font-bold text-lg">${protocol.noiseLevel}<span class="text-slate-300 text-sm ml-0.5">/10</span></span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="1" 
+                                            max="10" 
+                                            step="1" 
+                                            value="${protocol.noiseLevel}" 
+                                            oninput="updateNoiseLevel(event)"
+                                            class="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 min-h-[48px] flex items-center">
+                                            <p class="text-[11px] font-bold text-blue-600 leading-snug">${getNoiseDescription(protocol.noiseLevel)}</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Stress Level -->
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-end">
+                                            <label class="text-sm font-bold text-slate-700">현재 스트레스 정도 (Stress)</label>
+                                            <span class="text-red-600 font-bold text-lg">${protocol.stressLevel}<span class="text-slate-300 text-sm ml-0.5">/10</span></span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="1" 
+                                            max="10" 
+                                            step="1" 
+                                            value="${protocol.stressLevel}" 
+                                            oninput="updateStressLevel(event)"
+                                            class="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-red-600"
+                                        />
+                                        <div class="bg-red-50/50 p-3 rounded-xl border border-red-100/50 min-h-[48px] flex items-center">
+                                            <p class="text-[11px] font-bold text-red-600 leading-snug">${getStressDescription(protocol.stressLevel)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 2: 심층 집중력 측정 -->
+                        <div class="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-8">
+                            <div class="flex items-center gap-3">
+                                <span class="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold text-sm">2</span>
+                                <h3 class="text-xl font-bold text-slate-800">심층 집중력 측정 (Detailed Assessment)</h3>
+                            </div>
+                            <div class="space-y-8">
+                                <!-- A. 심리/전략적 요인 -->
+                                <div class="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <div class="flex justify-between items-start mb-4">
+                                        <p class="text-sm font-bold text-slate-700 uppercase tracking-wider">A. 심리/전략적 요인</p>
+                                        <span class="text-[10px] bg-white px-2 py-1 rounded border border-slate-200 text-slate-400 font-bold">1(전혀 아님) ~ 5(매우 그러함)</span>
+                                    </div>
+                                    <div class="space-y-6">
+                                        ${psychologicalFactors.map(item => `
+                                            <div class="space-y-2 p-4 bg-white rounded-xl border border-slate-100">
+                                                <div class="flex justify-between items-start">
+                                                    <label class="text-xs font-bold text-slate-600">${item.label}</label>
+                                                </div>
+                                                <p class="text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded-lg inline-block">💡 ${item.question}</p>
+                                                <div class="flex gap-1">
+                                                    ${[1, 2, 3, 4, 5].map(v => `
+                                                        <button 
+                                                            onclick="selectFactor('${item.key}', ${v})"
+                                                            class="flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${protocol[item.key] === v
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-amber-200'
+                    }"
+                                                        >
+                                                            ${v}
+                                                        </button>
+                                                    `).join('')}
+                                                </div>
+                                                <div class="flex justify-between text-[10px] text-slate-400 font-medium px-1">
+                                                    <span>${item.low} (1점)</span>
+                                                    <span>${item.high} (5점)</span>
+                                                </div>
+                                                ${protocol[item.key] ? `
+                                                    <div class="mt-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                                                        <p class="text-[10px] text-amber-700 font-medium">
+                                                            ✓ ${item.descriptions[protocol[item.key] - 1]}
+                                                        </p>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+
+                                <!-- B. 학습 몰입도 -->
+                                <div class="p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                    <div class="flex justify-between items-start mb-4">
+                                        <p class="text-sm font-bold text-indigo-800 uppercase tracking-wider">B. 학습 몰입도</p>
+                                        <span class="text-[10px] bg-white px-2 py-1 rounded border border-indigo-200 text-indigo-300 font-bold">1(전혀 아님) ~ 5(매우 그러함)</span>
+                                    </div>
+                                    <div class="space-y-6">
+                                        ${immersionFactors.map(item => `
+                                            <div class="space-y-2 p-4 bg-white rounded-xl border border-indigo-100">
+                                                <div class="flex justify-between items-start">
+                                                    <label class="text-xs font-bold text-indigo-600">${item.label}</label>
+                                                </div>
+                                                <p class="text-[11px] text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg inline-block">💡 ${item.question}</p>
+                                                <div class="flex gap-1">
+                                                    ${[1, 2, 3, 4, 5].map(v => `
+                                                        <button 
+                                                            onclick="selectFactor('${item.key}', ${v})"
+                                                            class="flex-1 py-2 text-xs font-bold rounded-lg border transition-all ${protocol[item.key] === v
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-indigo-400 border-indigo-200 hover:border-indigo-300'
+                        }"
+                                                        >
+                                                            ${v}
+                                                        </button>
+                                                    `).join('')}
+                                                </div>
+                                                <div class="flex justify-between text-[10px] text-indigo-400 font-medium px-1">
+                                                    <span>${item.low} (1점)</span>
+                                                    <span>${item.high} (5점)</span>
+                                                </div>
+                                                ${protocol[item.key] ? `
+                                                    <div class="mt-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                                                        <p class="text-[10px] text-indigo-700 font-medium">
+                                                            ✓ ${item.descriptions[protocol[item.key] - 1]}
+                                                        </p>
+                                                    </div>
+                                                ` : ''}
+                                                ${item.note ? `
+                                                    <p class="text-[9px] text-indigo-400 italic mt-1">* ${item.note}</p>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex gap-4">
+                        <button onclick="handleBack()" class="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">
+                            Back
+                        </button>
+                        <button onclick="handleNext()" class="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg hover:bg-blue-700 transition-all">
+                            Next: 학습 분석 (Analytics)
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Event handlers
+        function selectLocation(loc) {
+            if (loc === '기타') {
+                isCustomLoc = true;
+                protocol.location = '';
+            } else {
+                isCustomLoc = false;
+                protocol.location = loc;
+            }
+            render();
+        }
+
+        function customLocationInput(event) {
+            protocol.location = event.target.value;
+        }
+
+        function updateNoiseLevel(event) {
+            protocol.noiseLevel = parseInt(event.target.value);
+            render();
+        }
+
+        function updateStressLevel(event) {
+            protocol.stressLevel = parseInt(event.target.value);
+            render();
+        }
+
+        function selectFactor(key, value) {
+            protocol[key] = value;
+            render();
+        }
+
+        function handleBack() {
+            // Send data back to parent window
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'PROTOCOL_BACK',
+                    data: protocol
+                }, '*');
+            }
+            window.close();
+        }
+
+        function handleNext() {
+            // Validate all fields
+            const requiredFields = ['location', 'emotionalFactor', 'motivationalFactor', 'behavioralFactor', 'taskDifficulty', 'timeDistortion'];
+            const missing = requiredFields.filter(field => !protocol[field]);
+
+            if (missing.length > 0) {
+                alert('모든 항목을 선택해주세요!');
+                return;
+            }
+
+            // Send data back to parent window
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'PROTOCOL_COMPLETE',
+                    data: protocol
+                }, '*');
+            }
+            window.close();
+        }
+
+        // Initial render
+        render();
+    </script>
+</body>
+
+</html>
