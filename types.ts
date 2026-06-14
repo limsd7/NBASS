@@ -519,6 +519,26 @@ export interface GradeGoal {
 }
 
 // ===== 수면 시간 관리 프로그램 타입 =====
+export interface SleepRecord {
+  id: string;
+  studentId: string;
+  date: string;          // ISO date (YYYY-MM-DD)
+  bedtime: string;       // HH:mm
+  wakeTime: string;      // HH:mm
+  sleepQuality: number;  // 1-5
+  memo?: string;
+  createdAt: string;
+}
+
+export interface SleepGoal {
+  id: string;
+  studentId: string;
+  targetBedtime: string; // HH:mm
+  targetWakeTime: string; // HH:mm
+  targetDuration: number; // hours
+  memo?: string;
+}
+
 export interface SleepPrescription {
   recommendedBedtime: string; // e.g. "23:00"
   recommendedWakeTime: string; // e.g. "07:00"

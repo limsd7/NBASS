@@ -23,6 +23,7 @@ import { PredictionReport } from './components/PredictionReport';
 import { ConsultantTabs } from './components/ConsultantTabs';
 import { StudyManagementView } from './components/study-management/StudyManagementView';
 import { GradeManagementView } from './components/grade-management/GradeManagementView';
+import { SleepManagementView } from './components/sleep-management/SleepManagementView';
 import { StressCareLabView } from './components/StressCareLabView';
 import { MENTAL_PRESCRIPTIONS } from './data/prescriptions';
 import { SUNEUNG_SUBJECTS } from './data/suneungSubjects';
@@ -153,7 +154,7 @@ type SurveyTab = 'ans' | 'bai' | 'isi' | 'concentration' | 'cfs' | 'adrenal';
 
 
 const App: React.FC = () => {
-  const [step, setStep] = useState<'role_selection' | 'parent_dashboard' | 'expert_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management'>('register');
+  const [step, setStep] = useState<'role_selection' | 'parent_dashboard' | 'expert_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management'>('register');
   const [activeMenu, setActiveMenu] = useState<'dashboard' | 'assessment' | 'history' | 'progress' | 'resources' | 'solutions'>('dashboard');
   const [activeTab, setActiveTab] = useState<SurveyTab>('ans');
   const [student, setStudent] = useState<StudentInfo>(initialStudent);
@@ -2001,6 +2002,17 @@ const App: React.FC = () => {
   if (step === 'grade_management') {
     return (
       <GradeManagementView 
+        student={student}
+        onBack={() => setStep('results')}
+        currentAssessment={result || undefined}
+        aiModels={aiModels}
+      />
+    );
+  }
+
+  if (step === 'sleep_management') {
+    return (
+      <SleepManagementView 
         student={student}
         onBack={() => setStep('results')}
         currentAssessment={result || undefined}

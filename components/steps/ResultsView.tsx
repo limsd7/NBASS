@@ -213,14 +213,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     };
 
     return (
-        <Layout
-            activeMenu={activeMenu}
-            onMenuChange={setActiveMenu}
-            isDarkMode={isDarkMode}
-            onToggleDarkMode={onToggleDarkMode}
-            onAdminClick={() => setShowAdminPassword(true)}
-            expertGuideAction={reportMode === 'expert' ? () => setIsExpertOverlayOpen(true) : undefined}
-        >
+        <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode} onAdminClick={() => setShowAdminPassword(true)} isExpertMode={reportMode === 'expert'} expertGuideAction={reportMode === 'expert' ? () => setIsExpertOverlayOpen(true) : undefined}>
             {/* [NEW] Hidden Medical Report container for Print Logic */}
             <div id="medical-report-container" className="hidden">
                 <MedicalReport result={result} config={config} />
@@ -317,13 +310,24 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 <span className="text-xl">🧬</span>
                                 <span className="text-sm">Study Mode</span>
                             </button>
-                            <button
-                                onClick={() => setStep('grade_management')}
-                                className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center gap-2 whitespace-nowrap"
-                            >
-                                <span className="text-xl">📈</span>
-                                <span className="text-sm">성적 관리</span>
-                            </button>
+                            {reportMode === 'expert' && (
+                                <>
+                                    <button
+                                        onClick={() => setStep('grade_management')}
+                                        className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <span className="text-xl">📈</span>
+                                        <span className="text-sm">성적 관리</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setStep('sleep_management')}
+                                        className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 flex items-center gap-2 whitespace-nowrap"
+                                    >
+                                        <span className="text-xl">🌙</span>
+                                        <span className="text-sm">수면 관리</span>
+                                    </button>
+                                </>
+                            )}
 
                             {/* Report Mode Toggle */}
                             <div className="flex bg-slate-200 p-1 rounded-xl items-center no-print">

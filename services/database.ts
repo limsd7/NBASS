@@ -6,7 +6,7 @@
  */
 
 import Dexie, { type Table } from 'dexie';
-import { AssessmentResult, StudentInfo, GradeRecord, GradeGoal } from '../types';
+import { AssessmentResult, StudentInfo, GradeRecord, GradeGoal, SleepRecord, SleepGoal } from '../types';
 import { StudyEfficiencyResults } from './studyEfficiencyService';
 
 // History Record 타입 정의
@@ -109,6 +109,8 @@ class MindBodyDatabase extends Dexie {
     cognitivePerformance!: Table<CognitivePerformanceRecord, number>;
     gradeRecords!: Table<GradeRecord, string>;
     gradeGoals!: Table<GradeGoal, string>;
+    sleepRecords!: Table<SleepRecord, string>;
+    sleepGoals!: Table<SleepGoal, string>;
 
     constructor() {
         super('MindBodyConnectDB');
@@ -175,6 +177,23 @@ class MindBodyDatabase extends Dexie {
             cognitivePerformance: '++id, studentId, date, createdAt',
             gradeRecords: 'id, studentId, examDate, createdAt',
             gradeGoals: 'id, studentId, subjectId'
+        });
+
+        // 버전 7 - sleepRecords, sleepGoals 추가
+        this.version(7).stores({
+            history: '++id, date, student.name, student.id, careType, syncStatus',
+            students: '++id, name, &[name+birthDate], createdAt',
+            settings: '++id, &key',
+            consultations: '++id, studentId, date',
+            selfCheckResults: '++id, studentId, careType, date, createdAt',
+            routineTracking: '++id, studentId, careType, date, createdAt',
+            studyEfficiency: '++id, studentId, date, createdAt',
+            workingMemory: '++id, studentId, date, createdAt',
+            cognitivePerformance: '++id, studentId, date, createdAt',
+            gradeRecords: 'id, studentId, examDate, createdAt',
+            gradeGoals: 'id, studentId, subjectId',
+            sleepRecords: 'id, studentId, date, createdAt',
+            sleepGoals: 'id, studentId'
         });
     }
 }
@@ -898,6 +917,79 @@ export const DatabaseService = {
         } catch (error) {
             console.error('Failed to delete grade goal:', error);
             throw error;
+        }
+    },
+
+    // ==================== Sleep Record 관련 ====================
+    async addSleepRecord(record: SleepRecord): Promise<string | undefined> {
+        try {
+            return await db.sleepRecords.add(record);
+        } catch (error) {
+            console.error('Failed to add sleep record:', error);
+            throw error;
+        }
+    },
+
+    async updateSleepRecord(record: SleepRecord): Promise<string | undefined> {
+        try {
+            await db.sleepRecords.put(record);
+            return record.id;
+        } catch (error) {
+            console.error('Failed to update sleep record:', error);
+            throw error;
+        }
+    },
+
+    async getSleepRecords(studentId: string): Promise<SleepRecord[]> {
+        try {
+            return await db.sleepRecords
+                .where('studentId')
+                .equals(studentId)
+                .reverse()
+                .sortBy('date');
+        } catch (error) {
+            console.error('Failed to get sleep records:', error);
+            return [];
+        }
+    },
+
+    async deleteSleepRecord(id: string): Promise<void> {
+        try {
+            await db.sleepRecords.delete(id);
+        } catch (error) {
+            console.error('Failed to delete sleep record:', error);
+            throw error;
+        }
+    },
+
+    async upsertSleepGoal(goal: SleepGoal): Promise<string | undefined> {
+        try {
+            const existing = await db.sleepGoals
+                .where('studentId')
+                .equals(goal.studentId)
+                .first();
+
+            if (existing) {
+                await db.sleepGoals.put({ ...goal, id: existing.id });
+                return existing.id;
+            } else {
+                return await db.sleepGoals.add(goal);
+            }
+        } catch (error) {
+            console.error('Failed to upsert sleep goal:', error);
+            throw error;
+        }
+    },
+
+    async getSleepGoal(studentId: string): Promise<SleepGoal | undefined> {
+        try {
+            return await db.sleepGoals
+                .where('studentId')
+                .equals(studentId)
+                .first();
+        } catch (error) {
+            console.error('Failed to get sleep goal:', error);
+            return undefined;
         }
     }
 };

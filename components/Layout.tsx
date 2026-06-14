@@ -10,18 +10,19 @@ interface LayoutProps {
   onToggleDarkMode?: () => void;
   onAdminClick?: () => void;
   expertGuideAction?: () => void;
+  isExpertMode?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, expertGuideAction }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, expertGuideAction, isExpertMode }) => {
   const [showManual, setShowManual] = useState(false);
   
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-    { id: 'assessment', label: 'Assessment', icon: '🧪' },
-    { id: 'history', label: 'History', icon: '📜' },
+    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'assessment', label: 'Assessment', icon: '📝' },
+    { id: 'history', label: 'History', icon: '📅' },
     { id: 'resources', label: 'Resources', icon: '📚' },
-    { id: 'solutions', label: 'Solutions', icon: '💡' },
-  ] as const;
+    ...(isExpertMode ? [{ id: 'solutions', label: 'Solutions', icon: '💡' } as const] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
