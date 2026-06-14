@@ -412,6 +412,7 @@ export const ResourcesView: React.FC = () => {
     const [showBreathingGuide, setShowBreathingGuide] = React.useState(false);
     const [activeVideo, setActiveVideo] = React.useState<string | null>(null);
     const [isNutritionModalOpen, setIsNutritionModalOpen] = React.useState(false);
+    const [isMentalModalOpen, setIsMentalModalOpen] = React.useState(false);
 
     const stretchingVideos = [
         { id: '1', title: '목/어깨 스트레칭', url: 'https://www.youtube.com/embed/RqcOCBb4arc', duration: '5분' },
@@ -536,14 +537,12 @@ export const ResourcesView: React.FC = () => {
                     <p className="text-slate-500 text-sm mb-4">
                         시험 불안을 다스리는 심리학적 기법과 마인드셋 관리법
                     </p>
-                    <a
-                        href="https://www.youthcenter.go.kr/youngPlazaOvr/youngPlazaOvrList.do"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <button
+                        onClick={() => setIsMentalModalOpen(true)}
                         className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         칼럼 읽기 →
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -645,6 +644,97 @@ export const ResourcesView: React.FC = () => {
                                             <p className="text-xs text-purple-700">장 건강(제2의 뇌)을 지키고 단백질을 공급해 포만감을 오래 유지.</p>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 멘탈 관리 칼럼 모달 */}
+            {isMentalModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
+                        <button
+                            onClick={() => setIsMentalModalOpen(false)}
+                            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        <div className="p-8">
+                            <h2 className="text-3xl font-black text-slate-900 mb-2 flex items-center gap-3">
+                                <span>🧠</span> 시험 불안을 다스리는 심리학
+                            </h2>
+                            <p className="text-slate-500 mb-8">
+                                인지행동치료(CBT)와 스포츠 심리학에 기반한 실전 멘탈 관리 및 마인드셋 기법입니다.
+                            </p>
+
+                            <div className="space-y-8">
+                                {/* Section 1 */}
+                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-3">
+                                        💡 1. 불안의 재평가 (Reappraisal)
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                        심장이 빠르게 뛰고 손에 땀이 나는 것은 '내가 시험을 망칠 것 같다'는 신호가 아니라, 
+                                        <strong>'내 뇌가 최고의 성능을 내기 위해 혈액과 산소를 펌프질하며 전투 준비를 하고 있다'</strong>는 생리적 증거입니다.
+                                    </p>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                                        <p className="text-sm font-bold text-blue-600 mb-1">적용 방법:</p>
+                                        <p className="text-sm text-slate-700">"나는 지금 너무 긴장돼" 라고 말하는 대신, <strong>"나는 지금 엄청나게 흥분(설렘)되고 준비된 상태야"</strong> 라고 소리 내어 말해보세요. 뇌는 이 두 감정을 생리적으로 똑같이 인식합니다.</p>
+                                    </div>
+                                </div>
+
+                                {/* Section 2 */}
+                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-3">
+                                        ⚓ 2. 5-4-3-2-1 그라운딩 (Grounding) 기법
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                        극도의 불안감이나 패닉(블랙아웃)이 올 때, 과부하가 걸린 뇌의 주의력을 '미래의 걱정'에서 '현재의 감각'으로 강제로 끌어오는 기법입니다.
+                                    </p>
+                                    <ul className="space-y-2 text-slate-700 text-sm bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                                        <li><strong>👁️ 5개:</strong> 지금 내 눈에 보이는 것 5가지 (책상, 시계, 연필 등)</li>
+                                        <li><strong>🖐️ 4개:</strong> 내 피부에 닿는 느낌 4가지 (의자의 촉감, 발바닥, 옷의 감촉 등)</li>
+                                        <li><strong>👂 3개:</strong> 지금 들리는 소리 3가지 (에어컨 소리, 숨소리, 멀리서 나는 차 소리)</li>
+                                        <li><strong>👃 2개:</strong> 지금 맡을 수 있는 냄새 2가지</li>
+                                        <li><strong>👅 1개:</strong> 입 안의 맛 1가지 (또는 긍정적인 확언 한 마디)</li>
+                                    </ul>
+                                </div>
+
+                                {/* Section 3 */}
+                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-3">
+                                        ⏱️ 3. 걱정 시간 지정하기 (Worry Time)
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                        공부 중에 자꾸 '수능 망치면 어떡하지?', '이거 다 못 끝내면 어떡하지?'라는 꼬리 무는 생각이 들 때 유용합니다.
+                                    </p>
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                                        <p className="text-sm font-bold text-rose-600 mb-1">적용 방법:</p>
+                                        <p className="text-sm text-slate-700">"이 걱정은 <strong>오늘 밤 10시에 딱 15분 동안만</strong> 치열하게 하자"라고 마음속으로 상자에 담아 미룹니다. 막상 밤 10시가 되면 그 걱정은 더 이상 위협적이지 않은 경우가 많습니다.</p>
+                                    </div>
+                                </div>
+
+                                {/* Section 4 */}
+                                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                                    <h3 className="text-xl font-bold text-blue-900 flex items-center gap-2 mb-3">
+                                        🌱 4. 성장 마인드셋 (Growth Mindset)
+                                    </h3>
+                                    <p className="text-blue-800 text-sm mb-4 leading-relaxed">
+                                        시험의 목적은 '내 지능을 평가받는 것'이 아니라 '내가 모르는 것을 찾아내어 수능 전까지 메꾸기 위함'입니다.
+                                    </p>
+                                    <ul className="space-y-3 text-sm">
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-rose-500 font-bold">❌ 완벽주의:</span> 
+                                            <span className="text-blue-900">"100점을 맞아야 해. 하나라도 틀리면 끝이야."</span>
+                                        </li>
+                                        <li className="flex items-start gap-2">
+                                            <span className="text-emerald-600 font-bold">✅ 최적주의:</span> 
+                                            <span className="text-blue-900">"내가 지금까지 공부하고 아는 것은 무조건 다 맞히고 온다."</span>
+                                        </li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
