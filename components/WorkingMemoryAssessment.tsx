@@ -197,6 +197,8 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
     };
 
     // ========== N-Back Logic ==========
+    const nBackRespondedRef = useRef(false);
+
     const startNBack = (level: 1 | 2) => {
         setNBackLevel(level);
         const sequence = generateNBackSequence(level);
@@ -206,6 +208,7 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         setNBackTestPhase('showing');
         setNBackShowCurrent(false);
         setNBackUserResponded(false);
+        nBackRespondedRef.current = false;
     };
 
     // N-Back 자극 표시
@@ -221,6 +224,7 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         // 자극 표시
         setNBackShowCurrent(true);
         setNBackUserResponded(false);
+        nBackRespondedRef.current = false;
 
         const config = NBACK_CONFIG[nBackLevel];
         const displayTimer = setTimeout(() => {
@@ -229,7 +233,7 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
 
         const nextTimer = setTimeout(() => {
             // 무응답 처리
-            if (!nBackUserResponded) {
+            if (!nBackRespondedRef.current) {
                 setNBackResponses(prev => [...prev, {
                     isTarget: nBackSequence[nBackIndex].isTarget,
                     userResponse: false
@@ -242,12 +246,14 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
             clearTimeout(displayTimer);
             clearTimeout(nextTimer);
         };
-    }, [nBackTestPhase, nBackIndex, nBackSequence, currentTest, nBackLevel, nBackUserResponded]);
+    }, [nBackTestPhase, nBackIndex, nBackSequence, currentTest, nBackLevel]);
 
     const handleNBackResponse = () => {
-        if (nBackUserResponded || nBackIndex >= nBackSequence.length) return;
+        if (nBackRespondedRef.current || nBackIndex >= nBackSequence.length) return;
 
         setNBackUserResponded(true);
+        nBackRespondedRef.current = true;
+        
         setNBackResponses(prev => [...prev, {
             isTarget: nBackSequence[nBackIndex].isTarget,
             userResponse: true
@@ -551,10 +557,10 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                 onClick={handleNBackResponse}
                 disabled={!nBackShowCurrent || nBackUserResponded || nBackIndex >= nBackSequence.length}
                 className={`w-full py-6 rounded-xl font-bold text-2xl transition-all duration-200 ${
-                    !nBackShowCurrent
-                        ? 'bg-gray-200 text-gray-400'
-                        : nBackUserResponded
-                            ? 'bg-green-500 text-white scale-[0.98] shadow-inner'
+                    nBackUserResponded
+                        ? 'bg-green-500 text-white scale-[0.98] shadow-inner'
+                        : !nBackShowCurrent
+                            ? 'bg-gray-200 text-gray-400'
                             : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg active:scale-95'
                 }`}
             >
