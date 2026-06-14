@@ -550,12 +550,15 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
             <button
                 onClick={handleNBackResponse}
                 disabled={!nBackShowCurrent || nBackUserResponded || nBackIndex >= nBackSequence.length}
-                className={`w-full py-6 rounded-xl font-bold text-2xl transition-all ${nBackShowCurrent && !nBackUserResponded
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg'
-                    : 'bg-gray-200 text-gray-400'
-                    }`}
+                className={`w-full py-6 rounded-xl font-bold text-2xl transition-all duration-200 ${
+                    !nBackShowCurrent
+                        ? 'bg-gray-200 text-gray-400'
+                        : nBackUserResponded
+                            ? 'bg-green-500 text-white scale-[0.98] shadow-inner'
+                            : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg active:scale-95'
+                }`}
             >
-                {nBackUserResponded ? '✅ 응답함' : '🎯 같음!'}
+                {nBackUserResponded ? '✅ 선택 완료' : '🎯 같음!'}
             </button>
 
             {/* 진행 상황 */}
