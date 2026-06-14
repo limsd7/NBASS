@@ -157,16 +157,43 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }, [result.sleepAnalysisText]);
 
     // Report Mode State
-    const [reportMode, setReportMode] = useState<'expert' | 'student'>(
-        isAdminUnlocked ? 'expert' : (config.expertModePassword ? 'student' : 'expert')
+    const [isModeFixed, setIsModeFixed] = useState(
+        localStorage.getItem('sn_report_mode_fixed_enabled') === 'true'
     );
+    const [reportMode, setReportMode] = useState<'expert' | 'student'>(() => {
+        if (localStorage.getItem('sn_report_mode_fixed_enabled') === 'true') {
+            const saved = localStorage.getItem('sn_report_mode');
+            if (saved === 'expert' || saved === 'student') return saved;
+        }
+        return isAdminUnlocked ? 'expert' : (config.expertModePassword ? 'student' : 'expert');
+    });
+
+    const handleSetReportMode = (mode: 'expert' | 'student') => {
+        setReportMode(mode);
+        if (isModeFixed) {
+            localStorage.setItem('sn_report_mode', mode);
+        }
+    };
+
+    const toggleModeFix = () => {
+        const newLocked = !isModeFixed;
+        setIsModeFixed(newLocked);
+        if (newLocked) {
+            localStorage.setItem('sn_report_mode_fixed_enabled', 'true');
+            localStorage.setItem('sn_report_mode', reportMode);
+            alert(`현재 ${reportMode === 'expert' ? '전문가용' : '학생용'} 모드로 고정되었습니다. 탭을 이동해도 유지됩니다.`);
+        } else {
+            localStorage.removeItem('sn_report_mode_fixed_enabled');
+            alert('모드 고정이 해제되었습니다.');
+        }
+    };
     
     // Sync with isAdminUnlocked if it changes externally
     useEffect(() => {
-        if (isAdminUnlocked) {
+        if (isAdminUnlocked && !isModeFixed) {
             setReportMode('expert');
         }
-    }, [isAdminUnlocked]);
+    }, [isAdminUnlocked, isModeFixed]);
     const [showAssessmentWindow, setShowAssessmentWindow] = useState(false);
     const [isExpertOverlayOpen, setIsExpertOverlayOpen] = useState(false);
     const [showExpertModePrompt, setShowExpertModePrompt] = useState(false);
@@ -376,13 +403,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     전문가용
                                 </button>
                                 <button
-                                    onClick={() => setReportMode('student')}
+                                    onClick={() => handleSetReportMode('student')}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${reportMode === 'student'
                                         ? 'bg-white text-teal-700 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     학생용
+                                </button>
+                                <button
+                                    onClick={toggleModeFix}
+                                    className={`ml-1 px-2 py-1.5 rounded-lg text-xs font-bold transition-all ${isModeFixed ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-300 text-slate-500 hover:bg-slate-400'}`}
+                                    title={isModeFixed ? "모드 고정 해제" : "현재 모드로 고정"}
+                                >
+                                    {isModeFixed ? '🔒 고정됨' : '🔓 고정'}
                                 </button>
                             </div>
 
@@ -689,7 +723,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 onConfirm={(pwd) => {
                     setShowExpertModePrompt(false);
                     if (pwd === (config.expertModePassword || '3123')) {
-                        setReportMode('expert');
+                        handleSetReportMode('expert');
                     } else {
                         alert("암호가 일치하지 않습니다.");
                     }
