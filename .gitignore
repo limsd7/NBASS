@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Electron build artifacts
+dist-electron/
+Output/
+*.exe
+*.asar
+*.blockmap
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +29,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temp files
+temp/
+*.pdf
