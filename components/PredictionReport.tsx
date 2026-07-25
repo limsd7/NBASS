@@ -6,10 +6,13 @@ import { AssessmentResult } from '../types';
 import { generatePrediction } from '../services/predictionEngine';
 import { PredictionResult, RiskPrediction, TrendAnalysis } from '../types';
 import { TrendChart } from './TrendChart';
+import { PaywallOverlay } from './ui/PaywallOverlay';
+import { MembershipTier } from '../utils/featureGate';
 
 interface PredictionReportProps {
     currentResult: AssessmentResult;
     history?: AssessmentResult[];
+    membershipTier?: MembershipTier;
 }
 
 const severityColors = {
@@ -26,7 +29,7 @@ const overallColors = {
     healthy: { bg: 'bg-green-100', border: 'border-green-300', text: 'text-green-900', icon: '✅' }
 };
 
-export const PredictionReport: React.FC<PredictionReportProps> = ({ currentResult, history = [] }) => {
+export const PredictionReport: React.FC<PredictionReportProps> = ({ currentResult, history = [], membershipTier }) => {
     const [expandedRisk, setExpandedRisk] = useState<string | null>(null);
     const [copiedScript, setCopiedScript] = useState<string | null>(null);
 
@@ -53,6 +56,7 @@ export const PredictionReport: React.FC<PredictionReportProps> = ({ currentResul
     const overallStyle = overallColors[prediction.overallSeverity];
 
     return (
+        <PaywallOverlay currentTier={membershipTier || 'free'} requiredFeature="prediction_engine">
         <div className="space-y-6">
             {/* 헤더 */}
             <div className={`p-5 rounded-xl border-2 ${overallStyle.bg} ${overallStyle.border}`}>
@@ -234,6 +238,7 @@ export const PredictionReport: React.FC<PredictionReportProps> = ({ currentResul
                 </div>
             )}
         </div>
+        </PaywallOverlay>
     );
 };
 

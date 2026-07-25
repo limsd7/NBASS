@@ -16,15 +16,19 @@ import { GradeSimulationEngine } from '../../services/gradeSimulationEngine';
 import { useUniversities } from '../../hooks/useUniversities';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import Tesseract from 'tesseract.js';
+import { PaywallOverlay } from '../ui/PaywallOverlay';
+import { MembershipTier } from '../../utils/featureGate';
+import { GradeManualModal } from './GradeManualModal';
 
 interface GradeManagementViewProps {
     student: StudentInfo;
     onBack: () => void;
     currentAssessment?: AssessmentResult;
     aiModels?: AIModelConfig | null;
+    membershipTier?: MembershipTier;
 }
 
-export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ student, onBack, currentAssessment, aiModels }) => {
+export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ student, onBack, currentAssessment, aiModels, membershipTier }) => {
     const [records, setRecords] = useState<GradeRecord[]>([]);
     const [goals, setGoals] = useState<GradeGoal[]>([]);
     const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -33,6 +37,7 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
     const [activeTab, setActiveTab] = useState<'overview' | 'goals' | 'simulation' | 'analysis' | 'university'>('overview');
     const [isOcrProcessing, setIsOcrProcessing] = useState(false);
     const [isParentReportOpen, setIsParentReportOpen] = useState(false);
+    const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [latestAssessment, setLatestAssessment] = useState<AssessmentResult | undefined>(currentAssessment);
 
     const { universities, isUpdating, lastUpdated, updateUniversities } = useUniversities();
@@ -306,6 +311,12 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                     </div>
                 </div>
                 <div className="flex gap-2 items-center">
+                    <button 
+                        onClick={() => setIsManualModalOpen(true)}
+                        className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2"
+                    >
+                        <span>📖</span> 사용매뉴얼
+                    </button>
                     <label className={`px-4 py-2 ${isOcrProcessing ? 'bg-indigo-200 text-indigo-500 cursor-not-allowed' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'} rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2 border border-indigo-100`}>
                         {isOcrProcessing ? (
                             <>
@@ -569,13 +580,15 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
 
                 {activeTab === 'simulation' && (
                     <div className="animate-in fade-in duration-300">
-                        <GradeSimulationView 
-                            student={{...student, selectedSubjects: allRelevantSubjectIds}}
-                            records={sortedRecords}
-                            goals={goals}
-                            assessment={latestAssessment}
-                            aiModels={aiModels}
-                        />
+                        <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="grade_simulation" onUpgradeClick={() => alert('업그레이드가 필요합니다. 관리자에게 문의하세요.')}>
+                            <GradeSimulationView 
+                                student={{...student, selectedSubjects: allRelevantSubjectIds}}
+                                records={sortedRecords}
+                                goals={goals}
+                                assessment={latestAssessment}
+                                aiModels={aiModels}
+                            />
+                        </PaywallOverlay>
                     </div>
                 )}
 
@@ -641,6 +654,11 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                 latestGrades={latestGrades}
                 currentAssessment={latestAssessment}
                 selectedSubjectIds={allRelevantSubjectIds}
+            />
+
+            <GradeManualModal 
+                isOpen={isManualModalOpen} 
+                onClose={() => setIsManualModalOpen(false)} 
             />
 
             <GradeInputModal 

@@ -169,7 +169,7 @@ export const HistoryAnalysisModal: React.FC<HistoryAnalysisModalProps> = ({
                                     systemPrompt="당신은 누적된 히스토리 데이터를 분석하는 AI입니다. 학생의 변화 추이(설문, HRV, EEG)와 과거 처방을 바탕으로 긍정적인 변화나 주의해야 할 점을 3문단으로 요약해주세요."
                                     aiModels={aiModels || null}
                                     buttonLabel="✨ 누적 데이터 통합 AI 분석"
-                                    membershipTier={data.rawHistory[0]?.student?.membershipTier || 'standard'}
+                                    membershipTier={data.rawHistory[0]?.student?.membershipTier || 'free'}
                                 />
                             )}
                         </div>

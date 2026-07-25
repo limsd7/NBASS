@@ -328,18 +328,19 @@ export const RegisterStep: React.FC<RegisterStepProps> = memo(({
                     <div className="md:col-span-2 pt-4 border-t border-slate-100 mt-2">
                         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl">
                             <div>
-                                <h3 className="text-sm font-black text-amber-700">프리미엄 회원 (Premium Membership)</h3>
-                                <p className="text-xs text-amber-600/80 mt-0.5">클라우드 LLM 기반의 최고급 분석 엔진(Gemini, Claude)을 사용합니다.</p>
+                                <h3 className="text-sm font-black text-amber-700">멤버십 등급 (Membership Tier)</h3>
+                                <p className="text-xs text-amber-600/80 mt-0.5">프리미엄 이상 등급은 클라우드 LLM 기반의 최고급 분석 엔진을 사용합니다.</p>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer"
-                                    checked={student.membershipTier === 'premium'}
-                                    onChange={(e) => onStudentChange({ ...student, membershipTier: e.target.checked ? 'premium' : 'standard' })}
-                                />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                            </label>
+                            <select 
+                                value={student.membershipTier || 'free'} 
+                                onChange={(e) => onStudentChange({ ...student, membershipTier: e.target.value as any })}
+                                className="bg-white border border-amber-200 text-amber-900 text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2 outline-none font-medium"
+                            >
+                                <option value="free">Free</option>
+                                <option value="basic">Basic</option>
+                                <option value="premium">Premium</option>
+                                <option value="vip">VIP</option>
+                            </select>
                         </div>
                     </div>
                 </div>

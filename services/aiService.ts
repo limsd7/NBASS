@@ -9,7 +9,7 @@ export const generateAIResponse = async (
   prompt: string,
   systemContext: string,
   config: AIModelConfig | null,
-  membershipTier: 'standard' | 'premium' = 'standard'
+  membershipTier: 'standard' | 'premium' | 'free' | 'basic' | 'vip' = 'standard'
 ): Promise<AIResponse> => {
   if (!config) {
     return { text: '', error: 'AI 설정이 없습니다.' };
@@ -95,7 +95,7 @@ export const generateAIResponse = async (
     return null;
   };
 
-  if (membershipTier === 'premium') {
+  if (membershipTier === 'premium' || membershipTier === 'vip') {
     const geminiRes = await callGemini();
     if (geminiRes) return { text: geminiRes };
 

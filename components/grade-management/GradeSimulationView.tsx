@@ -81,7 +81,7 @@ ${projectionsText}
 
 위 데이터를 바탕으로 학부모님이 읽기 좋은 '종합 브리핑 리포트'를 3~4문단으로 작성해 주세요. 전문적인 분석과 따뜻한 격려를 포함하고, CareType(현재 상태)을 고려한 맞춤형 조언을 꼭 넣어주세요.`;
 
-        const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'standard');
+        const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'free');
         setAiReport(response.text || response.error || '리포트 생성에 실패했습니다.');
         setIsGenerating(false);
     };
@@ -115,7 +115,7 @@ ${projectionsText}
 
 줄바꿈과 글머리 기호(볼드 등)를 적절히 사용하여 가독성 있게 3~4문단 길이로 작성해 주세요.`;
 
-        const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'standard');
+        const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'free');
         const text = response.text || response.error || '리포트 생성에 실패했습니다.';
         setSubjectAiReports(prev => ({ ...prev, [subjectId]: text }));
         

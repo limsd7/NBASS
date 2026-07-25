@@ -5,10 +5,10 @@ import { AIModelConfig } from '../../types';
 interface AIChatbotWidgetProps {
     contextData: any;
     aiModels: AIModelConfig | null;
-    membershipTier?: 'standard' | 'premium';
+    membershipTier?: 'free' | 'basic' | 'premium' | 'vip' | 'standard';
 }
 
-export const AIChatbotWidget: React.FC<AIChatbotWidgetProps> = ({ contextData, aiModels, membershipTier = 'standard' }) => {
+export const AIChatbotWidget: React.FC<AIChatbotWidgetProps> = ({ contextData, aiModels, membershipTier = 'free' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
     const [input, setInput] = useState('');

@@ -7,7 +7,7 @@ interface AIAssistantPanelProps {
     systemPrompt: string;
     buttonLabel?: string;
     aiModels: AIModelConfig | null;
-    membershipTier?: 'standard' | 'premium';
+    membershipTier?: 'free' | 'basic' | 'premium' | 'vip' | 'standard';
 }
 
 export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({ 
@@ -15,7 +15,7 @@ export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({
     systemPrompt, 
     buttonLabel = '✨ AI 해석 요약',
     aiModels,
-    membershipTier = 'standard'
+    membershipTier = 'free'
 }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [response, setResponse] = useState<string | null>(null);

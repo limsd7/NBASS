@@ -5,6 +5,8 @@ import { CognitivePriming } from './CognitivePriming';
 import { SmartScheduler } from './SmartScheduler';
 import { WorryDump } from './WorryDump';
 import { SoundMixer } from './SoundMixer';
+import { PaywallOverlay, FeatureGate } from '../ui/PaywallOverlay';
+import { MembershipTier } from '../../utils/featureGate';
 
 interface StudyManagementViewProps {
     student: StudentInfo;
@@ -13,17 +15,22 @@ interface StudyManagementViewProps {
     protocol: ProtocolData;
     analytics: LearningAnalyticsData;
     onBack?: () => void;
+    membershipTier?: MembershipTier;
 }
 
 export const StudyManagementView: React.FC<StudyManagementViewProps> = ({
-    student, hrv, survey, protocol, analytics, onBack
+    student, hrv, survey, protocol, analytics, onBack, membershipTier
 }) => {
     const [activeTab, setActiveTab] = useState(0);
 
     const tabs = [
         { id: 0, title: 'Bio-Adaptive Pomodoro', icon: '🍅', component: <PomodoroTimer hrv={hrv} />, desc: '생체 리듬 기반 집중 주기 측정' },
         { id: 1, title: 'Cognitive Priming', icon: '🧠', component: <CognitivePriming />, desc: '뇌 반응성 테스트 및 워밍업' },
-        { id: 2, title: 'Smart Scheduler', icon: '⏰', component: <SmartScheduler survey={survey} />, desc: '골든타임 기반 생활 계획표' },
+        { id: 2, title: 'Smart Scheduler', icon: '⏰', component: (
+            <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="ai_study_plan">
+                <SmartScheduler survey={survey} />
+            </PaywallOverlay>
+        ), desc: '골든타임 기반 생활 계획표' },
         { id: 3, title: 'Worry Dump', icon: '🗑️', component: <WorryDump />, desc: '불안 해소 및 멘탈 비우기' },
         { id: 4, title: 'Sound Mixer', icon: '🎧', component: <SoundMixer />, desc: '맞춤형 청각 환경 튜닝' },
     ];

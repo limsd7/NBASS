@@ -141,7 +141,8 @@ export interface StudentInfo {
   bmi?: number;
   activityLevel?: number; // 1: Low, 2: Moderate, 3: Active, 4: Very Active
   mbti?: string;
-  membershipTier?: 'standard' | 'premium';
+  membershipTier?: 'free' | 'basic' | 'premium' | 'vip';
+  subscriptionExpiresAt?: string; // ISO date string for subscription expiry
   
   // Gamification (Feature 3)
   gamification?: {

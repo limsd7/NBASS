@@ -6319,7 +6319,7 @@ export const ExpertOverlay: React.FC<ExpertOverlayProps> = ({
                         systemPrompt="당신은 NBASS의 전문가 가이드 AI입니다. 현재 학생의 careType과 선택된 전략을 바탕으로 학부모 상담 시 유용한 멘트나 추가 조언을 3문단으로 요약해주세요."
                         aiModels={aiModels || null}
                         buttonLabel="✨ 전략 가이드 AI 통합 요약"
-                        membershipTier={currentData?.student?.membershipTier || 'standard'}
+                        membershipTier={currentData?.student?.membershipTier || 'free'}
                     />
                 </div>
             )}

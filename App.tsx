@@ -89,6 +89,10 @@ import { generateConsultationLetter } from './utils/consultationUtils';
 import { printReport } from './utils/printUtils'; // Import Print Utility
 import { DetailedAnalysisSection } from './components/DetailedAnalysisSection'; // Import New Component
 import { TargetedNutritionRecommendation } from './components/TargetedNutritionRecommendation';
+import { LicenseActivation } from './components/ui/LicenseActivation';
+import { MembershipBadge } from './components/ui/MembershipBadge';
+import { LicenseInfo, getLicenseInfo, checkLicenseValidity } from './utils/licenseManager';
+import { MembershipTier } from './utils/featureGate';
 
 // Logic Engine Configuration
 import {
@@ -346,6 +350,12 @@ const App: React.FC = () => {
   // Use Dark Mode Hook
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
+  // License & Membership State
+  const [licenseChecked, setLicenseChecked] = useState(false);
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
+  const [currentTier, setCurrentTier] = useState<MembershipTier>('free');
+  const [showLicenseScreen, setShowLicenseScreen] = useState(false);
+
   // Multi-Monitor Sync (듀얼 모니터 워크플로우)
   const {
     sessionId: syncSessionId,
@@ -413,6 +423,31 @@ const App: React.FC = () => {
 
     initializeData();
 
+  }, []);
+
+  // License Check on Mount
+  useEffect(() => {
+    const checkLicense = async () => {
+      try {
+        const info = await getLicenseInfo();
+        if (info) {
+          const validity = await checkLicenseValidity();
+          setLicenseInfo(info);
+          setCurrentTier(validity.tier);
+          if (!validity.isValid) {
+            setShowLicenseScreen(true);
+          }
+        } else {
+          // No license found - show activation screen on first launch
+          setShowLicenseScreen(true);
+        }
+      } catch (e) {
+        console.error('License check failed:', e);
+      } finally {
+        setLicenseChecked(true);
+      }
+    };
+    checkLicense();
   }, []);
 
   // [REFACTORED] Autosave & Recovery Logic moved to useAssessmentDraft hook
@@ -2112,11 +2147,32 @@ const App: React.FC = () => {
   // Move component definitions to top or use directly.
   // Ideally, we should place them before return.
   // For now, let's keep the return at the end simple.
+
+  // Show License Activation Screen if needed
+  if (showLicenseScreen && licenseChecked) {
+    return (
+      <LicenseActivation
+        onActivated={(info) => {
+          setLicenseInfo(info);
+          setCurrentTier(info.tier);
+          setShowLicenseScreen(false);
+        }}
+        onSkip={() => {
+          setCurrentTier('free');
+          setShowLicenseScreen(false);
+        }}
+      />
+    );
+  }
+
   return (
     <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
       <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 min-h-screen pb-20 pt-12 text-center">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-          <h2 className="text-3xl font-black text-slate-900 mb-4">YES_YOU Assessment</h2>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h2 className="text-3xl font-black text-slate-900">YES_YOU Assessment</h2>
+            <MembershipBadge tier={currentTier} size="md" onClick={() => setShowLicenseScreen(true)} />
+          </div>
           <p className="text-slate-500 mb-8">새로운 진단을 시작시겠습니까?</p>
           <button onClick={() => { setActiveMenu('assessment'); setStep('register'); }} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">
             Start New Assessment

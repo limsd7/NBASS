@@ -246,7 +246,7 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
                   systemPrompt="당신은 뇌파, 심박변이도, 심리설문 결과를 종합 분석하는 NBASS 시스템의 전문 AI입니다. 학생의 수면 시뮬레이션 결과를 바탕으로, 학부모와 학생이 실천할 수 있는 구체적이고 깊이 있는 수면 건강 조언을 3~4문단으로 친절하게 작성해 주세요."
                   aiModels={aiModels}
                   buttonLabel="🧠 AI 심층 분석 및 맞춤 솔루션 생성하기"
-                  membershipTier={student?.membershipTier || 'standard'}
+                  membershipTier={student?.membershipTier || 'free'}
                 />
               </div>
             )}

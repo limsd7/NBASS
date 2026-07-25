@@ -313,7 +313,7 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
                     systemPrompt="당신은 뇌파, 심박변이도, 심리설문 결과를 종합 분석하는 NBASS 시스템의 전문 AI입니다. 학생의 상태를 분석하고 학부모가 이해하기 쉽게 3~4문단으로 친절하게 종합 평가를 요약해 주세요."
                     aiModels={aiModels}
                     buttonLabel="✨ 종합 결과 AI 분석하기"
-                    membershipTier={result.student?.membershipTier || 'standard'}
+                    membershipTier={result.student?.membershipTier || 'free'}
                 />
             </div>
 

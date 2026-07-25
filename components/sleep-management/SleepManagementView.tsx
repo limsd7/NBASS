@@ -6,21 +6,26 @@ import { SleepOverviewTab } from './tabs/SleepOverviewTab';
 import { SleepGoalSetting } from './tabs/SleepGoalSetting';
 import { SleepSimulationView } from './tabs/SleepSimulationView';
 import { SleepAnalysisView } from './tabs/SleepAnalysisView';
+import { SleepManualModal } from './SleepManualModal';
+import { PaywallOverlay } from '../ui/PaywallOverlay';
+import { MembershipTier } from '../../utils/featureGate';
 
 interface SleepManagementViewProps {
   student: StudentInfo;
   onBack: () => void;
   currentAssessment?: AssessmentResult;
   aiModels: any;
+  membershipTier?: MembershipTier;
 }
 
 export type SleepTabType = 'overview' | 'goals' | 'simulation' | 'analysis';
 
-export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ student, onBack, currentAssessment, aiModels }) => {
+export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ student, onBack, currentAssessment, aiModels, membershipTier }) => {
   const [activeTab, setActiveTab] = useState<SleepTabType>('overview');
   const [records, setRecords] = useState<SleepRecord[]>([]);
   const [goal, setGoal] = useState<SleepGoal | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -98,6 +103,12 @@ export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ studen
           
           <div className="flex gap-2">
             <button 
+              onClick={() => setIsManualModalOpen(true)}
+              className="px-4 py-2 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-white border border-slate-200 dark:border-slate-600 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"
+            >
+              <span>📖</span> 사용매뉴얼
+            </button>
+            <button 
               onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors shadow-sm flex items-center gap-2"
             >
@@ -155,19 +166,23 @@ export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ studen
                 />
               )}
               {activeTab === 'simulation' && (
+                <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="sleep_analysis">
                 <SleepSimulationView 
                   records={records}
                   goal={goal}
                   student={student}
                   aiModels={aiModels}
                 />
+                </PaywallOverlay>
               )}
               {activeTab === 'analysis' && (
+                <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="sleep_analysis">
                 <SleepAnalysisView 
                   records={records}
                   currentAssessment={currentAssessment}
                   aiModels={aiModels}
                 />
+                </PaywallOverlay>
               )}
             </div>
           )}
@@ -179,6 +194,11 @@ export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ studen
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveRecord}
         studentId={student.id}
+      />
+
+      <SleepManualModal 
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
       />
     </div>
   );
