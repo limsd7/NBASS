@@ -2167,7 +2167,7 @@ const App: React.FC = () => {
 
   return (
     <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
-      <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 min-h-screen pb-20 pt-12 text-center">
+      <div className="w-full max-w-full space-y-8 animate-in fade-in duration-500 min-h-screen pb-20 pt-6 text-center">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-center gap-3 mb-4">
             <h2 className="text-3xl font-black text-slate-900">YES_YOU Assessment</h2>
@@ -2264,6 +2264,9 @@ const App: React.FC = () => {
           onClose={() => setShowStudyEfficiencyModal(false)}
         />
       )}
+
+      {/* Global Pomodoro Timer connected to student CareType diagnosis */}
+      <PomodoroTimer careType={result?.careType} />
 
     </Layout>
   );

@@ -27,7 +27,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 no-print transition-colors">
-        <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 xl:px-12 h-16 flex items-center justify-between">
+        <div className="w-full px-4 md:px-6 xl:px-10 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onMenuChange('dashboard')}>
             <div className="w-10 h-10 flex items-center justify-center shrink-0">
               <img
@@ -103,7 +103,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
           </div>
         </div>
       </header>
-      <main className="w-full max-w-[1800px] mx-auto p-4 md:p-8 xl:p-12">
+      <main className="w-full px-4 md:px-6 xl:px-10 py-6">
         {children}
       </main>
 

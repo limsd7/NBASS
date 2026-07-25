@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 
 interface AdminPasswordModalProps {
     isOpen: boolean;
@@ -15,6 +15,17 @@ export const AdminPasswordModal: React.FC<AdminPasswordModalProps> = memo(({
     onConfirm,
     onCancel
 }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            const timer = setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
@@ -22,12 +33,12 @@ export const AdminPasswordModal: React.FC<AdminPasswordModalProps> = memo(({
             <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs">
                 <h3 className="font-bold text-lg mb-4 text-slate-800">Admin Access Required</h3>
                 <input
+                    ref={inputRef}
                     type="password"
                     className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
                     placeholder="Enter Password"
                     value={password}
                     onChange={e => onPasswordChange(e.target.value)}
-                    autoFocus
                     onKeyDown={e => e.key === 'Enter' && onConfirm()}
                 />
                 <div className="flex justify-end gap-2">

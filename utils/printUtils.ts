@@ -1,9 +1,12 @@
-// Internal helper to prepare print window with styles
+// Internal helper to prepare print window with full style & media print rules
 const preparePrintWindow = (content: HTMLElement, title: string) => {
   const printWindow = window.open('', '_blank', 'width=1200,height=900');
-  if (!printWindow) return;
+  if (!printWindow) {
+    alert('팝업 차단이 설정되어 있습니다. 팝업 허용 후 다시 시도해 주세요.');
+    return;
+  }
 
-  // Gather Styles
+  // Gather Styles from current document
   const styles: string[] = [];
   document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
     styles.push(link.outerHTML);
@@ -14,7 +17,7 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
 
   printWindow.document.write(`
     <!DOCTYPE html>
-    <html>
+    <html lang="ko">
       <head>
         <title>${title}</title>
         <meta charset="utf-8" />
@@ -22,32 +25,52 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
         <script src="https://cdn.tailwindcss.com"></script>
         ${styles.join('\n')}
         <style>
-          body { background: white !important; margin: 0; padding: 0; }
-          .no-print { display: none !important; }
-          .print-container { padding: 40px; max-width: 1000px; margin: 0 auto; }
+          @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap');
           
-          /* Ensure backgrounds are printed */
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          
-          /* Hide print button in print view */
-          @media print {
-             .floating-print-btn { display: none; }
-             
-             /* Page break classes for sectioned printing */
-             .print-page-break { page-break-before: always; break-before: page; }
-             .print-avoid-break { page-break-inside: avoid; break-inside: avoid; }
-             
-             /* Ensure proper sizing */
-             .print-container { padding: 20px; max-width: 100%; }
+          body { 
+            background: white !important; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif !important;
+            color: #0f172a;
           }
-           .floating-print-btn {
-              position: fixed; top: 20px; right: 20px;
-              background: #4f46e5; color: white; padding: 12px 24px;
-              border-radius: 12px; font-weight: bold; cursor: pointer;
-              box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: none; z-index: 1000;
-              transition: all 0.2s;
-            }
-            .floating-print-btn:hover { background: #4338ca; transform: scale(1.05); }
+          
+          .no-print { display: none !important; }
+          .print-container { padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+          
+          /* Preserve exact background colors and gradients */
+          * { 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+            color-adjust: exact !important;
+          }
+          
+          /* Page break controls for clean multi-page printing */
+          .print-page-break { page-break-before: always !important; break-before: page !important; }
+          .print-avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+          
+          @media print {
+             @page {
+               size: A4 portrait;
+               margin: 10mm 10mm 10mm 10mm;
+             }
+             body { background: white !important; }
+             .floating-print-btn { display: none !important; }
+             .print-container { padding: 0 !important; max-width: 100% !important; width: 100% !important; }
+             .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+          }
+          
+          .floating-print-btn {
+            position: fixed; top: 20px; right: 20px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white; padding: 12px 28px;
+            border-radius: 14px; font-weight: 800; cursor: pointer;
+            box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4); 
+            border: none; z-index: 10000;
+            transition: all 0.2s ease;
+            font-size: 15px;
+          }
+          .floating-print-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.5); }
         </style>
       </head>
       <body>
@@ -56,13 +79,10 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
           ${content.outerHTML}
         </div>
         <script>
-           // Auto-trigger print after images load and styles apply
            window.onload = () => {
-             // Tailwind fonts/styles might take a moment to parse.
-             // A short delay ensures the print view is fully rendered.
              setTimeout(() => {
                 window.print();
-             }, 1000);
+             }, 800);
            };
         </script>
       </body>
@@ -74,18 +94,24 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
 };
 
 const processClonedElement = (original: HTMLElement, clone: HTMLElement) => {
-  // Preserve Canvas and Form States
-  const originalElements = original.querySelectorAll('canvas, input, textarea, select');
-  const cloneElements = clone.querySelectorAll('canvas, input, textarea, select');
+  // Preserve Canvas (Recharts) and Form States
+  const originalElements = original.querySelectorAll('canvas, input, textarea, select, svg');
+  const cloneElements = clone.querySelectorAll('canvas, input, textarea, select, svg');
 
   originalElements.forEach((orig, index) => {
     const cloned = cloneElements[index];
+    if (!cloned) return;
+
     if (orig instanceof HTMLCanvasElement && cloned instanceof HTMLCanvasElement) {
-      const img = document.createElement('img');
-      img.src = orig.toDataURL();
-      img.className = orig.className;
-      img.style.cssText = orig.style.cssText;
-      cloned.parentNode?.replaceChild(img, cloned);
+      try {
+        const img = document.createElement('img');
+        img.src = orig.toDataURL('image/png');
+        img.className = orig.className;
+        img.style.cssText = orig.style.cssText;
+        cloned.parentNode?.replaceChild(img, cloned);
+      } catch (e) {
+        console.warn('Canvas conversion skipped:', e);
+      }
     } else if (orig instanceof HTMLInputElement && cloned instanceof HTMLInputElement) {
       if (orig.type === 'checkbox' || orig.type === 'radio') {
         if (orig.checked) cloned.setAttribute('checked', 'checked');
@@ -96,28 +122,26 @@ const processClonedElement = (original: HTMLElement, clone: HTMLElement) => {
       cloned.textContent = orig.value;
     } else if (orig instanceof HTMLSelectElement && cloned instanceof HTMLSelectElement) {
       const selectedIdx = orig.selectedIndex;
-      if (selectedIdx !== -1) {
-        const options = cloned.options;
-        if (options[selectedIdx]) {
-          options[selectedIdx].setAttribute('selected', 'selected');
-        }
+      if (selectedIdx !== -1 && cloned.options[selectedIdx]) {
+        cloned.options[selectedIdx].setAttribute('selected', 'selected');
       }
     }
   });
 
-  // Remove Animation Classes
+  // Remove Animation Classes to prevent initial hidden states in print
   const animatedElements = clone.querySelectorAll('.animate-in, .fade-in, .slide-in-from-bottom-4, .slide-in-from-top-4, .duration-500, .duration-300, .zoom-in-95');
   animatedElements.forEach(el => {
     el.classList.remove('animate-in', 'fade-in', 'slide-in-from-bottom-4', 'slide-in-from-top-4', 'duration-500', 'duration-300', 'zoom-in-95');
   });
 
-  // Remove fixed heights or overflow hiddens that might cut content
+  // Force height auto and visible overflow so content is not cut off
   if (clone.classList.contains('h-[90vh]')) clone.classList.remove('h-[90vh]');
   if (clone.classList.contains('overflow-hidden')) clone.classList.remove('overflow-hidden');
-  clone.style.height = 'auto'; // Force auto height
-  clone.style.overflow = 'visible'; // Force visible overflow
+  clone.style.height = 'auto';
+  clone.style.maxHeight = 'none';
+  clone.style.overflow = 'visible';
 
-  // Expand all <details> elements
+  // Expand all details elements
   const detailsElements = clone.querySelectorAll('details');
   detailsElements.forEach(detail => {
     detail.setAttribute('open', 'true');
@@ -143,43 +167,27 @@ export const printReport = (elementId: string, title: string) => {
     return;
   }
 
-  // 1. Gather the target element AND all its following siblings
   const contentContainer = document.createElement('div');
+  const mainClone = element.cloneNode(true) as HTMLElement;
+  processClonedElement(element, mainClone);
+  contentContainer.appendChild(mainClone);
 
-  // Clone the main element
-  contentContainer.appendChild(element.cloneNode(true));
-
-  // Also clone all following sibling elements until we hit admin/modal content
+  // Include following sibling report cards if available
   let sibling = element.nextElementSibling;
   while (sibling) {
-    // Stop if we hit global admin components or modals
     const classList = sibling.className || '';
     if (classList.includes('fixed') || sibling.id === 'admin-panel') {
       break;
     }
-    // Only include elements that look like report content
     if (classList.includes('bg-white') || classList.includes('bg-gradient') ||
       classList.includes('rounded') || classList.includes('grid') ||
       classList.includes('border') || classList.includes('shadow')) {
-      contentContainer.appendChild(sibling.cloneNode(true));
+      const siblingClone = sibling.cloneNode(true) as HTMLElement;
+      processClonedElement(sibling as HTMLElement, siblingClone);
+      contentContainer.appendChild(siblingClone);
     }
     sibling = sibling.nextElementSibling;
   }
-
-  // We need to process the *container* but careful with original reference mapping
-  // Actually, capturing form state for siblings is tricky with the previous logic
-  // The previous logic traversed `element` and `clone` (container).
-  // But now `clone` is a new container with multiple children.
-
-  // For simplicity & robustness, let's just process the container.
-  // NOTE: This might miss form state updates for siblings if we don't map them back to originals.
-  // The original code only mapped for `element`.
-
-  // To keep it 100% compatible with previous logic for the MAIN ID element:
-  const mainClone = contentContainer.firstElementChild as HTMLElement;
-  if (mainClone) processClonedElement(element, mainClone);
-
-  // For siblings, we might skip form state preservation for now as it's likely just static report results.
 
   preparePrintWindow(contentContainer, title);
 };

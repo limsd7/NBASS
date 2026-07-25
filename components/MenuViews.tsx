@@ -8,6 +8,12 @@ import { LocalWhiteNoise } from './LocalWhiteNoise';
 import { MoodTracker } from './MoodTracker';
 import { NBackHistoryChart } from './NBackHistoryChart';
 
+import { SleepCalculator } from './resources/SleepCalculator';
+import { EyeCareRoutine } from './resources/EyeCareRoutine';
+import { ExamPomodoroTimer } from './resources/ExamPomodoroTimer';
+import { EnhancedWhiteNoise } from './resources/EnhancedWhiteNoise';
+import { useWellnessGamification } from '../hooks/useWellnessGamification';
+
 export { ProgressView } from './ProgressView';
 
 interface DashboardViewProps {
@@ -21,7 +27,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onStartClick, onHistoryClick, onResourcesClick, history, config, analystConfig }) => {
     return (
-        <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-700">
+        <div className="w-full max-w-full space-y-12 animate-in fade-in duration-700">
             {/* Hero Section */}
             <div className="bg-white dark:bg-slate-800 p-8 md:p-12 rounded-[2.5rem] border border-blue-100 dark:border-slate-700 shadow-2xl shadow-blue-500/5 text-center relative overflow-hidden transition-colors">
                 <div className="relative z-10 flex flex-col items-center">
@@ -267,7 +273,7 @@ export const HistoryView: React.FC<{
     };
 
     return (
-        <div className="max-w-4xl mx-auto animate-in fade-in duration-300">
+        <div className="w-full max-w-full animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
                 <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <span className="text-3xl">📜</span> 분석 히스토리
@@ -418,19 +424,70 @@ export const HistoryView: React.FC<{
     );
 };
 
+const AFFIRMATIONS = [
+    "오늘의 노력이 내일의 실력이 된다.",
+    "나는 매일 성장하고 있다.",
+    "힘든 순간은 지나가고, 결과는 남는다.",
+    "충분히 잘하고 있고, 앞으로 더 잘할 것이다.",
+    "휴식도 훌륭한 전략이다."
+];
+
 export const ResourcesView: React.FC = () => {
     const [showBreathingGuide, setShowBreathingGuide] = React.useState(false);
     const [isNutritionModalOpen, setIsNutritionModalOpen] = React.useState(false);
     const [isMentalModalOpen, setIsMentalModalOpen] = React.useState(false);
 
+    const [activeFilter, setActiveFilter] = React.useState<string | null>(null);
+    const { stats, showConfetti, recentAchievement, completeActivity } = useWellnessGamification();
+    const [dailyAffirmation, setDailyAffirmation] = React.useState('');
+
+    React.useEffect(() => {
+        setDailyAffirmation(AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)]);
+    }, []);
+
+    const filterMatches = (tags: string[]) => {
+        if (!activeFilter) return true;
+        return tags.includes(activeFilter);
+    };
+
     return (
-        <div className="max-w-6xl mx-auto animate-in fade-in duration-300 space-y-8 relative">
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                <span className="text-3xl">📚</span> 수험생 자료실 (Wellness Center)
-            </h2>
+        <div className="w-full max-w-full animate-in fade-in duration-300 space-y-8 relative">
+            {showConfetti && (
+                <div className="fixed inset-0 pointer-events-none z-[100] flex items-center justify-center">
+                    <div className="text-6xl animate-bounce">🎉</div>
+                    <div className="absolute top-1/4 bg-white/90 backdrop-blur px-6 py-3 rounded-full shadow-2xl font-black text-rose-600 animate-in fade-in slide-in-from-bottom-10">
+                        {recentAchievement}
+                    </div>
+                </div>
+            )}
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <span className="text-3xl">📚</span> 수험생 자료실 (Wellness Center)
+                </h2>
+                
+                {/* 감정 상태 필터링 */}
+                <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl">
+                    <button onClick={() => setActiveFilter(null)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${!activeFilter ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>전체보기</button>
+                    <button onClick={() => setActiveFilter('졸려요')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeFilter === '졸려요' ? 'bg-white shadow text-amber-600' : 'text-slate-500 hover:text-slate-700'}`}>😴 졸려요</button>
+                    <button onClick={() => setActiveFilter('불안해요')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeFilter === '불안해요' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}>😰 불안해요</button>
+                    <button onClick={() => setActiveFilter('집중이 안돼요')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${activeFilter === '집중이 안돼요' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>😵 집중 안됨</button>
+                </div>
+            </div>
+
+            {/* 긍정 확언 배너 */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-2xl text-center shadow-sm">
+                <p className="text-blue-800 font-bold text-lg flex items-center justify-center gap-2">
+                    <span>✨</span> "{dailyAffirmation}" <span>✨</span>
+                </p>
+            </div>
 
             {/* 호흡/명상 가이드 */}
-            <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 rounded-3xl text-white shadow-xl">
+            {filterMatches(['불안해요', '집중이 안돼요']) && (
+            <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-4 right-4 bg-white/20 px-3 py-1 rounded-full text-xs font-bold">
+                    완료: {stats.breathing}회
+                </div>
                 <div className="flex items-start justify-between">
                     <div>
                         <h3 className="text-2xl font-bold mb-2 flex items-center gap-2">
@@ -449,34 +506,48 @@ export const ResourcesView: React.FC = () => {
                     <div className="text-6xl opacity-20">🌬️</div>
                 </div>
             </div>
+            )}
 
-            {/* 오프라인 스트레칭 가이드 */}
-            <div>
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🤸‍♀️</span> 짧은 휴식을 위한 1분 스트레칭 (Offline)
-                </h3>
-                <StretchingGuide />
-            </div>
+            {/* 수면 계산기 */}
+            {filterMatches(['졸려요']) && (
+                <SleepCalculator />
+            )}
 
-            {/* 오프라인 백색 소음 생성기 */}
-            <div>
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🎧</span> 집중력 향상 백색소음 (Offline)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <LocalWhiteNoise type="Rain" title="집중력을 돕는 빗소리" />
-                    <LocalWhiteNoise type="Ocean" title="긴장 완화를 돕는 파도 소리" />
+            {/* 오프라인 스트레칭 및 안구 운동 */}
+            {filterMatches(['졸려요', '집중이 안돼요']) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center justify-between">
+                        <span className="flex items-center gap-2"><span className="text-2xl">🤸‍♀️</span> 1분 스트레칭</span>
+                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">완료: {stats.stretching}회</span>
+                    </h3>
+                    <div onClick={() => completeActivity('stretching')}>
+                        <StretchingGuide />
+                    </div>
+                </div>
+                <div>
+                    <EyeCareRoutine />
                 </div>
             </div>
+            )}
 
-            {/* 영양 가이드 */}
+            {/* 뽀모도로 및 백색 소음 */}
+            {filterMatches(['집중이 안돼요']) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ExamPomodoroTimer />
+                <EnhancedWhiteNoise />
+            </div>
+            )}
+
+            {/* 영양 및 멘탈 가이드 */}
+            {filterMatches(['졸려요', '불안해요']) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all">
                     <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                        <span className="text-2xl">🍎</span> 수험생 영양 가이드북
+                        <span className="text-2xl">🍎</span> 수험생 영양 및 카페인 가이드
                     </h3>
                     <p className="text-slate-500 text-sm mb-4">
-                        아침, 점심, 저녁 식단표 및 두뇌 영양 간식 추천 리스트
+                        식단표, 두뇌 간식, 그리고 최적의 카페인 섭취법
                     </p>
                     <button
                         onClick={() => setIsNutritionModalOpen(true)}
@@ -501,10 +572,14 @@ export const ResourcesView: React.FC = () => {
                     </button>
                 </div>
             </div>
+            )}
 
             {/* 호흡 가이드 모달 */}
             {showBreathingGuide && (
-                <BreathingGuide onClose={() => setShowBreathingGuide(false)} />
+                <BreathingGuide onClose={() => {
+                    setShowBreathingGuide(false);
+                    completeActivity('breathing');
+                }} />
             )}
 
             {/* 영양 가이드 모달 */}
@@ -600,6 +675,32 @@ export const ResourcesView: React.FC = () => {
                                             <p className="text-xs text-purple-700">장 건강(제2의 뇌)을 지키고 단백질을 공급해 포만감을 오래 유지.</p>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* 카페인 및 영양제 가이드 */}
+                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mb-3">
+                                        ☕ 카페인 및 영양제 최적화 가이드
+                                    </h3>
+                                    <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                                        피로를 쫓기 위해 무심코 마시는 카페인, 전략적으로 섭취해야 부작용을 막을 수 있습니다.
+                                    </p>
+                                    <ul className="space-y-4 text-slate-700 text-sm">
+                                        <li className="bg-white p-4 rounded-xl shadow-sm">
+                                            <strong className="text-blue-600">💡 커피 냅 (Coffee Nap) 활용법:</strong><br/>
+                                            커피를 마신 직후 20분간 짧은 낮잠을 자고 일어나면, 뇌의 피로 물질(아데노신)이 씻겨나간 자리에 카페인이 작용하여 최고의 각성 효과를 냅니다.
+                                        </li>
+                                        <li className="bg-white p-4 rounded-xl shadow-sm">
+                                            <strong className="text-rose-600">⚠️ 카페인 크래시 예방:</strong><br/>
+                                            기상 직후(코르티솔 수치가 가장 높을 때) 커피를 마시면 효과가 떨어지고 부작용이 큽니다. 기상 후 1.5~2시간 뒤에 첫 커피를 마시는 것이 좋습니다. 오후 3시 이후에는 수면을 위해 카페인을 피하세요.
+                                        </li>
+                                        <li className="bg-white p-4 rounded-xl shadow-sm">
+                                            <strong className="text-emerald-600">💊 필수 영양제 추천:</strong><br/>
+                                            - <strong className="text-slate-900">오메가3:</strong> 뇌 혈류 개선 및 안구 건조증 완화 (식후 섭취)<br/>
+                                            - <strong className="text-slate-900">비타민 B군 (고함량):</strong> 에너지 대사 촉진 및 피로 회복 (아침 식후 섭취)<br/>
+                                            - <strong className="text-slate-900">마그네슘:</strong> 눈떨림 방지 및 신경 안정, 숙면 유도 (저녁 식후 또는 취침 전 섭취)
+                                        </li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
