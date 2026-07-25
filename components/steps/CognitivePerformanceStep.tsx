@@ -52,7 +52,7 @@ export const CognitivePerformanceStep: React.FC<CognitivePerformanceStepProps> =
         <Layout activeMenu={activeMenu} onMenuChange={onMenuChange} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode}>
             <StepProgressBar currentStep="cognitive_test" isMedicalMode={config.isMedicalMode} isPortableMode={config.usePortable} onStepClick={onStepClick} />
             
-            <div className="max-w-3xl mx-auto pb-20 mt-12 text-center">
+            <div className="w-full max-w-full pb-20 mt-12 text-center">
                 <div className="bg-white p-12 rounded-3xl shadow-sm border border-slate-200">
                     <div className="w-24 h-24 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
                         🧠

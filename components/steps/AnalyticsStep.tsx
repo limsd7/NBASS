@@ -43,7 +43,7 @@ export const AnalyticsStep: React.FC<AnalyticsStepProps> = ({
     return (
         <Layout activeMenu={activeMenu} onMenuChange={onMenuChange} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode}>
             <StepProgressBar currentStep="analytics" isMedicalMode={config.isMedicalMode} isPortableMode={config.usePortable} onStepClick={onStepClick} />
-            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 mt-4">
+            <div className="w-full max-w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 mt-4">
                 <div className="flex flex-col items-center text-center gap-4">
                     <img src="./학습밀도 및 패턴 logo.JPG" alt="Logo" className="w-24 h-24 object-contain" />
                     <div>

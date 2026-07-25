@@ -68,7 +68,7 @@ export const EEGStep: React.FC<EEGStepProps> = ({
     return (
         <Layout activeMenu={activeMenu} onMenuChange={onMenuChange} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode}>
             <StepProgressBar currentStep="eeg" isMedicalMode={config.isMedicalMode} isPortableMode={config.usePortable} onStepClick={onStepClick} />
-            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 mt-4">
+            <div className="w-full max-w-full space-y-8 animate-in fade-in duration-500 pb-20 mt-4">
                 <div className="flex flex-col items-center text-center gap-4">
                     <img src="./EEG logo.JPG" alt="EEG Logo" className="w-24 h-24 object-contain" />
                     <div>

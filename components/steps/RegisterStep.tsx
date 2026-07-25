@@ -23,7 +23,7 @@ export const RegisterStep: React.FC<RegisterStepProps> = memo(({
     }, [student, onStudentChange]);
 
     return (
-        <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="w-full max-w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-blue-600 p-8 text-white">
                 <h2 className="text-2xl font-bold">Student Registration</h2>
                 <p className="text-blue-100 mt-1">기본 정보를 입력하여 진단을 시작하십시오.</p>

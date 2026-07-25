@@ -146,7 +146,7 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
             <StepProgressBar currentStep="surveys" isMedicalMode={config.isMedicalMode} onStepClick={setStep} />
             <AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={onAdminPasswordChange} onConfirm={onAdminConfirm} onCancel={onAdminCancel} />
             <ConfigModal />
-            <div className="max-w-4xl mx-auto space-y-6 pb-20 mt-4">
+            <div className="w-full max-w-full space-y-6 pb-20 mt-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-20 z-40 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <img src="./psychological_logo.jpg" alt="Logo" className="w-8 h-8 object-contain" />

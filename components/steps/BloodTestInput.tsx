@@ -59,7 +59,7 @@ export const BloodTestInput: React.FC<BloodTestInputProps> = ({
     };
 
     return (
-        <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
+        <div className="w-full max-w-full animate-in fade-in duration-500">
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-rose-600 to-pink-600 p-8 text-white">

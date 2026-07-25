@@ -49,7 +49,7 @@ export const ProtocolStep: React.FC<ProtocolStepProps> = ({
     return (
         <Layout activeMenu={activeMenu} onMenuChange={onMenuChange} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode}>
             <StepProgressBar currentStep="protocol" isMedicalMode={config.isMedicalMode} onStepClick={onStepClick} />
-            <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 mt-4">
+            <div className="w-full max-w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 mt-4">
                 <div className="flex flex-col items-center text-center gap-4">
                     <img src="./학습 집중력 분석 프로토콜 logo.jpg" alt="Logo" className="w-24 h-24 object-contain" />
                     <div>
