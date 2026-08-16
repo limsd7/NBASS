@@ -67,6 +67,7 @@ import { RoleSelectionView } from './components/RoleSelectionView';
 import { ParentDashboard } from './components/dashboards/ParentDashboard';
 import { ExpertDashboard } from './components/dashboards/ExpertDashboard';
 import { OwnerDashboardView } from './components/dashboards/OwnerDashboardView';
+import { AuthLoginModal, UserRole } from './components/modals/AuthLoginModal';
 
 import { CognitivePerformanceResults } from './components/CognitivePerformanceAssessment';
 import { StepProgressBar } from './components/ui/StepProgressBar';
@@ -161,6 +162,8 @@ type SurveyTab = 'ans' | 'bai' | 'isi' | 'concentration' | 'cfs' | 'adrenal';
 
 const App: React.FC = () => {
   const [step, setStep] = useState<'role_selection' | 'parent_dashboard' | 'expert_dashboard' | 'owner_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management'>('role_selection');
+  const [authRoleModal, setAuthRoleModal] = useState<UserRole | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<'dashboard' | 'assessment' | 'history' | 'progress' | 'resources' | 'solutions'>('dashboard');
   const [activeTab, setActiveTab] = useState<SurveyTab>('ans');
   const [student, setStudent] = useState<StudentInfo>(initialStudent);
@@ -1089,7 +1092,32 @@ const App: React.FC = () => {
 
   // --- Menu Views ---
   if (activeMenu === 'dashboard') {
-    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)} onOwnerClick={() => setStep('owner_dashboard')}><DashboardView onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} onHistoryClick={() => setActiveMenu('history')} onResourcesClick={() => setActiveMenu('resources')} history={history} config={config} analystConfig={(logicConfig as any).analystConfig} /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
+    return (
+      <Layout 
+        activeMenu={activeMenu} 
+        onMenuChange={setActiveMenu} 
+        isDarkMode={isDarkMode} 
+        onToggleDarkMode={toggleDarkMode} 
+        onAdminClick={() => setShowAdminPassword(true)} 
+        onOwnerClick={() => setAuthRoleModal('OWNER')}
+      >
+        <DashboardView onStartClick={() => { setActiveMenu('assessment'); setStep('register'); }} onHistoryClick={() => setActiveMenu('history')} onResourcesClick={() => setActiveMenu('resources')} history={history} config={config} analystConfig={(logicConfig as any).analystConfig} />
+        <AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} />
+        <ConfigModal />
+        {authRoleModal && (
+          <AuthLoginModal
+            isOpen={!!authRoleModal}
+            targetRole={authRoleModal}
+            onClose={() => setAuthRoleModal(null)}
+            onSuccess={(role, email) => {
+              setAuthRoleModal(null);
+              if (email) setCurrentUserEmail(email);
+              if (role === 'OWNER') setStep('owner_dashboard');
+            }}
+          />
+        )}
+      </Layout>
+    );
   }
   if (activeMenu === 'history') {
     const handleViewDetail = (record: AssessmentResult) => {
