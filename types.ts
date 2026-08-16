@@ -468,7 +468,15 @@ export interface Prescription {
 
 export type StrategyMap = Partial<Record<CareType, ExamStrategy>>;
 
-export interface AIModelConfig { geminiKey: string; sonnetKey: string; localModelUrl: string; localModelVram?: string; localModelName?: string; }
+export interface AIModelConfig { 
+  geminiKey?: string; 
+  sonnetKey?: string; 
+  openRouterKey?: string;
+  openRouterModel?: string;
+  localModelUrl?: string; 
+  localModelVram?: string; 
+  localModelName?: string; 
+}
 
 export interface Examiner {
   id: string;

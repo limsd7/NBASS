@@ -66,6 +66,7 @@ import { AIChatbotWidget } from './components/common/AIChatbotWidget';
 import { RoleSelectionView } from './components/RoleSelectionView';
 import { ParentDashboard } from './components/dashboards/ParentDashboard';
 import { ExpertDashboard } from './components/dashboards/ExpertDashboard';
+import { OwnerDashboardView } from './components/dashboards/OwnerDashboardView';
 
 import { CognitivePerformanceResults } from './components/CognitivePerformanceAssessment';
 import { StepProgressBar } from './components/ui/StepProgressBar';
@@ -159,7 +160,7 @@ type SurveyTab = 'ans' | 'bai' | 'isi' | 'concentration' | 'cfs' | 'adrenal';
 
 
 const App: React.FC = () => {
-  const [step, setStep] = useState<'role_selection' | 'parent_dashboard' | 'expert_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management'>('register');
+  const [step, setStep] = useState<'role_selection' | 'parent_dashboard' | 'expert_dashboard' | 'owner_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management'>('register');
   const [activeMenu, setActiveMenu] = useState<'dashboard' | 'assessment' | 'history' | 'progress' | 'resources' | 'solutions'>('dashboard');
   const [activeTab, setActiveTab] = useState<SurveyTab>('ans');
   const [student, setStudent] = useState<StudentInfo>(initialStudent);
@@ -1057,6 +1058,34 @@ const App: React.FC = () => {
 
     setStep('results');
   };
+
+  // --- Role Views & Owner Dashboard ---
+  if (step === 'owner_dashboard') {
+    return <OwnerDashboardView />;
+  }
+  if (step === 'role_selection') {
+    return (
+      <RoleSelectionView
+        onSelectRole={(role) => {
+          if (role === 'OWNER') {
+            setStep('owner_dashboard');
+          } else if (role === 'PARENT') {
+            setStep('parent_dashboard');
+          } else if (role === 'EXPERT') {
+            setStep('expert_dashboard');
+          } else {
+            setStep('register');
+          }
+        }}
+      />
+    );
+  }
+  if (step === 'parent_dashboard') {
+    return <ParentDashboard onBack={() => setStep('role_selection')} />;
+  }
+  if (step === 'expert_dashboard') {
+    return <ExpertDashboard onBack={() => setStep('role_selection')} />;
+  }
 
   // --- Menu Views ---
   if (activeMenu === 'dashboard') {
