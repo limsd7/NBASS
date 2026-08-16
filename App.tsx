@@ -1093,7 +1093,7 @@ const App: React.FC = () => {
   // --- Menu Views ---
   if (activeMenu === 'dashboard') {
     return (
-      <Layout 
+      <Layout onHomeClick={() => setStep("role_selection")} 
         activeMenu={activeMenu} 
         onMenuChange={setActiveMenu} 
         isDarkMode={isDarkMode} 
@@ -1257,7 +1257,7 @@ const App: React.FC = () => {
     };
 
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
         <HistoryView
           history={history}
           selectedStudentId={selectedStudentId}
@@ -1288,7 +1288,7 @@ const App: React.FC = () => {
   }
   if (activeMenu === 'progress') {
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
         <ProgressView
           history={history}
           selectedStudentId={selectedStudentId}
@@ -1301,16 +1301,16 @@ const App: React.FC = () => {
     );
   }
   if (activeMenu === 'resources') {
-    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><ResourcesView /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
+    return <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><ResourcesView /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
   }
   if (activeMenu === 'solutions') {
-    return <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><StressCareLabView student={student} history={history} /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
+    return <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}><StressCareLabView student={student} history={history} /><AdminPasswordModal isOpen={showAdminPassword} password={adminPasswordInput} onPasswordChange={setAdminPasswordInput} onConfirm={handleAdminUnlock} onCancel={() => { setShowAdminPassword(false); setAdminPasswordInput(''); }} /><ConfigModal /></Layout>;
   }
   // ------------------
 
   if (step === 'register') {
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
         <StepProgressBar currentStep={step} isMedicalMode={config.isMedicalMode} isPortableMode={config.usePortable} onStepClick={setStep as any} />
         <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 mt-4">
           <div className="bg-blue-600 p-8 text-white relative">
@@ -1990,7 +1990,7 @@ const App: React.FC = () => {
   // Blood Test Step (Medical Expert Mode only)
   if (step === 'bloodtest') {
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode}>
         <StepProgressBar currentStep={step} isMedicalMode={config.isMedicalMode} isPortableMode={config.usePortable} />
         <div className="mt-4">
           <BloodTestInput
@@ -2010,7 +2010,7 @@ const App: React.FC = () => {
 
   if (step === 'loading') {
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode}>
         <StepProgressBar currentStep={step} isMedicalMode={config.isMedicalMode} />
         <div className="flex flex-col items-center justify-center min-h-[60vh] mt-4">
           <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
@@ -2121,7 +2121,7 @@ const App: React.FC = () => {
 
   if (step === 'admin_expertise') {
     return (
-      <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
+      <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
         <AdminExpertiseView
           onBack={() => { setStep('results'); setShowConfig(true); }}
           studentName={student.name}
@@ -2223,7 +2223,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
+    <Layout onHomeClick={() => setStep("role_selection")} activeMenu={activeMenu} onMenuChange={setActiveMenu} isDarkMode={isDarkMode} onToggleDarkMode={toggleDarkMode} onAdminClick={() => setShowAdminPassword(true)}>
       <div className="w-full max-w-full space-y-8 animate-in fade-in duration-500 min-h-screen pb-20 pt-6 text-center">
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-center gap-3 mb-4">

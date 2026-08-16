@@ -10,11 +10,12 @@ interface LayoutProps {
   onToggleDarkMode?: () => void;
   onAdminClick?: () => void;
   onOwnerClick?: () => void;
+  onHomeClick?: () => void;
   expertGuideAction?: () => void;
   isExpertMode?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, onOwnerClick, expertGuideAction, isExpertMode }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, onOwnerClick, onHomeClick, expertGuideAction, isExpertMode }) => {
   const [showManual, setShowManual] = useState(false);
   
   const menuItems = [
@@ -29,7 +30,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 no-print transition-colors">
         <div className="w-full px-4 md:px-6 xl:px-10 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onMenuChange('dashboard')}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onHomeClick ? onHomeClick() : onMenuChange('dashboard')} title="처음 화면(역할 선택)으로 이동">
             <div className="w-10 h-10 flex items-center justify-center shrink-0">
               <img
                 src="./NBASS logo.jpg"
@@ -38,7 +39,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
               />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">NBASS</h1>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none flex items-center gap-1.5">
+                <span>NBASS</span>
+                {onHomeClick && (
+                  <span className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md transition-colors">
+                    🏠 처음으로
+                  </span>
+                )}
+              </h1>
               <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mt-0.5">Neuro-Bio Lab</span>
             </div>
           </div>
