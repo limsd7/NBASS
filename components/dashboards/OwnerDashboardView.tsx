@@ -7,7 +7,11 @@ import {
 } from '../../services/marketingAgentEngine';
 import { generateAIResponse } from '../../services/aiService';
 
-export const OwnerDashboardView: React.FC = () => {
+interface OwnerDashboardViewProps {
+  onBack?: () => void;
+}
+
+export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'briefing' | 'approvals' | 'marketing' | 'exceptions'>('briefing');
   const [budgetPlan, setBudgetPlan] = useState<DailyAdBudgetExecution>(getStandardDailyAdBudgetPlan(500000));
   
@@ -68,6 +72,14 @@ export const OwnerDashboardView: React.FC = () => {
       <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
           <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="px-3 py-1 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+              >
+                ← 나가기 (학생 진단 모드)
+              </button>
+            )}
             <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               24시간 자율 에이전트 가동 중

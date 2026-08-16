@@ -9,11 +9,12 @@ interface LayoutProps {
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
   onAdminClick?: () => void;
+  onOwnerClick?: () => void;
   expertGuideAction?: () => void;
   isExpertMode?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, expertGuideAction, isExpertMode }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChange, isDarkMode, onToggleDarkMode, onAdminClick, onOwnerClick, expertGuideAction, isExpertMode }) => {
   const [showManual, setShowManual] = useState(false);
   
   const menuItems = [
@@ -64,6 +65,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeMenu, onMenuChan
                 Manual
               </button>
             </nav>
+            {/* Solopreneur Owner AI Center Button */}
+            {onOwnerClick && (
+              <button
+                onClick={onOwnerClick}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all border border-indigo-400/30 animate-pulse"
+                title="24시간 자율 AI 마케팅 & 오너 1일 1시간 관제 센터 열기"
+              >
+                <span>🚀</span>
+                <span className="hidden sm:inline">오너 관제 센터</span>
+              </button>
+            )}
+
             {/* Admin Config Button */}
             {onAdminClick && (
               <button
