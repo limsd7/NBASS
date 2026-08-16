@@ -20,6 +20,7 @@ import { ReportNavigator } from '../../components/reports/ReportNavigator';
 import { BrainBodyDashboard } from '../../components/reports/BrainBodyDashboard';
 import { MedicalReport } from '../reports/MedicalReport';
 import { PromptModal } from '../../components/modals/PromptModal';
+import { FreeSummaryTeaser } from './FreeSummaryTeaser';
 
 import { BalanceChart, BrainRadarChart, StressGaugeChart } from '../../components/Charts';
 import { VitalityStressChart } from '../../components/VitalityStressChart';
@@ -490,6 +491,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     // ... (Logic)
                     return <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl mb-4">Efficiency Boost Active</div>;
                 })()}
+
+                {/* Free User Summary Teaser & 9000/9900 Anchor Paywall */}
+                <FreeSummaryTeaser
+                    result={result}
+                    userTier={result.student.membershipTier || 'free'}
+                    onUpgradeTier={(tier) => {
+                        handleDataUpdate({
+                            student: {
+                                ...result.student,
+                                membershipTier: tier
+                            }
+                        });
+                    }}
+                />
 
             </div>
 
