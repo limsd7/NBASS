@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import DatabaseService, { type RoutineTracking } from '../../services/database';
+import { unifiedSyncService as DatabaseService, type RoutineTracking } from '../../services/unifiedSyncService';
 
 interface RoutineCalendarModalProps {
     isOpen: boolean;

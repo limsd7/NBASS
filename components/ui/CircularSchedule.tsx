@@ -12,9 +12,10 @@ export interface SchedulePeriod {
 interface CircularScheduleProps {
     periods: SchedulePeriod[];
     isDark?: boolean;
+    hideLegend?: boolean;
 }
 
-const CircularSchedule: React.FC<CircularScheduleProps> = ({ periods, isDark = false }) => {
+const CircularSchedule: React.FC<CircularScheduleProps> = ({ periods, isDark = false, hideLegend = false }) => {
     const size = 320;
     const center = size / 2;
     const radius = 100;
@@ -151,14 +152,16 @@ const CircularSchedule: React.FC<CircularScheduleProps> = ({ periods, isDark = f
             </svg>
             
             {/* Legend */}
-            <div className="flex flex-wrap justify-center gap-4 mt-6 px-4">
-                {periods.map(period => (
-                    <div key={`legend-${period.id}`} className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: period.color }}></span>
-                        <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{period.label} ({period.start}:00~{period.end}:00)</span>
-                    </div>
-                ))}
-            </div>
+            {!hideLegend && (
+                <div className="flex flex-wrap justify-center gap-4 mt-6 px-4">
+                    {periods.map(period => (
+                        <div key={`legend-${period.id}`} className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: period.color }}></span>
+                            <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{period.label} ({period.start}:00~{period.end}:00)</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

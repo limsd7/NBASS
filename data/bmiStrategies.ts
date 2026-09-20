@@ -224,8 +224,32 @@ const getBmiCategory = (bmi: number): BmiCategory => {
 /**
  * 학생의 BMI와 CareType에 맞는 상세한 BMI 전략을 반환
  */
-export const getBmiStrategy = (student: { bmi?: number; height?: number }, careType: CareType): BmiStrategy => {
-  const bmi = student.bmi || 0;
+export const getBmiStrategy = (student: { bmi?: number; height?: number; weight?: number }, careType: CareType): BmiStrategy => {
+  const hasValidBmi = student.bmi !== undefined && student.bmi > 0;
+  const hasHeight = student.height !== undefined && student.height > 0;
+
+  // 신체 정보 미입력인 경우: 왜곡된 BMI 0.0 저체중 판정 대신 균형 잡힌 표준 컨디션 유지 가이드 제공
+  if (!hasValidBmi || !hasHeight) {
+    return {
+      title: "규칙적인 식습관과 균형 잡힌 신체 컨디션 유지 (신체 정보 미입력)",
+      sections: [
+        {
+          heading: "기초 영양과 두뇌 에너지",
+          content: "뇌는 하루 에너지 소모량의 20%를 포도당으로 사용합니다. 규칙적인 3끼 식사와 충분한 수분 섭취로 두뇌 활성도를 일정하게 유지하세요."
+        },
+        {
+          heading: "식곤증 및 집중력 방어",
+          content: "정제 탄수화물이나 단순 당류 위주의 급격한 혈당 스파이크를 피하고, 단백질과 식이섬유 중심의 식단으로 오후 집중 저하를 방어하세요."
+        },
+        {
+          heading: "혈액 순환과 스트레칭",
+          content: "장시간 착석 학습 시 50분마다 가벼운 스트레칭과 심호흡으로 뇌 혈류량을 공급해 주면 기억 인출 속도가 크게 향상됩니다."
+        }
+      ]
+    };
+  }
+
+  const bmi = student.bmi!;
   const category = getBmiCategory(bmi);
 
   // Select Strategy Bundle
@@ -241,10 +265,8 @@ export const getBmiStrategy = (student: { bmi?: number; height?: number }, careT
   const finalStrategy: BmiStrategy = JSON.parse(JSON.stringify(strategy));
 
   // Dynamic Title Injection for Normal Weight as requested
-  // "BMI가 얼마이므로 제충을 얼마까지만 유지하는 것이 좋다는 등의 구체적인 조언과 추가적인 조언도 같이"
   if (category === 'normal') {
     finalStrategy.title += ` (BMI ${bmi.toFixed(1)}: 최적의 학습 컨디션)`;
-    // Add specific advice regarding weight maintenance
     finalStrategy.sections[0].content = `현재 BMI ${bmi.toFixed(1)}로 학습하기에 가장 이상적인 체중입니다. 지금의 체중(±1kg)을 유지하는 것이 피로 관리와 체력 유지에 유리합니다. ${finalStrategy.sections[0].content}`;
   } else if (category === 'underweight') {
     const targetMin = (18.5 * (student.height || 170) / 100 * (student.height || 170) / 100).toFixed(1);

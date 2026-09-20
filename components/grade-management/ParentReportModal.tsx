@@ -1,6 +1,7 @@
 import React from 'react';
 import { GradeRecord, StudentInfo, AssessmentResult } from '../../types';
 import { SUNEUNG_SUBJECTS } from '../../data/suneungSubjects';
+import { getCareTypeDetail } from '../../data/careTypesData';
 
 interface ParentReportModalProps {
     isOpen: boolean;
@@ -22,22 +23,9 @@ export const ParentReportModal: React.FC<ParentReportModalProps> = ({
     };
 
     const getCareTypeKor = (type?: string) => {
-        switch (type) {
-            case 'Hyper-Tension Burnout': return '과긴장 번아웃 (학습 무기력)';
-            case 'Anxiety-Tension': return '불안-긴장형 (성취 압박)';
-            case 'Stress Overload': return '스트레스 과부하';
-            case 'Low-Energy Fatigue': return '무기력형 (에너지 고갈)';
-            case 'Depression-Amotivation': return '우울-무동기형';
-            case 'Adrenal Fatigue': return '부신피로 증후군';
-            case 'Brain Fatigue': return '뇌피로 (인지 과부하)';
-            case 'Hypersensitive Learning': return '과민성 학습장애';
-            case 'Attention Deficit': return '주의력 산만형';
-            case 'Sleep Dysfunction': return '수면 장애형';
-            case 'Poor Circulation': return '혈액순환 저하형';
-            case 'Healthy Balance': return '건강 균형형 (최적)';
-            case 'Concentration Deficiency': return '집중력 저하형';
-            default: return '진단되지 않음';
-        }
+        if (!type) return '진단되지 않음';
+        const care = getCareTypeDetail(type);
+        return `${care.emoji} ${care.title} (${care.subtitle})`;
     };
 
     return (
@@ -80,7 +68,7 @@ export const ParentReportModal: React.FC<ParentReportModalProps> = ({
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                                 <p className="text-sm text-slate-500 mb-1">인지 성능 지표</p>
                                 <div className="flex justify-between items-center">
-                                    <span>집중력 (HRV)</span>
+                                    <span>두뇌 집중력 (Focus)</span>
                                     <span className="font-bold">{currentAssessment?.hrv?.concentrationLevel || 0}%</span>
                                 </div>
                                 <div className="flex justify-between items-center">

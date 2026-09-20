@@ -15,12 +15,12 @@ interface PredictionRuleEditorProps {
 
 // 사용 가능한 필드 목록
 const AVAILABLE_FIELDS = [
-    { value: 'hrv.sns', label: 'SNS (교감신경)', category: 'HRV' },
-    { value: 'hrv.pns', label: 'PNS (부교감신경)', category: 'HRV' },
-    { value: 'hrv.fatigue', label: '피로도', category: 'HRV' },
-    { value: 'hrv.vitality', label: '활력도', category: 'HRV' },
-    { value: 'hrv.brainScore', label: '두뇌점수', category: 'HRV' },
-    { value: 'hrv.stressIndex', label: '스트레스 지수', category: 'HRV' },
+    { value: 'hrv.sns', label: 'SNS (교감신경)', category: '자율신경' },
+    { value: 'hrv.pns', label: 'PNS (부교감신경)', category: '자율신경' },
+    { value: 'hrv.fatigue', label: '피로도', category: '자율신경' },
+    { value: 'hrv.vitality', label: '활력도', category: '자율신경' },
+    { value: 'hrv.brainScore', label: '두뇌점수', category: '자율신경' },
+    { value: 'hrv.stressIndex', label: '스트레스 지수', category: '자율신경' },
     { value: 'survey.bai', label: 'BAI (불안)', category: '설문' },
     { value: 'survey.isi', label: 'ISI (불면)', category: '설문' },
     { value: 'survey.cfs', label: 'CFS (피로)', category: '설문' },

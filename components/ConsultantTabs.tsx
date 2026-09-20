@@ -37,7 +37,7 @@ export const ConsultantTabs: React.FC<ConsultantTabsProps> = ({
         const result = generateConsultingReport(student, hrv, survey, protocol, analytics, bloodTest);
 
         // CareType 계산 (App.tsx에서 전달받지 못했을 경우를 대비한 로컬 계산)
-        const calculatedCareType = evaluateClassificationRules(DEFAULT_CLASSIFICATION_RULES, hrv, survey) || CareType.HEALTHY;
+        const calculatedCareType = evaluateClassificationRules(DEFAULT_CLASSIFICATION_RULES, hrv, survey, protocol, analytics, bloodTest) || CareType.HEALTHY;
 
         const scripts = generateConsultationScripts({ student, hrv, survey, protocol, analytics, bloodTest }, calculatedCareType);
         setScriptData(scripts);
@@ -210,6 +210,32 @@ export const ConsultantTabs: React.FC<ConsultantTabsProps> = ({
                                     }`}
                             >
                                 {st.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Quick Presets for Tab 0 (나의 전문 소견) */}
+                {activeTab === 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                        <span className="text-xs text-blue-300 font-bold mr-1">⚡ 상용구 추가:</span>
+                        {[
+                            "수면 불규칙으로 인한 피로 누적이 관찰됩니다.",
+                            "오전 카페인 섭취를 자제하고 수분 섭취를 늘리세요.",
+                            "가벼운 유산소 운동(걷기 30분)을 권장합니다.",
+                            "취침 전 스마트폰 사용을 줄여 뇌 휴식을 유도하세요.",
+                            "학습 중간에 4-7-8 호흡법으로 긴장을 완화하세요.",
+                            "시험 직전 신체화 불안 완화를 위한 호흡 이완 요법 권고."
+                        ].map((memo, mIdx) => (
+                            <button
+                                key={mIdx}
+                                onClick={() => {
+                                    const newContent = texts[0] ? texts[0] + '\n• ' + memo : '• ' + memo;
+                                    handleTextChange(0, newContent);
+                                }}
+                                className="px-2.5 py-1 bg-white/10 hover:bg-blue-600/30 border border-white/10 text-slate-300 hover:text-white text-[11px] rounded-lg transition-colors cursor-pointer"
+                            >
+                                + {memo.length > 18 ? memo.substring(0, 18) + '...' : memo}
                             </button>
                         ))}
                     </div>

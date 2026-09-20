@@ -14,10 +14,10 @@ export const EditorTab_HRV: React.FC<EditorTab_HRVProps> = ({ data, onChange, on
             {data.portableHrv ? (
                 <>
                     <div>
-                        <h3 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2 mb-4">uBioMacpa Portable Data</h3>
+                        <h3 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2 mb-4">자율신경 정밀 분석 데이터 (ANS Clinical Data)</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <InputField label="스트레스 지수 (Stress Index)" value={data.portableHrv.stressIndex} onChange={(v: any) => onPortableChange('stressIndex', v)} type="number" />
-                            <InputField label="맥박 변화도 (Pulse Variability)" value={data.portableHrv.pulseVariability} onChange={(v: any) => onPortableChange('pulseVariability', v)} type="number" />
+                            <InputField label="자율신경 변화도 (Autonomic Variability)" value={data.portableHrv.pulseVariability} onChange={(v: any) => onPortableChange('pulseVariability', v)} type="number" />
                             <InputField label="혈관 건강지수 (Vascular Index)" value={data.portableHrv.vascularHealthIndex} onChange={(v: any) => onPortableChange('vascularHealthIndex', v)} type="number" />
                             <div className="mb-4">
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">자율신경 유형 (ANS Balance)</label>
@@ -55,9 +55,9 @@ export const EditorTab_HRV: React.FC<EditorTab_HRVProps> = ({ data, onChange, on
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2 mb-4">EEG (Brainwaves)</h3>
+                        <h3 className="text-sm font-black text-slate-800 border-b border-slate-100 pb-2 mb-4">신경인지 지표 (Cognitive Metrics)</h3>
                         <div className="grid grid-cols-3 gap-4">
-                            <InputField label="뇌 건강 점수" value={data.brainScore} onChange={(v: any) => onChange('brainScore', v)} type="number" />
+                            <InputField label="두뇌 활성 점수" value={data.brainScore} onChange={(v: any) => onChange('brainScore', v)} type="number" />
                             <InputField label="집중도 (Level)" value={data.concentrationLevel} onChange={(v: any) => onChange('concentrationLevel', v)} type="number" max={10} />
                             <InputField label="Alpha (이완)" value={data.eegAlpha} onChange={(v: any) => onChange('eegAlpha', v)} type="number" />
                             <InputField label="M-Beta (몰입)" value={data.eegMBeta} onChange={(v: any) => onChange('eegMBeta', v)} type="number" />

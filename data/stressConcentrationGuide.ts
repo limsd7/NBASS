@@ -616,8 +616,11 @@ export const analyzeCurrentState = (
     const stressState = (stressIndex && stressIndex >= 45) ||
         (dominantEEG && dominantEEG.includes('H-Beta')) ? 'high' : 'low';
 
-    // 집중 상태 판단
-    const concentrationState = (concentrationLevel && concentrationLevel >= 60) ||
+    // 집중 상태 판단 (1~10 척도 또는 0~100 척도 자동 호환)
+    const normalizedConcScore = concentrationLevel !== undefined
+        ? (concentrationLevel <= 10 ? concentrationLevel * 10 : concentrationLevel)
+        : 50;
+    const concentrationState = (normalizedConcScore >= 60) ||
         (dominantEEG && (dominantEEG.includes('M-Beta') || dominantEEG.includes('Gamma'))) ? 'high' : 'low';
 
     return { stressState, concentrationState };

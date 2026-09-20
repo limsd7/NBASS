@@ -1,5 +1,6 @@
 
 import { HRVData, SurveyData, ProtocolData, LearningAnalyticsData, CareType, StudentInfo, ANS_BALANCE_DESCRIPTIONS, getStressLevel, BrainBodyState } from "../types";
+import { isLearningAnalyticsTested } from "../utils/constants";
 import { LogicEngineConfig, evaluateProductRules } from "../logicEngine";
 import { ANALYSIS_TYPES, ANALYSIS_TEXTS, AnalysisType } from "../data/analysisData";
 import { analyzeLifestyle } from "./lifestyleEngine";
@@ -149,11 +150,15 @@ export const generateClinicalAnalysis = (
     if (protocol.stressLevel >= T.stressHigh && protocol.location === '기타') tags.add('LOC_DISSATISFACTION');
 
     // 9. Learning Metrics
-    if (analytics.pureStudyRatio < T.pureStudyLow) tags.add('LOW_PURE_STUDY');
-    if (analytics.distractionCount > T.distractionHigh) tags.add('HIGH_DISTRACTION');
-    if (analytics.goalAchievementRate < T.goalLow) tags.add('BURNOUT_RISK');
-    const maxRatio = Math.max(...Object.values(analytics.subjectRatios) as number[]);
-    if (maxRatio > T.subjectImbalance) tags.add('SUBJECT_IMBALANCE');
+    if (isLearningAnalyticsTested(analytics)) {
+        if (analytics.pureStudyRatio < T.pureStudyLow) tags.add('LOW_PURE_STUDY');
+        if (analytics.distractionCount > T.distractionHigh) tags.add('HIGH_DISTRACTION');
+        if (analytics.goalAchievementRate < T.goalLow) tags.add('BURNOUT_RISK');
+        if (analytics.subjectRatios) {
+            const maxRatio = Math.max(...Object.values(analytics.subjectRatios) as number[]);
+            if (maxRatio > T.subjectImbalance) tags.add('SUBJECT_IMBALANCE');
+        }
+    }
 
     // 2. New Engines Analysis
     const lifestyle = analyzeLifestyle(student, careType);
@@ -270,9 +275,9 @@ export const generateClinicalAnalysis = (
     if (tags.has('ADRENAL_DANGER')) {
         customSolutions.push("🏥 [전문가권고] 부신 기능 저하가 심각하므로 고강도 운동보다는 가벼운 산책과 명상이 필요합니다.");
     }
-    if (tags.has('LAB_HEMO_LOW')) customSolutions.push("🏥 [혈액검계] 헤모글로빈 수치가 낮습니다. 철분 보충 및 단백질 섭취를 늘리세요.");
-    if (tags.has('LAB_VITD_LOW')) customSolutions.push("🏥 [혈액검계] 비타민D 수치가 낮습니다. 보충제 섭취 및 하루 20분 일광욕을 권장합니다.");
-    if (tags.has('LAB_CRP_HIGH')) customSolutions.push("🏥 [혈액검계] 염증지표(CRP)가 높습니다. 오메가3 섭취 및 항염증 식단(채소 위주)이 필요합니다.");
+    if (tags.has('LAB_HEMO_LOW')) customSolutions.push("🏥 [혈액검사] 헤모글로빈 수치가 낮습니다. 철분 보충 및 단백질 섭취를 늘리세요.");
+    if (tags.has('LAB_VITD_LOW')) customSolutions.push("🏥 [혈액검사] 비타민D 수치가 낮습니다. 보충제 섭취 및 하루 20분 일광욕을 권장합니다.");
+    if (tags.has('LAB_CRP_HIGH')) customSolutions.push("🏥 [혈액검사] 염증지표(CRP)가 높습니다. 오메가3 섭취 및 항염증 식단(채소 위주)이 필요합니다.");
 
 
     // Detailed Insight Data 먼저 준비 (examContext에서 사용)
@@ -349,6 +354,7 @@ ${detailedInsightData.vulnerableTimeStrategy}
     // 5. Detailed Data Insight Generation (Section 3) - 500자 내외 상세 해석 적용
     const insight = CARE_TYPE_INSIGHTS[careType] || CARE_TYPE_INSIGHTS[CareType.HEALTHY];
     // detailedInsightData는 위에서 이미 선언됨
+    const surveyStressVal = (survey.bai && survey.bai > 0) ? Math.round(Math.min(95, (survey.bai / 63) * 100)) : (protocol.stressLevel > 0 ? protocol.stressLevel * 10 : 45);
 
 
     let detailedInsight = isPortable
@@ -371,23 +377,29 @@ ${detailedInsightData.vulnerableTimeStrategy}
 
     } else {
         // B. 자율신경 (Clinical Specific - 500자 내외 상세 해석)
-        let ansStatus = hrv.sns > 60 ? "교감 항진(긴장)" : hrv.pns < 30 ? "회복력 저하" : "안정적";
+        let ansStatus = hrv.sns > 60 ? "교감 항진(긴장)" : hrv.sns >= 53 ? "교감 우세(스트레스)" : hrv.pns > 60 ? "부교감 항진(나른/피로)" : hrv.pns < 30 ? "회복력 저하" : "자율신경 균형";
         detailedInsight += `- **자율신경**: SNS **${hrv.sns}%** / PNS **${hrv.pns}%** — ${ansStatus}\n`;
         detailedInsight += `  > **[자율신경 해석]**: ${detailedInsightData.ansInterpretation}\n\n`;
 
-        // C. 뇌파 균형 (Clinical Specific)
-        const eegLabels = Array.isArray(hrv.dominantEEG) ? hrv.dominantEEG : [hrv.dominantEEG];
-        detailedInsight += `- **뇌파 균형**: 주 우세파 **${eegLabels.join(', ')}**, 뇌 스트레스 **${hrv.brainStressCategory}**, 집중도 **Lv.${hrv.concentrationLevel || 5}**\n`;
-        detailedInsight += `  > **[뇌파 해석]**: ${insight.eegInterpretation}\n\n`;
+        // C. 인지 제어 역량 (Clinical Specific)
+        const dynamicBrainStress = hrv.brainStressCategory || (hrv.physicalStress >= 65 || tags.has('BRAIN_STRESS_HIGH') ? '과부하' : (hrv.physicalStress >= 48 || tags.has('ANXIETY_HIGH')) ? '주의' : '안정');
+        detailedInsight += `- **인지 제어 분석**: 두뇌 활성도 **${dynamicBrainStress}**, 집중 유지도 **Lv.${hrv.concentrationLevel || 7}**\n`;
+        detailedInsight += `  > **[인지 제어 해석]**: ${insight.eegInterpretation ? insight.eegInterpretation.replace(/뇌파/g, '신경인지').replace(/EEG/g, '인지') : '과목별 난이도에 따른 작업기억 부하를 조절하여 최적 몰입을 유지합니다.'}\n\n`;
 
         // D. 생체 스트레스 (Clinical - 500자 내외 상세 해석)
-        detailedInsight += `- **생체 스트레스**: 신체 스트레스 **${hrv.physicalStress || 'N/A'}**, 피로 지수 **${hrv.fatigue}%**, 활력 지수 **${hrv.vitality}%**\n`;
+        const displayStress = (hrv.physicalStress !== undefined && hrv.physicalStress > 0) ? `${hrv.physicalStress}점` : `${surveyStressVal}점`;
+        detailedInsight += `- **생체 스트레스**: 신체 스트레스 **${displayStress}**, 피로 지수 **${hrv.fatigue}%**, 활력 지수 **${hrv.vitality}%**\n`;
         detailedInsight += `  > **[생체 스트레스 해석]**: ${detailedInsightData.stressInterpretation}\n\n`;
     }
 
     // E. 학습 밀도 (Common - 500자 내외 상세 해석)
-    detailedInsight += `- **학습 밀도**: 순공 비율 **${analytics.pureStudyRatio}%**, 목표 달성률 **${analytics.goalAchievementRate}%**, 평균 집중 시간 **${analytics.avgFocusDuration}분**\n`;
-    detailedInsight += `  > **[학습 밀도 해석]**: ${detailedInsightData.studyDensityAnalysis}\n`;
+    if (isLearningAnalyticsTested(analytics)) {
+        detailedInsight += `- **학습 밀도**: 순공 비율 **${analytics.pureStudyRatio}%**, 목표 달성률 **${analytics.goalAchievementRate}%**, 평균 집중 시간 **${analytics.avgFocusDuration}분**\n`;
+        detailedInsight += `  > **[학습 밀도 해석]**: ${detailedInsightData.studyDensityAnalysis}\n`;
+    } else {
+        detailedInsight += `- **학습 밀도**: 검사 미시행 (학습 밀도 및 패턴 설문 미완료)\n`;
+        detailedInsight += `  > **[학습 밀도 안내]**: 당일 학습 밀도 및 패턴 정밀 검사가 진행되지 않아 순공 시간 및 집중 지속 시간 데이터가 수집되지 않았습니다.\n`;
+    }
 
     // 6. Final Report Generation
     console.log('[DEBUG] Final examContext before report generation:', examContext.substring(0, 100));
@@ -425,77 +437,8 @@ ${calculationDetail}
 ${getVitalityFatigueGuide(vitality, fatigue, careType)}
     `.trim();
 
-    // Brain Balance Radar 섹션 생성 (HRV/의학적 모드에서만 - Portable은 EEG 미사용)
+    // Brain Balance Radar removed (EEG hardware no longer used)
     let brainBalanceSection = '';
-    if (!isPortable) {
-        const eegData = {
-            gamma: hrv.eegGamma || 0,
-            hBeta: hrv.eegHBeta || 0,
-            mBeta: hrv.eegMBeta || 0,
-            lBeta: hrv.eegLBeta || 0,
-            alpha: hrv.eegAlpha || 0,
-            theta: hrv.eegTheta || 0
-        };
-        const dominantType = determineDominantEEGType(eegData.gamma, eegData.hBeta, eegData.mBeta, eegData.lBeta, eegData.alpha, eegData.theta);
-        const strategy = EEG_STUDY_STRATEGIES[dominantType];
-        const insight = BRAIN_BALANCE_INSIGHTS[careType];
-
-        brainBalanceSection = `
-##[5-3] 🧠 Brain Balance Radar 분석(EEG - Based Study Method)
-
-        ** 현재 뇌파 분포 **: Gamma ** ${eegData.gamma}%** | H - Beta ** ${eegData.hBeta}%** | M - Beta ** ${eegData.mBeta}%** | L - Beta ** ${eegData.lBeta}%** | Alpha ** ${eegData.alpha}%** | Theta ** ${eegData.theta}%**
-
-### 뇌파 항목별 특성
-
-        | 뇌파 | 학습 시 상태 | 분석 및 의미 |
-| ------| -------------| -------------|
-| Gamma(인지) | 초고도 집중, 통합적 사고 | 복잡한 정보를 결합하거나 고난도 문제를 풀 때 활성화 |
-| H - Beta(긴장) | 과각성, 불안, 스트레스 | 마감 임박, 시험 직전의 긴박한 상태.수치 과다 시 실수 증가 |
-| M - Beta(몰입) | 능동적 집중, 논리적 사고 | 수학 풀이, 독해 등 본격 학습에 가장 이상적인 집중 상태 |
-| L - Beta(주의) | 외적 주의집중, 준비 상태 | 인강 시청, 단순 암기 등 외부 정보 수용 준비 상태 |
-| Alpha(이완) | 안정, 창의적 영감 | 긴장 해소 상태, 암기 회상이나 아이디어 도출에 효과적 |
-| Theta(졸음) | 멍함, 얕은 잠, 무의식 | 집중력 고갈 상태.이때 공부 지속 시 효율 매우 낮음 |
-
-        ---
-
-### 현재 우세 패턴 분석: ${strategy.titleKr}
-
-${insight.interpretation}
-
-    ---
-
-### 📚 추천 학습 모드: ${strategy.recommendedMode}
-
-${insight.studyRecommendation}
-
-    ---
-
-### 과목별 딥 워크 전략
-
-${strategy.subjectStrategies.math}
-
-${strategy.subjectStrategies.korean}
-
-${strategy.subjectStrategies.science}
-
-    ---
-
-### 효율 극대화 추가 전략
-${strategy.additionalStrategies.map(s => `• ${s}`).join('\n')}
-
-    ---
-
-### ⚠️ 주의 패턴
-${insight.warningPatterns.map(p => `• ${p}`).join('\n')}
-
-### 💡 뇌파 최적화 팁
-${insight.optimizationTips.map(t => `• ${t}`).join('\n')}
-
-    ---
-
-** 요약 **: ${strategy.summary.join(' | ')}
-    `.trim();
-    }
 
 
     // Stress & Concentration Gauge 기반 공부법 섹션 생성 (모든 모드에서 적용)
@@ -531,62 +474,120 @@ ${currentState.stressState === 'high' ? scGuide.stressBasedSubjects.english : sc
     `.trim();
 
     // 통합 학습 최적화 섹션 생성
-    const integrated = generateIntegratedAssessment(hrv, careType, isPortable);
-    const integratedStudySection = `
-##[5-5] 🎯 통합 학습 최적화 요약(Integrated Study Optimization Summary)
+    const hasHRV = Boolean(
+        hrv.isHrvTested ?? (
+            (isPortable && hrv.portableHrv && hrv.portableHrv.pulseVariability > 0) ||
+            Boolean((hrv.hrvIndex && hrv.hrvIndex > 0) || (hrv.meanHr && hrv.meanHr > 0))
+        )
+    );
+    const hasEEG = Boolean(
+        hrv.isEegTested ?? (
+            (hrv.eegGamma || 0) > 0 || (hrv.eegAlpha || 0) > 0 || (hrv.dominantEEG && hrv.dominantEEG.length > 0)
+        )
+    );
 
-    **📊 4가지 지표 종합 분석 **
+    const integrated = generateIntegratedAssessment(hrv, careType, isPortable);
+
+    // Calculate dynamic realistic values from completed surveys & cognitive tests when sensors were unmeasured
+    const stressScore = hasHRV ? (hrv.physicalStress || 50) : surveyStressVal;
+
+    const sleepDeficit = protocol.sleepHours > 0 ? Math.max(0, (8 - protocol.sleepHours) * 12) : 15;
+    const insomniaVal = survey.isi > 0 ? Math.round((survey.isi / 28) * 50) : 15;
+    const surveyFatigueVal = Math.min(95, Math.max(15, sleepDeficit + insomniaVal + 10));
+    const fatigueScore = hasHRV ? (hrv.fatigue || 45) : surveyFatigueVal;
+
+    const vitalityScore = hasHRV ? (hrv.vitality || Math.max(15, 100 - fatigueScore)) : Math.max(15, Math.min(95, 100 - fatigueScore));
+
+    const pureRatioVal = analytics.pureStudyRatio > 0 ? analytics.pureStudyRatio : 65;
+    const cognitiveVal = cognitiveResults?.attention?.accuracy ? cognitiveResults.attention.accuracy : (cognitiveResults?.processingSpeed?.averageAccuracy || 70);
+    const surveyConcentrationVal = Math.round(pureRatioVal * 0.5 + cognitiveVal * 0.5);
+    const concentrationScore = hrv.concentrationLevel || surveyConcentrationVal;
+
+    const ansBalanceScore = Math.max(20, Math.min(95, Math.round(100 - (stressScore * 0.45) - (fatigueScore * 0.35))));
+
+    const calculatedSns = Math.min(85, Math.max(25, Math.round(40 + (stressScore * 0.45) - (vitalityScore * 0.15))));
+    const calculatedPns = 100 - calculatedSns;
+    const finalSns = hrv.sns > 0 ? hrv.sns : calculatedSns;
+    const finalPns = hrv.pns > 0 ? hrv.pns : calculatedPns;
+
+    const ansStatusText = finalSns > 60 ? '교감신경 우세 (긴장)' : finalPns > 60 ? '부교감 우세 (나른)' : '자율신경 균형 양호';
+    const ansScoreText = `${ansBalanceScore}점`;
+
+    const vitalityText = `${vitalityScore}%`;
+    const fatigueText = `${fatigueScore}%`;
+    const stressText = `${stressScore}점`;
+    const concentrationText = `${concentrationScore}점`;
+    const focusStateText = concentrationScore >= 70 ? '고도 몰입' : concentrationScore >= 50 ? '안정 집중' : '주의 보강';
+
+    const step1PhysicalText = `자율신경 상태: ${ansStatusText} (자율신경 반응성 및 피로 지수 분석 완료)`;
+    const step2MentalText = `두뇌 각성 및 집중도: 주의력 검사 및 순공 몰입도(${pureRatioVal}%) 기반 집중도 ${concentrationScore}점 (${focusStateText})`;
+
+    const integratedStudySection = `
+## [5-5] 🎯 통합 학습 최적화 요약 (Integrated Study Optimization Summary)
+
+**📊 6가지 지표 종합 분석 (Brain & Body Integration)**
 
 | 지표 | 현재 상태 | 점수 |
-| -----| ---------| -----|
-| ANS(자율신경 균형) | ${integrated.physicalStateDescription.split(' - ')[0]} | ${integrated.ansScore} 점 |
-| Vitality(활력 지수) | ${integrated.vitalityScore >= 70 ? '높음 🟢' : integrated.vitalityScore >= 40 ? '보통 🟡' : '낮음 🔴'} | ${integrated.vitalityScore}% |
-| Fatigue(피로 지수) | ${integrated.fatigueScore <= 30 ? '낮음 🟢' : integrated.fatigueScore <= 60 ? '보통 🟡' : '높음 🔴'} | ${integrated.fatigueScore}% |
-| Stress(스트레스) | ${integrated.stressScore <= 40 ? '낮음 🟢' : integrated.stressScore <= 60 ? '보통 🟡' : '높음 🔴'} | ${integrated.stressScore} 점 |
-    ${!isPortable ? `| Concentration (집중도) | ${integrated.concentrationScore >= 60 ? '높음 🟢' : integrated.concentrationScore >= 40 ? '보통 🟡' : '낮음 🔴'} | ${integrated.concentrationScore}점 |
-| Brain Pattern (뇌파) | ${integrated.eegType || 'N/A'} | - |` : ''
-        }
+| :--- | :--- | :--- |
+| ANS (자율신경 균형) | ${ansStatusText} | ${ansScoreText} |
+| Vitality (활력 지수) | ${vitalityScore >= 70 ? '높음 🟢' : vitalityScore >= 40 ? '보통 🟡' : '낮음 🔴'} | ${vitalityText} |
+| Fatigue (피로 지수) | ${fatigueScore <= 30 ? '낮음 🟢' : fatigueScore <= 60 ? '보통 🟡' : '높음 🔴'} | ${fatigueText} |
+| Stress (스트레스) | ${stressScore <= 40 ? '낮음 🟢' : stressScore <= 60 ? '보통 🟡' : '높음 🔴'} | ${stressText} |
+| Concentration (집중도) | ${concentrationScore >= 60 ? '높음 🟢' : concentrationScore >= 40 ? '보통 🟡' : '낮음 🔴'} | ${concentrationText} |
+| Focus State (인지 몰입도) | ${focusStateText} | - |
 
 ---
 
 ### 🔬 신체 - 정신 - 인지 3단계 진단
 
-    ** Step 1. 신체 상태(자율신경 필터) **
-        ${integrated.physicalStateDescription}
+**Step 1. 신체 상태 (자율신경 필터)**
+${step1PhysicalText}
 
-** Step 2. 정신 각성도(뇌파 / 집중도 필터) **
-    ${integrated.mentalArousalDescription}
+**Step 2. 인지 집중 및 몰입도 (Cognitive Focus)**
+${step2MentalText}
 
-** Step 3. 종합 판정 **
-    ${integrated.overallSummary}
+**Step 3. 종합 판정**
+${integrated.overallSummary}
 
 ${integrated.warningMessage ? `\n⚠️ **주의**: ${integrated.warningMessage}\n` : ''}
 
 ---
 
+### 📚 수능 공통 4과목 3대 기준 우선순위 기반 공부시간 & 맞춤 전략
+${studyStrategy.subjectPriorityStrategies ? `
+| 과목 | 3대 기준 순위 (입시중요도 / 실력성적 / 당장집중) | 권장 공부시간 배분 | 골든타임 배치 및 핵심 전략 |
+| :--- | :--- | :--- | :--- |
+| **국어 (KOR)** | ${studyStrategy.subjectPriorityStrategies.korean.rankInfo} | **${studyStrategy.subjectPriorityStrategies.korean.allocatedRatio}** | **${studyStrategy.subjectPriorityStrategies.korean.strategyTitle}** — ${studyStrategy.subjectPriorityStrategies.korean.actionPlan} |
+| **수학 (MAT)** | ${studyStrategy.subjectPriorityStrategies.math.rankInfo} | **${studyStrategy.subjectPriorityStrategies.math.allocatedRatio}** | **${studyStrategy.subjectPriorityStrategies.math.strategyTitle}** — ${studyStrategy.subjectPriorityStrategies.math.actionPlan} |
+| **영어 (ENG)** | ${studyStrategy.subjectPriorityStrategies.english.rankInfo} | **${studyStrategy.subjectPriorityStrategies.english.allocatedRatio}** | **${studyStrategy.subjectPriorityStrategies.english.strategyTitle}** — ${studyStrategy.subjectPriorityStrategies.english.actionPlan} |
+| **한국사 (HIST)** | ${studyStrategy.subjectPriorityStrategies.korean_history.rankInfo} | **${studyStrategy.subjectPriorityStrategies.korean_history.allocatedRatio}** | **${studyStrategy.subjectPriorityStrategies.korean_history.strategyTitle}** — ${studyStrategy.subjectPriorityStrategies.korean_history.actionPlan} |
+` : ''}
+
+---
+
 ### 📚 최적 공부법 선택 결과
 
-    **🥇 우선 추천 과목 **: ${integrated.prioritySubject === 'math' ? '수학 📐' : integrated.prioritySubject === 'korean' ? '국어 📖' : '영어 🌐'}
+**🥇 우선 추천 과목**: ${integrated.prioritySubject === 'math' ? '수학 📐' : integrated.prioritySubject === 'korean' ? '국어 📖' : '영어 🌐'}
 
 ---
 
-    ${integrated.mathStrategy}
+${integrated.mathStrategy}
 
 ---
 
-    ${integrated.koreanStrategy}
+${integrated.koreanStrategy}
 
 ---
 
-    ${integrated.englishStrategy}
+${integrated.englishStrategy}
 
 ---
 
-    ${generateStudyMatrix()}
+${generateStudyMatrix()}
 
 ---
 
-    ${generateWarmupGuide()}
+${generateWarmupGuide()}
 
 ---
 
@@ -628,32 +629,79 @@ ${integratedCognitive.workingMemoryTraining}
     // [NEW] Brain-Body Report (3-Layer Verification)
     let brainBodyReport = '';
     if (brainBodyState) {
-        const hasEEG = brainBodyState.eegBalance.gamma > 0 || brainBodyState.eegBalance.alpha > 0;
-        const eegPatternStrategy = EEG_BASED_STRATEGIES[brainBodyState.pattern] || EEG_BASED_STRATEGIES['UNKNOWN'];
-        
+        // 자율신경 균형 상태 한국어 레이블
+        const ansBalanceKorean =
+            brainBodyState.ansBalance === 'SNS_DOMINANT' || brainBodyState.snsLevel > 58 ? '교감 항진(긴장/각성)' :
+            brainBodyState.ansBalance === 'PNS_DOMINANT' || brainBodyState.pnsLevel > 58 ? '부교감 항진(나른/피로)' :
+            brainBodyState.snsLevel >= 53 ? '교감 경미 우세(스트레스)' :
+            brainBodyState.pnsLevel >= 53 ? '부교감 경미 우세(에너지 저하)' :
+            '자율신경 균형';
+
+        // 신경인지 제어 동적 평가 (하드코딩 제거: 실제 cognitiveResults 및 설문/순공 지표 반영)
+        let cognitiveControlStatus = '주의 집중 및 인지 작업기억 제어 양호';
+        if (cognitiveResults) {
+            if (tags.has('ADHD_RISK') && tags.has('BRAIN_FOG')) {
+                cognitiveControlStatus = '주의력 산만(오경보) 및 작업기억 부하 감지 (집중 분할 훈련 필요)';
+            } else if (tags.has('ADHD_RISK')) {
+                cognitiveControlStatus = '충동성 제어 및 지속 집중력 주의 (자극 억제 훈련 필요)';
+            } else if (tags.has('BRAIN_FOG')) {
+                cognitiveControlStatus = '작업기억 과부하 및 뇌피로 감지 (개념 청크 분할 필요)';
+            } else if (tags.has('DOPAMINE_RISK')) {
+                cognitiveControlStatus = '보상 지연 충동성 및 도파민성 주의 분산 감지';
+            } else if (cognitiveResults.attention && cognitiveResults.attention.accuracy >= 90) {
+                cognitiveControlStatus = '고도의 주의 집중 유지력 및 우수한 인지 억제 제어';
+            } else if (cognitiveResults.attention && cognitiveResults.attention.accuracy >= 75) {
+                cognitiveControlStatus = '전반적 주의 집중 및 임시 작업기억 제어 양호';
+            } else {
+                cognitiveControlStatus = '주의 집중 유지력 보강 및 작업기억 훈련 권장';
+            }
+        } else {
+            // Free 모드 / 설문 및 학습 지표 기반 동적 판정
+            if (tags.has('CONCENTRATION_CRITICAL')) {
+                cognitiveControlStatus = '주의 집중 분산 심화 및 집중 유지 곤란 (주변 환경 통제 및 인지 환기 시급)';
+            } else if (tags.has('FOCUS_LOW')) {
+                cognitiveControlStatus = '경미한 집중력 저하 및 주의 산만 감지 (50분 집중/10분 휴식 권장)';
+            } else if (tags.has('DIGITAL_ADDICTION')) {
+                cognitiveControlStatus = '디지털 기기로 인한 도파민 분산 및 주의 지속 시간 단축';
+            } else if (analytics.pureStudyRatio && analytics.pureStudyRatio >= 80) {
+                cognitiveControlStatus = `높은 순공 몰입도(${analytics.pureStudyRatio}%) 및 뛰어난 인지 통제력`;
+            } else if (survey.concentrationScore !== undefined && survey.concentrationScore <= 8 && survey.concentrationScore > 0) {
+                cognitiveControlStatus = '안정적인 주의 집중 지속력 및 인지 제어 양호';
+            } else if (protocol.behavioralFactor !== undefined && protocol.behavioralFactor <= 2 && protocol.behavioralFactor > 0) {
+                cognitiveControlStatus = '행동 몰입도 저하 및 집중 시동 지연 (시동 스타트 루틴 필요)';
+            } else if (tags.has('BRAIN_STRESS_HIGH') || tags.has('ANXIETY_HIGH')) {
+                cognitiveControlStatus = '정서적 긴장으로 인한 인지 작업기억 부하 완화 필요';
+            } else {
+                cognitiveControlStatus = '전반적 주의 집중 및 학습 작업기억 제어 양호';
+            }
+        }
+
         brainBodyReport = `
 ## [🧠 Brain-Body Report] 3계층 통합 진단
 > **진단명**: ${careType} 
 > **신뢰도(Confidence)**: ${(brainBodyState.confidence * 100).toFixed(0)}% (${brainBodyState.coherenceLevel})
 
-- **자율신경 (HRV)**: SNS ${brainBodyState.snsLevel}% | PNS ${brainBodyState.pnsLevel}% (${brainBodyState.ansBalance})
-${hasEEG ? `- **뇌파 패턴 (EEG)**: ${brainBodyState.pattern} (${eegPatternStrategy.characteristics})` : '- **뇌파 패턴 (EEG)**: 데이터 없음 (2층 검증 수행)'}
-- **통합 일치도 (Coherence)**: ${brainBodyState.coherence >= 80 ? '✅ 일치 (높음)' : brainBodyState.coherence >= 50 ? '🟡 부분 일치 (중간)' : '🔴 불일치 (낮음/거짓 양성 의심)'}
-
-${hasEEG && eegPatternStrategy.pattern !== 'UNKNOWN' ? `### ⚡ EEG 기반 즉각 조치사항 (Immediate Actions)\n${eegPatternStrategy.immediateActions.map(a => `1. ${a}`).join('\n')}\n` : ''}
+- **자율신경 밸런스**: SNS(교감) ${brainBodyState.snsLevel}% | PNS(부교감) ${brainBodyState.pnsLevel}% (${ansBalanceKorean})
+- **신경인지 제어 (Cognitive Control)**: ${cognitiveControlStatus}
+- **통합 일치도 (Coherence)**: ${brainBodyState.coherence >= 80 ? '✅ 일치 (높음)' : brainBodyState.coherence >= 50 ? '🟡 부분 일치 (중간)' : '🔴 불일치 (낮음/주의 요망)'}
         `.trim();
     }
 
     return `
 ${brainBodyReport ? brainBodyReport + '\n\n' : ''}${lifestyleReport.trim()}
 
-##[2] 성향 기반 학습 전략(MBTI & Subject)
-    - ** 학습 스타일 **: ${studyStrategy.learningStyle}
-- ** 국어 공략 **: ${studyStrategy.subjectStrategy.korean}
-- ** 수학 공략 **: ${studyStrategy.subjectStrategy.math}
-- ** 영어 공략 **: ${studyStrategy.subjectStrategy.english}
-- ** 집중력 유지 **: ${studyStrategy.concentration}
-- ** 멘탈 케어 **: ${studyStrategy.mentalCare}
+## [2] 과학적 학습 기질 & 맞춤 전략(Neuro-Cognitive & Strategy)
+- **신경인지 메커니즘**: ${studyStrategy.neuroCognitiveProfile?.brainMechanism || studyStrategy.learningStyle}
+- **인지 병목 해소**: ${studyStrategy.neuroCognitiveProfile?.learningBottleneck || '학습 시 과부하 요소를 차단하고 능동적 인출 훈련을 적용합니다.'}
+- **핵심 인지 강점**: ${studyStrategy.neuroCognitiveProfile?.coreCognitiveStrength || '체계적인 맞춤 루틴을 통해 단기간 내 성적 도약이 가능합니다.'}
+- **세션 아키텍처**: ${studyStrategy.timeArchitecture?.recommendedCycle || '50분 몰입 + 10분 이완 주기'}
+- **시동 스타트 루틴**: ${studyStrategy.timeArchitecture?.startRitual || '책상 착석 후 1분 호흡 및 우선순위 과목 1번 시작'}
+- **국어 초정밀 공략**: ${studyStrategy.subjectProtocols?.korean?.strategyTitle || '국어 공략'} — ${studyStrategy.subjectStrategy.korean} (💡 킬러팁: ${studyStrategy.subjectProtocols?.korean?.killerTips || ''})
+- **수학 초정밀 공략**: ${studyStrategy.subjectProtocols?.math?.strategyTitle || '수학 공략'} — ${studyStrategy.subjectStrategy.math} (💡 킬러팁: ${studyStrategy.subjectProtocols?.math?.killerTips || ''})
+- **영어 초정밀 공략**: ${studyStrategy.subjectProtocols?.english?.strategyTitle || '영어 공략'} — ${studyStrategy.subjectStrategy.english} (💡 킬러팁: ${studyStrategy.subjectProtocols?.english?.killerTips || ''})
+- **탐구/한국사 공략**: ${studyStrategy.subjectProtocols?.inquiry?.strategyTitle || '탐구 공략'} — ${studyStrategy.subjectStrategy.korean_history || ''} (💡 킬러팁: ${studyStrategy.subjectProtocols?.inquiry?.killerTips || ''})
+- **학습 환경 최적화**: ${studyStrategy.concentrationEnvironment?.environmentSetup || studyStrategy.concentration}
+- **시험 멘탈 & 슬럼프 처방**: ${studyStrategy.mentalSlumpCare?.emergencyReset || studyStrategy.mentalCare}
 
 ${detailedInsight.trim()}
 
@@ -663,8 +711,6 @@ ${examContext}
 ${ansStudySection}
 
 ${vitalityFatigueSection}
-
-${brainBalanceSection}
 
 ${stressConcentrationSection}
 

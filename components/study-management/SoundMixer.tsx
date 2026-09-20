@@ -38,7 +38,7 @@ export const SoundMixer = () => {
                 <div>
                     <h3 className="text-2xl font-black text-slate-800 mb-2">Neural Sound Mixer</h3>
                     <p className="text-sm text-slate-500">
-                        뇌파 동조(Entrainment)를 위한 바이노럴 비트와 화이트 노이즈를 믹싱하세요.
+                        집중 몰입 향상을 위한 바이노럴 비트와 화이트 노이즈를 믹싱하세요.
                     </p>
                 </div>
                 <button

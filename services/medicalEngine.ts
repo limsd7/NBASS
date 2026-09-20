@@ -600,7 +600,7 @@ export const performCrossMatching = (
     // 요약 생성
     let summary = '';
     if (matchedPatterns.length === 0) {
-        summary = '혈액검사와 HRV/설문 데이터 간 특이적인 연관 패턴이 발견되지 않았습니다.';
+        summary = '혈액검사와 자율신경/설문 데이터 간 특이적인 연관 패턴이 발견되지 않았습니다.';
     } else {
         const severeCount = matchedPatterns.filter(p => p.severity === 'severe').length;
         const moderateCount = matchedPatterns.filter(p => p.severity === 'moderate').length;

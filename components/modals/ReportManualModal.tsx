@@ -46,7 +46,7 @@ export const ReportManualModal: React.FC<ReportManualModalProps> = ({ isOpen, on
                             <div>
                                 <h4 className="font-bold text-slate-800 mb-1">Study Mode 버튼</h4>
                                 <p className="text-sm text-slate-600 leading-relaxed">
-                                    학생이 매일 수행해야 할 <strong>실전 학습 스케줄과 훈련 프로그램</strong> 화면으로 전환합니다. 뇌파 및 심박변이도 데이터를 기반으로 맞춤형 휴식 타임과 루틴을 관리할 수 있습니다.
+                                    학생이 매일 수행해야 할 <strong>실전 학습 스케줄과 훈련 프로그램</strong> 화면으로 전환합니다. 자율신경 밸런스 및 인지 데이터를 기반으로 맞춤형 휴식 타임과 루틴을 관리할 수 있습니다.
                                 </p>
                             </div>
                         </div>
@@ -63,7 +63,7 @@ export const ReportManualModal: React.FC<ReportManualModalProps> = ({ isOpen, on
                             <div>
                                 <h4 className="font-bold text-slate-800 mb-1">리포트 모드 (전문가용 / 학생용) 스위치</h4>
                                 <p className="text-sm text-slate-600 leading-relaxed">
-                                    보고서의 정보량을 조절합니다. <strong>전문가용</strong>은 뇌파 및 자율신경계에 대한 전문 의학/심리학적 분석이 모두 노출되며, <strong>학생용</strong>은 심리적 부담을 줄 수 있는 심각성 지표나 복잡한 전문 용어를 숨기고 순수하게 학습 전략에 집중한 내용만 보여줍니다.
+                                    보고서의 정보량을 조절합니다. <strong>전문가용</strong>은 자율신경계 및 신경인지에 대한 전문 의학/심리학적 분석이 모두 노출되며, <strong>학생용</strong>은 심리적 부담을 줄 수 있는 심각성 지표나 복잡한 전문 용어를 숨기고 순수하게 학습 전략에 집중한 내용만 보여줍니다.
                                 </p>
                             </div>
                         </div>
@@ -91,7 +91,7 @@ export const ReportManualModal: React.FC<ReportManualModalProps> = ({ isOpen, on
                             <div>
                                 <h4 className="font-bold text-slate-800 mb-1">누적 트렌드 분석 버튼</h4>
                                 <p className="text-sm text-slate-600 leading-relaxed">
-                                    과거부터 현재까지 측정된 <strong>학생의 시계열 데이터(HRV, EEG 등) 추이를 그래프로 확인</strong>하는 기능입니다. 훈련을 통해 뇌파 상태나 스트레스 지수가 개선되고 있는지를 객관적으로 파악할 수 있으며, 이 데이터를 기반으로 한 AI 분석도 제공됩니다.
+                                    과거부터 현재까지 측정된 <strong>학생의 시계열 데이터(자율신경 밸런스, 피로도 등) 추이를 그래프로 확인</strong>하는 기능입니다. 훈련을 통해 자율신경 균형이나 스트레스 지수가 개선되고 있는지를 객관적으로 파악할 수 있으며, 이 데이터를 기반으로 한 AI 분석도 제공됩니다.
                                 </p>
                             </div>
                         </div>

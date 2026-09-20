@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import DatabaseService, { type ConsultationHistory } from '../../services/database';
+import { unifiedSyncService as DatabaseService, type ConsultationHistory } from '../../services/unifiedSyncService';
 import { CareType, type AssessmentResult } from '../../types';
 
 interface ConsultationHistoryModalProps {

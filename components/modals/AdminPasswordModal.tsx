@@ -35,6 +35,7 @@ export const AdminPasswordModal: React.FC<AdminPasswordModalProps> = memo(({
                 <input
                     ref={inputRef}
                     type="password"
+                    autoComplete="new-password"
                     className="w-full p-3 border rounded-xl mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
                     placeholder="Enter Password"
                     value={password}

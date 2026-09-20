@@ -78,7 +78,7 @@ export const MENTAL_PRESCRIPTIONS: Partial<Record<CareType, Prescription>> = {
         audioTag: "Delta Waves (Deep Sleep)"
     },
 
-    // === 뇌파/인지 축 ===
+    // === 신경인지 축 ===
     [CareType.BRAIN_FATIGUE]: {
         title: "뇌를 씻어내는 멍 (Brain Wash)",
         activity: "멍때리기 & 시각 차단",

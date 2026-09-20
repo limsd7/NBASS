@@ -1,4 +1,6 @@
 
+export type MembershipTier = 'free' | 'pro' | 'premium' | 'premium_plus' | 'vip' | 'expert' | 'basic';
+
 // 자율신경균형도 유형 (uBioMacpa Portable Device)
 export enum ANSBalanceType {
   OVERWORK_CHRONIC = 'overwork_chronic',     // 과로형 만성스트레스
@@ -95,7 +97,7 @@ export enum CareType {
   DEPRESSION_AMOTIVATION = 'Depression-Amotivation', // 우울-무동기형
   ADRENAL = 'Adrenal Fatigue',              // 부신피로 증후군
 
-  // 뇌파/인지 축
+  // 신경인지 축
   BRAIN_FATIGUE = 'Brain Fatigue',          // 뇌피로 집중곤란
   HYPERSENSITIVE = 'Hypersensitive Learning', // 과민성 학습장애
   ATTENTION_DEFICIT = 'Attention Deficit',   // 주의력 산만형
@@ -114,15 +116,67 @@ export enum CareType {
   UNASSESSED = 'Unassessed'
 }
 
+// 부분류 진단 신뢰도 상세 (실측 진단 vs 근접 추정 구분 라벨)
+export interface SecondaryClassificationDetail {
+  type: CareType;
+  score: number;
+  confidence: 'confirmed' | 'estimated'; // 70점 이상: 확정/유력 진단, 50~69점: 근접 추정
+  confidenceLabelKr: '확정 진단' | '근접 추정';
+}
+
 // 분류 결과 (주분류 + 부분류)
 export interface ClassificationResult {
   primary: CareType;                          // 주분류
   primaryScore: number;                       // 주분류 점수 (0-100)
   secondary: CareType[];                      // 부분류 (최대 2개)
   secondaryScores: { type: CareType; score: number }[]; // 부분류 점수들
+  secondaryDetails?: SecondaryClassificationDetail[];   // 부분류 확정/근접추정 라벨링 정보
   allScores: { type: CareType; score: number }[]; // 전체 점수 (정렬됨)
   reasoning?: string;                         // 분류 결과에 대한 설명/근거 추가
 }
+
+export interface SubjectPriorityRanks {
+  korean: number;        // 1, 2, 3, 4
+  math: number;          // 1, 2, 3, 4
+  english: number;       // 1, 2, 3, 4
+  korean_history: number;// 1, 2, 3, 4
+}
+
+export interface SubjectPriorities {
+  importanceRank?: SubjectPriorityRanks;    // 1) 내가 중요시 하는 과목별 1,2,3,4
+  gradeRank?: SubjectPriorityRanks;         // 2) 내가 성적이 잘 나오는 과목별 1,2,3,4
+  currentFocusRank?: SubjectPriorityRanks;  // 3) 내가 지금 현재 중요시(집중투자)하는 과목별 1,2,3,4
+}
+
+export interface LearningTraitsScores {
+  gritPlan: number;         // 끈기 및 실행력 (0~100)
+  mentalResilience: number; // 멘탈 회복탄력성 (0~100)
+  temperament: number;      // 탐구도전 성향 (0~100)
+  metaCognition: number;    // 메타인지 전략 (0~100)
+  internalMotivation: number; // 내재적 학습동기 (0~100)
+  overallAverage?: number;  // 전체 평균
+  persistenceAndExecution?: number; // 끈기 및 실행력 (별칭)
+  mentalAndResilience?: number; // 멘탈 회복탄력성 (별칭)
+  curiosityAndChallenge?: number; // 탐구도전 성향 (별칭)
+  metaCognitiveStrategy?: number; // 메타인지 전략 (별칭)
+  intrinsicMotivation?: number; // 내재적 학습동기 (별칭)
+}
+
+export interface LearningTraitsData {
+  scores: LearningTraitsScores;
+  rawAnswers: number[]; // 15 questions (each 1-5)
+  totalAverage: number; // 1.0 - 5.0
+  archetypeId: string;
+  archetypeName: string;
+  archetypeTitle: string;
+  archetypeBadge: string;
+  archetypeDescription: string;
+  coreStrength: string;
+  cautionPoint: string;
+  recommendedEnvironment: string;
+}
+
+export type SurveyTab = 'ans' | 'bai' | 'isi' | 'concentration' | 'cfs' | 'adrenal' | 'learning_traits';
 
 export interface StudentInfo {
   id: string;
@@ -133,17 +187,30 @@ export interface StudentInfo {
   weakSubject?: 'korean' | 'math' | 'english';
   focusSubjects?: string[];     // 가장 부담되는 과목(들) - subjectId 배열
   selectedSubjects?: string[];  // 수능 응시 예정 과목 전체 - subjectId 배열
+  subjectPriorities?: SubjectPriorities; // 국/영/수/한국사 3대 기준 우선순위 (1~4순위)
   gender: 'Male' | 'Female' | 'Other';
   grade: string;
+  affiliatedAcademyId?: string; // 소속 학원 ID
+  // User Registration Fields
+  customId?: string;     // 학생이 직접 설정하는 로그인 ID (중복 검사 필수)
+  email?: string;        // 이메일 (필수)
+  phone?: string;        // 휴대전화번호 (본인 인증용, 필수)
+  kakaoId?: string;      // 카카오톡 ID (선택: Premium 이상 필수/미입력시 전화번호 소통)
+  region?: string;       // 지역 (시/도/구, 필수)
+  school?: string;       // 학교명 (선택)
+
   // Added fields
   height?: number;
   weight?: number;
   bmi?: number;
   activityLevel?: number; // 1: Low, 2: Moderate, 3: Active, 4: Very Active
-  mbti?: string;
-  membershipTier?: 'free' | 'basic' | 'premium' | 'vip';
+  mbti?: string; // Optional legacy fallback
+  learningTraits?: LearningTraitsData; // 5대 과학적 학습 기질 및 전략 데이터
+  membershipTier?: 'free' | 'pro' | 'basic' | 'premium' | 'premium_plus' | 'vip' | 'expert';
   subscriptionExpiresAt?: string; // ISO date string for subscription expiry
-  
+
+  academyName?: string; // 소속 학원명 (학생지도전문가 매칭용)
+
   // Gamification (Feature 3)
   gamification?: {
     exp: number;
@@ -152,6 +219,25 @@ export interface StudentInfo {
     lastCompletedDate?: string;
     completedTasks: string[];
   };
+}
+
+export interface ExpertAccount {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  role: 'MEDICAL_EXPERT' | 'ACADEMY_EXPERT';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // 의료전문가 전용
+  medicalLicenseNumber?: string;
+  clinicName?: string;
+  medicalSpecialty?: string;
+  // 학생지도전문가 전용
+  academyName?: string;
+  academyRegion?: string;
+  position?: string;
+  createdAt: string;
+  approvedAt?: string;
 }
 
 export interface HRVData {
@@ -167,6 +253,8 @@ export interface HRVData {
   tp: number;  // Total Power
   hrvIndex: number;
   meanHr: number; // 평균 심박수 (Added)
+  meanBpm: number; // 평균 심박수 (BPM)
+  stressIndex: number; // 스트레스 지수
   ppgLevel: number; // 1-7
 
   // EEG(Brain) Fields Added for Step 5
@@ -192,6 +280,11 @@ export interface HRVData {
 
   // Portable Device (uBioMacpa) Data - Optional
   portableHrv?: PortableHRVData;
+
+  // Sensor testing status (HRV/EEG physical hardware measurement)
+  isSensorMeasured?: boolean;
+  isHrvTested?: boolean;
+  isEegTested?: boolean;
 }
 
 export interface ProtocolData {
@@ -199,6 +292,7 @@ export interface ProtocolData {
   noiseLevel: number;
   stressLevel: number;
   avgSleep: number;
+  sleepHours: number; // 평균 수면 시간
   emotionalFactor: number;
   motivationalFactor: number;
   behavioralFactor: number;
@@ -208,10 +302,13 @@ export interface ProtocolData {
 
 // 학습 분석 데이터 (Learning Analytics)
 export interface LearningAnalyticsData {
+  isTested?: boolean;           // 당일 검사 실제 시행 여부
+  testDate?: string;            // 검사 시행 일자 (YYYY-MM-DD)
   // 1. 집중도 분석 (Focus Quality)
   pureStudyRatio: number;       // 순공 시간 비율 (0-100%)
   avgFocusDuration: number;     // 평균 집중 유지 시간 (분)
   distractionCount: number;     // 산만도 (스마트폰 확인 횟수/시간)
+  dailyGoalAchievement?: number; // 일일 목표 달성률
 
   // 2. 시간대별 효율 (Chronotype Analysis)
   goldenTimeStart: string;      // 골든타임 시작 (예: "09:00")
@@ -245,7 +342,8 @@ export interface LearningAnalyticsData {
 }
 
 export interface SurveyData {
-  gad7: number;
+  // GAD-7은 현재 설문 흐름에서 수집하지 않습니다. 미수집 시 undefined로 유지합니다(임의 상수 대입 금지).
+  gad7?: number;
   bai: number;
   isi: number;
   chronicFatigue: boolean;
@@ -267,6 +365,7 @@ export interface SurveyData {
   digitalAddictionLevel?: string;   // 'healthy' | 'caution' | 'risk' | 'addiction'
   metacognitionLevel?: string;      // 'beginner' | 'developing' | 'proficient' | 'expert'
   metacognitionScores?: { rehearsal: number; elaboration: number; organization: number; metacognitive: number };
+  learningTraits?: LearningTraitsData; // 5대 학습 기질 및 전략 진단 데이터
 }
 
 import { AnalystConfig } from './utils/analystConfig'; // Assuming this path is correct based on the instruction's context
@@ -278,11 +377,11 @@ export interface BrainBodyState {
   ansBalance: 'SNS_DOMINANT' | 'PNS_DOMINANT' | 'BALANCED';
   snsLevel: number;
   pnsLevel: number;
-  
+
   brainState: 'ALERT' | 'FOCUSED' | 'CALM' | 'FATIGUED' | 'ANXIOUS';
   dominantFrequency: string; // Primary (e.g., Gamma, Beta, Alpha, Theta)
   secondaryFrequency?: string; // Secondary (Optional)
-  
+
   eegBalance: {
     gamma: number;
     betaH: number;
@@ -291,7 +390,7 @@ export interface BrainBodyState {
     alpha: number;
     theta: number;
   };
-  
+
   coherence: number; // 0-100
   coherenceLevel: CoherenceLevel;
   pattern: EEGPatternType;
@@ -326,6 +425,30 @@ export interface PersonalizedRecommendation {
   };
 }
 
+// 진단 규칙(logicConfig) 버전 각인 스냅샷 (P0-2)
+export interface LogicConfigSnapshot {
+  version: string;
+  lastModified: string;
+  capturedAt: string;
+  rulesHash: string;
+  classificationRuleCount: number;
+}
+
+// 진단 데이터 신뢰도 (P0-3): 실측/추정 구분
+export type DataConfidenceStatus = 'measured' | 'estimated';
+export interface DataConfidenceDomain {
+  key: string;
+  label: string;
+  status: DataConfidenceStatus;
+  note: string;
+}
+export interface AssessmentConfidence {
+  overall: DataConfidenceStatus | 'mixed';
+  measuredCount: number;
+  estimatedCount: number;
+  domains: DataConfidenceDomain[];
+}
+
 export interface AssessmentResult {
   student: StudentInfo;
   careType: CareType;
@@ -338,6 +461,7 @@ export interface AssessmentResult {
   analysisText: string;
   score: number;
   scoreLevel: string;
+  date: string; // 검사 일자
   // 점수 기반 분류 결과 (주분류 + 부분류)
   classificationResult?: ClassificationResult;
   // [NEW] 3-layer cross-verification result
@@ -357,6 +481,11 @@ export interface AssessmentResult {
   previousResult?: AssessmentResult | null;
   gradeHistory?: GradeRecord[];  // 성적 이력 참조
   sleepAnalysisText?: string;    // [NEW] 수면 분석 자동 생성 및 편집 필드
+  dominantCareType?: CareType;   // 주 CareType
+  // [P0-2] 결과 저장 시점의 진단 규칙 버전 각인 (규칙 변경 시 재현성 보장용)
+  logicConfigSnapshot?: LogicConfigSnapshot;
+  // [P0-3] 실측/추정 데이터 신뢰도 요약
+  dataConfidence?: AssessmentConfidence;
 }
 
 // ========== 예측 엔진 타입 (Prediction Engine) ==========
@@ -468,14 +597,14 @@ export interface Prescription {
 
 export type StrategyMap = Partial<Record<CareType, ExamStrategy>>;
 
-export interface AIModelConfig { 
-  geminiKey?: string; 
-  sonnetKey?: string; 
+export interface AIModelConfig {
+  geminiKey?: string;
+  sonnetKey?: string;
   openRouterKey?: string;
   openRouterModel?: string;
-  localModelUrl?: string; 
-  localModelVram?: string; 
-  localModelName?: string; 
+  localModelUrl?: string;
+  localModelVram?: string;
+  localModelName?: string;
 }
 
 export interface Examiner {
@@ -500,7 +629,7 @@ export interface GradeRecord {
   createdAt: string;
 }
 
-export type ExamType = 
+export type ExamType =
   | 'midterm'          // 중간고사
   | 'final'            // 기말고사
   | 'mock_exam'        // 모의고사
@@ -515,6 +644,108 @@ export interface SubjectGrade {
   percentile?: number;     // 백분위
   grade?: number;          // 등급 (1-9)
   subunits?: Record<string, { score: number; maxScore: number }>; // 단원별 점수 (Feature 1)
+  weakUnits?: string[];    // 취약 단원 TOP 1, 2, 3 목록 (예: ['수열', '미분', '적분'])
+}
+
+// ===== 신경인지 연계 6단계 문항 사다리 (Neuro-Ladder) 타입 =====
+export type LadderStageLevel = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+
+export interface LadderQuestion {
+  id: string;
+  stage: LadderStageLevel;
+  questionNumber: number; // 1 ~ 5
+  title: string;
+  question: string;
+  options?: string[];     // 객관식 보기 (1~5번)
+  answer: string | number;// 정답 (예: "3" 또는 "42")
+  solution: string;       // 상세 해설 및 도출 과정
+  hint: string;           // 핵심 힌트
+  conceptKey: string;     // 연계 핵심 개념 공식
+  difficulty: '기본' | '응용' | '심화' | '기출' | '준킬러' | '수능킬러';
+}
+
+export interface LadderStageInfo {
+  level: LadderStageLevel;
+  title: string;
+  subtitle: string;
+  badgeName: string;
+  icon: string;
+  color: string;
+  targetFocus: string;
+}
+
+export interface NeuroBrainPriming {
+  careType: string;
+  careTypeName: string;
+  prepTitle: string;
+  description: string;
+  breathingTechnique?: string;
+  neuroScienceTip: string;
+  recommendedDurationMinutes: number; // 2 ~ 5분
+}
+
+export interface ConceptCheckItem {
+  id: string;
+  conceptName: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface NeuroStudySessionResult {
+  studentId: string;
+  subjectId: string;
+  unitName: string;
+  careType: string;
+  completedStages: LadderStageLevel[];
+  stageScores: Record<LadderStageLevel, number>; // 각 단계별 맞춘 개수 (0~5)
+  totalSolved: number;
+  totalCorrect: number;
+  accuracy: number;
+  completedAt: string;
+  neuroFeedback: string;
+}
+
+// ===== 수능 1·2·3년 신경-성적 듀얼트랙 로드맵 타입 =====
+export type RoadmapDuration = '1year' | '2year' | '3year';
+export type RoadmapTrackType = 'academic' | 'neuro';
+
+export interface RoadmapMilestone {
+  id: string;
+  phaseId: string;
+  track: RoadmapTrackType;
+  subjectId?: 'math' | 'korean' | 'english' | 'inquiry' | 'all'; // 연계 과목
+  title: string;
+  description: string;
+  targetUnit?: string;           // 연계 교과 단원명 (예: '수열', '미분', '빈칸추론')
+  targetHoursPerWeek?: number;   // 권장 주간 순공/케어 시간
+  isCompleted: boolean;          // 완료 여부 (체크박스)
+  dueDate?: string;              // 목표 완료일 (YYYY-MM-DD)
+  isCustom?: boolean;            // 사용자가 직접 추가한 커스텀 마일스톤 여부
+}
+
+export interface RoadmapPhase {
+  id: string;
+  phaseNumber: number;           // 1, 2, 3, ... (분기 번호)
+  title: string;                 // 예: '1분기: 기초 체화 & 취약점(수열) 제거'
+  periodLabel: string;           // 예: '고3 겨울방학 (12월~2월)'
+  targetDDay: string;            // 예: 'D-300'
+  academicGoal: string;          // 교과 목표 요약
+  neuroCareGoal: string;         // 신경인지 케어 목표 요약
+  milestones: RoadmapMilestone[];// 해당 분기의 듀얼트랙 마일스톤 목록
+}
+
+export interface StudentRoadmap {
+  id: string;
+  studentId: string;
+  durationType: RoadmapDuration; // 1년 / 2년 / 3년
+  targetExamYear: number;        // 예: 2027, 2028
+  phases: RoadmapPhase[];
+  overallProgress: number;       // 0 ~ 100%
+  customNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GradeGoal {
@@ -556,11 +787,14 @@ export interface SleepGoal {
   targetWakeTime: string; // HH:mm
   targetDuration: number; // hours
   memo?: string;
-  // [NEW] Gamification Fields
+  // [NEW] Gamification & D-Day Fields
   currentStreak?: number;
   longestStreak?: number;
   conditionScore?: number; // 0-100
   sleepDebtMinutes?: number; // Positive = debt, Negative = surplus
+  isDdayMode?: boolean;
+  dDayDate?: string;
+  dDayTargetWakeTime?: string;
 }
 
 export interface SleepPrescription {
@@ -575,4 +809,64 @@ export interface SleepPrescription {
     duration?: number; // in minutes
   };
   chronotypeNotes: string;
+  // [NEW] Feedback from real sleep records
+  actualSleepAvg?: number;
+  actualSleepDebtHours?: number;
+  recordedDaysCount?: number;
+  feedbackFromRecords?: string;
+}
+
+// 오답 원인 분류 및 망각곡선 간격반복 타입
+export type WrongNoteErrorType = 'CONCEPT' | 'MISTAKE_IMPULSE' | 'TIME_LIMIT' | 'KILLER_PROBLEM';
+
+export interface WrongNote {
+  id: string;
+  subject: string;
+  questionTitle: string;
+  wrongAnswer: string;
+  correctAnswer: string;
+  explanation: string;
+  difficulty: "상" | "중" | "하";
+  errorType?: WrongNoteErrorType; // 개념부족, 실수/산만, 시간부족, 킬러문항
+  reviewStage?: number; // 0: 신규, 1: 1일후, 2: 3일후, 3: 7일후, 4: 마스터 정복
+  nextReviewDate?: string; // YYYY-MM-DD
+  lastReviewedAt?: string;
+  reviewHistory?: { date: string; passed: boolean }[];
+  isResolved: boolean;
+  createdAt: string;
+}
+
+// 인지검사 결과 기반 과목별 맞춤 공부법 조정 인터페이스
+export interface CognitiveSubjectAdaptation {
+  cognitiveDomain: 'workingMemory' | 'inhibitoryControl' | 'cognitiveFlexibility';
+  domainScore: number;
+  level: 'OPTIMAL' | 'MODERATE' | 'VULNERABLE'; // 우수, 보통, 취약
+  subjectProtocols: {
+    math: {
+      actionName: string;
+      technique: string;
+      caution: string;
+    };
+    korean: {
+      actionName: string;
+      technique: string;
+      caution: string;
+    };
+    english: {
+      actionName: string;
+      technique: string;
+      caution: string;
+    };
+    inquiry: {
+      actionName: string;
+      technique: string;
+      caution: string;
+    };
+  };
+  examRoutineAdvice: string;
+  progressTracking?: {
+    baselineScore: number;
+    currentScore: number;
+    improvementRate: number; // percentage
+  };
 }

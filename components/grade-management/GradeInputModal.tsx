@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { GradeRecord, ExamType, SubjectGrade } from '../../types';
 import { SUNEUNG_SUBJECTS } from '../../data/suneungSubjects';
 import { MOCK_EXAM_CUTOFFS, getCutoffData } from '../../data/gradeCutoffs';
+import { getUnitsByGradeAndSubject } from '../../data/curriculumUnits';
 
 interface GradeInputModalProps {
     isOpen: boolean;
     studentId: string;
+    studentGrade?: string;
     selectedSubjectIds: string[];
     existingRecord?: GradeRecord;
     records?: GradeRecord[];
@@ -23,12 +25,13 @@ const EXAM_TYPES: { value: ExamType; label: string }[] = [
 ];
 
 export const GradeInputModal: React.FC<GradeInputModalProps> = ({ 
-    isOpen, studentId, selectedSubjectIds, existingRecord, records = [], onClose, onSave 
+    isOpen, studentId, studentGrade, selectedSubjectIds, existingRecord, records = [], onClose, onSave 
 }) => {
     const [examName, setExamName] = useState('');
     const [examType, setExamType] = useState<ExamType>('mock_exam');
     const [examDate, setExamDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedExamCutoffId, setSelectedExamCutoffId] = useState<string>('');
+    const [targetGradeLevel, setTargetGradeLevel] = useState<string>(studentGrade || '고등학교 3학년');
     const [memo, setMemo] = useState('');
     const [subjectsData, setSubjectsData] = useState<SubjectGrade[]>([]);
 
@@ -36,6 +39,10 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
         if (isOpen) {
             const baseSubjects = ['korean', 'math', 'english'];
             const allSubjectIds = Array.from(new Set([...baseSubjects, ...selectedSubjectIds]));
+
+            if (studentGrade) {
+                setTargetGradeLevel(studentGrade);
+            }
 
             if (existingRecord) {
                 setExamName(existingRecord.examName);
@@ -45,12 +52,13 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                 
                 const initialData = allSubjectIds.map(id => {
                     const existingSub = existingRecord.subjects.find(s => s.subjectId === id);
-                    return existingSub ? { ...existingSub } : {
+                    return existingSub ? { ...existingSub, weakUnits: existingSub.weakUnits || [] } : {
                         subjectId: id,
                         grade: undefined,
                         rawScore: undefined,
                         standardScore: undefined,
-                        percentile: undefined
+                        percentile: undefined,
+                        weakUnits: []
                     };
                 });
                 setSubjectsData(initialData);
@@ -65,12 +73,13 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                     grade: undefined,
                     rawScore: undefined,
                     standardScore: undefined,
-                    percentile: undefined
+                    percentile: undefined,
+                    weakUnits: []
                 }));
                 setSubjectsData(initialData);
             }
         }
-    }, [isOpen, selectedSubjectIds, existingRecord]);
+    }, [isOpen, selectedSubjectIds, existingRecord, studentGrade]);
 
     if (!isOpen) return null;
 
@@ -112,6 +121,24 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
         }));
     };
 
+    const toggleWeakUnit = (subjectId: string, unitName: string) => {
+        setSubjectsData(prev => prev.map(s => {
+            if (s.subjectId === subjectId) {
+                const currentWeak = s.weakUnits || [];
+                if (currentWeak.includes(unitName)) {
+                    return { ...s, weakUnits: currentWeak.filter(u => u !== unitName) };
+                } else {
+                    if (currentWeak.length >= 3) {
+                        alert('취약단원은 최대 3개(1, 2, 3순위)까지 지정할 수 있습니다. 기존 단원을 클릭하여 해제한 후 다시 선택해주세요.');
+                        return s;
+                    }
+                    return { ...s, weakUnits: [...currentWeak, unitName] };
+                }
+            }
+            return s;
+        }));
+    };
+
     const handleSave = () => {
         if (!examName.trim()) {
             alert('시험명을 입력해주세요.');
@@ -127,7 +154,13 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
             }
         }
 
-        const subjectsToSave = subjectsData.filter(s => s.grade !== undefined || s.rawScore !== undefined || s.standardScore !== undefined || s.percentile !== undefined);
+        const subjectsToSave = subjectsData.filter(s => 
+            s.grade !== undefined || 
+            s.rawScore !== undefined || 
+            s.standardScore !== undefined || 
+            s.percentile !== undefined ||
+            (s.weakUnits && s.weakUnits.length > 0)
+        );
 
         for (const s of subjectsToSave) {
             if (s.grade !== undefined && (s.grade < 1 || s.grade > 9)) {
@@ -248,6 +281,21 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                     className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                                 />
                             </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-indigo-700 flex items-center gap-1">
+                                    <span>📚 교육과정 학년 기준 (단원 자동 로드)</span>
+                                </label>
+                                <select 
+                                    value={targetGradeLevel} 
+                                    onChange={e => setTargetGradeLevel(e.target.value)}
+                                    className="w-full px-3 py-2 border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-indigo-50 text-indigo-900 font-bold text-xs"
+                                >
+                                    <option value="중학교 (중1~중3 공통/심화)">중학교 (중1~중3 공통/심화)</option>
+                                    <option value="고등학교 1학년 (공통수학1 / 공통수학2)">고등학교 1학년 (공통수학1 / 공통수학2)</option>
+                                    <option value="고등학교 2~3학년 (수I·수II·미적·확통·기하)">고등학교 2~3학년 (수I·수II·미적·확통·기하)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -311,6 +359,86 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                                 />
                                             </div>
+
+                                            {/* Feature: 취약단원 TOP 1, 2, 3 선택 영역 */}
+                                            {(() => {
+                                                const curUnits = getUnitsByGradeAndSubject(targetGradeLevel, subject.subjectId);
+                                                if (curUnits.length === 0) return null;
+                                                const currentWeak = subject.weakUnits || [];
+
+                                                return (
+                                                    <div className="col-span-12 mt-2.5 bg-gradient-to-r from-amber-50/70 to-rose-50/70 p-3.5 rounded-xl border border-amber-200/80">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black text-amber-900 flex items-center gap-1">
+                                                                    <span>🎯</span> {info.name} 취약 단원 TOP 1·2·3순위 지정
+                                                                </span>
+                                                                <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                                                                    선택: {currentWeak.length}/3개
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10.5px] text-slate-500">
+                                                                클릭 순서대로 <b className="text-rose-600">🥇1순위</b> ➔ <b className="text-amber-600">🥈2순위</b> ➔ <b className="text-blue-600">🥉3순위</b> 지정
+                                                            </span>
+                                                        </div>
+
+                                                        {/* 단원 칩 선택 목록 */}
+                                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                                            {curUnits.map(unit => {
+                                                                const rankIndex = currentWeak.indexOf(unit.name);
+                                                                const isSelected = rankIndex !== -1;
+                                                                const rankNum = rankIndex + 1;
+
+                                                                return (
+                                                                    <button
+                                                                        key={unit.id}
+                                                                        type="button"
+                                                                        onClick={() => toggleWeakUnit(subject.subjectId, unit.name)}
+                                                                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border cursor-pointer ${
+                                                                            isSelected
+                                                                                ? rankNum === 1
+                                                                                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm shadow-rose-200'
+                                                                                    : rankNum === 2
+                                                                                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200'
+                                                                                    : 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200'
+                                                                                : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'
+                                                                        }`}
+                                                                    >
+                                                                        {isSelected && (
+                                                                            <span className="text-[10px] font-black px-1 rounded bg-black/20 text-white">
+                                                                                {rankNum === 1 ? '🥇 1위' : rankNum === 2 ? '🥈 2위' : '🥉 3위'}
+                                                                            </span>
+                                                                        )}
+                                                                        <span>{unit.name}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* 현재 선택된 취약단원 요약 안내 */}
+                                                        {currentWeak.length > 0 && (
+                                                            <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center gap-2 flex-wrap text-xs">
+                                                                <span className="text-slate-600 font-bold text-[11px]">지정된 우선순위:</span>
+                                                                {currentWeak.map((unitName, idx) => (
+                                                                    <span key={unitName} className="inline-flex items-center gap-1 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
+                                                                        <span className={idx === 0 ? 'text-rose-600' : idx === 1 ? 'text-amber-600' : 'text-blue-600'}>
+                                                                            {idx === 0 ? '🥇 1순위' : idx === 1 ? '🥈 2순위' : '🥉 3순위'}
+                                                                        </span>
+                                                                        <span className="text-slate-800">{unitName}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleWeakUnit(subject.subjectId, unitName)}
+                                                                            className="text-slate-400 hover:text-rose-600 ml-0.5 font-bold"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* Subunits input for Feature 1 (Collapsible) */}
                                             <div className="col-span-12 mt-2">

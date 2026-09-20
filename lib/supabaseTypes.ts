@@ -147,6 +147,18 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['analytics_events']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['analytics_events']['Insert']>;
       };
+      affiliated_academies: {
+        Row: {
+          id: string;
+          name: string;
+          region: string | null;
+          added_by: string | null;  // owner user_id
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['affiliated_academies']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['affiliated_academies']['Insert']>;
+      };
     };
     Functions: Record<string, never>;
     Enums: {
@@ -169,3 +181,4 @@ export type DailyBriefing = Database['public']['Tables']['daily_briefings']['Row
 export type ExceptionQueueItem = Database['public']['Tables']['exception_queue']['Row'];
 export type EmailSequence = Database['public']['Tables']['email_sequences']['Row'];
 export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row'];
+export type AffiliatedAcademyRow = Database['public']['Tables']['affiliated_academies']['Row'];

@@ -11,6 +11,7 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
     const [step, setStep] = useState(0);
     const [progress, setProgress] = useState(0);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [prepSeconds, setPrepSeconds] = useState<number>(15); // 15s Posture Preparation
     const [breathingPhase, setBreathingPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
     const [breathingScale, setBreathingScale] = useState(1);
 
@@ -33,19 +34,36 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
         window.speechSynthesis.speak(utterance);
     };
 
-    // Initialize TTS for the first step
+    // 1. Initial Posture Prep Countdown & Voice
     useEffect(() => {
-        const timer = setTimeout(() => {
-            speak(`처방 가이드를 시작합니다. 첫 번째 단계입니다. ${prescription.guide[0]}`);
-        }, 800);
+        speak(`에너지 통장 채우기를 시작합니다. 15초 동안 편안하게 눕거나 기대어 눈을 감고 자세를 잡아보세요.`);
+        
+        const countdownTimer = setInterval(() => {
+            setPrepSeconds(prev => {
+                if (prev <= 1) {
+                    clearInterval(countdownTimer);
+                    speak(`자세가 준비되었습니다. 호흡을 시작합니다. 숨을 천천히 들이마시세요.`);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
         return () => {
-            clearTimeout(timer);
+            clearInterval(countdownTimer);
             window.speechSynthesis.cancel();
         };
     }, []);
 
-    // Breathing Animation Loop
+    const handleSkipPrep = () => {
+        setPrepSeconds(0);
+        speak(`자세가 준비되었습니다. 호흡을 시작합니다. 숨을 천천히 들이마시세요.`);
+    };
+
+    // 2. Breathing Animation Loop (Starts only after prep is finished)
     useEffect(() => {
+        if (prepSeconds > 0) return;
+
         let interval: NodeJS.Timeout;
         const breathingLoop = () => {
             if (breathingPhase === 'inhale') {
@@ -60,10 +78,12 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
         };
         breathingLoop();
         return () => clearTimeout(interval);
-    }, [breathingPhase]);
+    }, [breathingPhase, prepSeconds]);
 
-    // Progress and Step Management
+    // 3. Progress and Step Management
     useEffect(() => {
+        if (prepSeconds > 0) return;
+
         const totalDurationMs = 5 * 60 * 1000; // 5 minutes total
         const durationPerStep = totalDurationMs / prescription.guide.length; 
         const interval = setInterval(() => {
@@ -89,7 +109,7 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
 
         }, 100);
         return () => clearInterval(interval);
-    }, [step, prescription.guide]);
+    }, [step, prescription.guide, prepSeconds]);
 
     // Handle ESC key to exit
     useEffect(() => {
@@ -125,10 +145,10 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
                 </button>
 
                 {/* Header */}
-                <div className="text-center mb-10 animate-in slide-in-from-top-4 duration-1000">
-                    <p className="text-indigo-400 font-bold tracking-[0.4em] uppercase text-[11px] mb-3">Digital Prescription Zen-Mode</p>
-                    <h2 className="text-5xl font-black text-white tracking-tight drop-shadow-lg">{prescription.title}</h2>
-                    <div className="mt-5 flex items-center justify-center gap-6 text-white/60 text-sm">
+                <div className="text-center mb-8 animate-in slide-in-from-top-4 duration-1000">
+                    <p className="text-indigo-400 font-bold tracking-[0.4em] uppercase text-[11px] mb-2">Digital Prescription Zen-Mode</p>
+                    <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">{prescription.title}</h2>
+                    <div className="mt-4 flex items-center justify-center gap-6 text-white/60 text-sm">
                         <div className="flex items-center gap-2">
                             <span className="relative flex h-3 w-3">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -141,58 +161,108 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 w-full items-center mb-10">
-                    {/* Left: Interactive Visuals */}
-                    <div className="flex flex-col items-center justify-center space-y-12">
-                        {/* Breathing Circle */}
-                        <div className="relative flex items-center justify-center scale-110 lg:scale-125">
-                            <div
-                                className="absolute w-44 h-44 rounded-full border border-indigo-500/20 transition-all duration-[4000ms] ease-in-out"
-                                style={{ transform: `scale(${breathingScale * 1.6})`, opacity: 0.2 }}
-                            ></div>
-                            <div
-                                className="absolute w-44 h-44 rounded-full bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 blur-2xl transition-all duration-[4000ms] ease-in-out"
-                                style={{ transform: `scale(${breathingScale * 1.3})` }}
-                            ></div>
-                            <div
-                                className="w-44 h-44 rounded-full bg-gradient-to-br from-indigo-600 via-indigo-500 to-emerald-500 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(79,70,229,0.4)] transition-all duration-[4000ms] ease-in-out z-10"
-                                style={{ transform: `scale(${breathingScale})` }}
+                {/* 15-Second Posture Prep Overlay Modal / Banner */}
+                {prepSeconds > 0 ? (
+                    <div className="w-full max-w-xl p-8 bg-slate-900/90 border border-indigo-500/40 rounded-3xl backdrop-blur-xl shadow-2xl text-center space-y-6 animate-in zoom-in-95 duration-500 mb-8">
+                        <div className="w-20 h-20 mx-auto rounded-full bg-indigo-600/30 border-2 border-indigo-400 flex items-center justify-center text-3xl font-black text-indigo-300 animate-pulse">
+                            {prepSeconds}s
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-white mb-2">🧘 바른 자세 & 마음가짐 준비 시간</h3>
+                            <p className="text-slate-300 text-sm leading-relaxed">
+                                바닥이나 침대에 <strong>편안하게 눕거나</strong> 의자에 몸을 푹 맡기세요.<br />
+                                시원한 바람이 부는 숲속이나 잔잔한 호수를 떠올리며 긴장을 푸세요.
+                            </p>
+                        </div>
+                        <div className="pt-2">
+                            <button
+                                onClick={handleSkipPrep}
+                                className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-extrabold rounded-2xl shadow-xl transition-all active:scale-95"
                             >
-                                <p className="text-white font-black text-2xl tracking-tighter">
-                                    {breathingPhase === 'inhale' ? 'IN' : breathingPhase === 'hold' ? 'HOLD' : 'OUT'}
+                                ⚡ 자세 준비 완료 (바로 호흡 시작)
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 w-full items-center mb-10">
+                        {/* Left: Interactive Visuals */}
+                        <div className="flex flex-col items-center justify-center space-y-12">
+                            {/* Breathing Circle */}
+                            <div className="relative flex items-center justify-center scale-110 lg:scale-125">
+                                <div
+                                    className="absolute w-44 h-44 rounded-full border border-indigo-500/20 transition-all duration-[4000ms] ease-in-out"
+                                    style={{ transform: `scale(${breathingScale * 1.6})`, opacity: 0.2 }}
+                                ></div>
+                                <div
+                                    className="absolute w-44 h-44 rounded-full bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 blur-2xl transition-all duration-[4000ms] ease-in-out"
+                                    style={{ transform: `scale(${breathingScale * 1.3})` }}
+                                ></div>
+                                <div
+                                    className="w-48 h-48 rounded-full bg-gradient-to-br from-indigo-600 via-indigo-500 to-emerald-500 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(79,70,229,0.4)] transition-all duration-[4000ms] ease-in-out z-10 text-center px-2"
+                                    style={{ transform: `scale(${breathingScale})` }}
+                                >
+                                    <p className="text-white font-black text-2xl tracking-tighter">
+                                        {breathingPhase === 'inhale' ? 'IN' : breathingPhase === 'hold' ? 'HOLD' : 'OUT'}
+                                    </p>
+                                    <p className="text-indigo-100 font-bold text-xs mt-1">
+                                        {breathingPhase === 'inhale' ? '숨 들이마시기' : breathingPhase === 'hold' ? '숨 멈추기' : '숨 내쉬기'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Biofeedback Simulation Area */}
+                            <div className="w-full max-w-sm bg-slate-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl">
+                                <div className="flex justify-between items-end mb-4">
+                                    <div>
+                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-1">Bio-Metric Pulse</p>
+                                        <h4 className="text-xl font-bold text-white tracking-tight">Brain Stability</h4>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-3xl font-black text-emerald-400 tabular-nums">{simulatedScore.toFixed(1)} <span className="text-[10px] text-emerald-500/50 uppercase">pts</span></p>
+                                    </div>
+                                </div>
+                                <div className="h-12 flex items-center gap-1.5">
+                                    {[...Array(24)].map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex-1 bg-gradient-to-t from-emerald-600/20 to-emerald-400/40 rounded-full transition-all duration-700"
+                                            style={{
+                                                height: `${15 + Math.random() * 70}%`,
+                                                animation: `wave 2s ease-in-out infinite`,
+                                                animationDelay: `${i * 0.08}s`
+                                            }}
+                                        ></div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                    {/* Right: Step-by-Step Guide & Posture Guidance */}
+                    <div className="space-y-4 max-w-md mx-auto lg:mx-0">
+                        {/* 에너지 통장 충전(Recharge) 바른 자세 & 마음가짐 가이드 카드 */}
+                        <div className="p-4 rounded-2xl bg-indigo-950/70 border border-indigo-500/40 text-white space-y-3 text-left shadow-2xl backdrop-blur-md">
+                            <div className="flex items-center gap-2 text-xs font-black text-indigo-300 border-b border-indigo-500/20 pb-2">
+                                <span className="text-lg">🧘</span>
+                                <span>에너지 통장 충전 (Recharge) 추천 자세 & 마음가짐</span>
+                            </div>
+                            
+                            <div className="space-y-1.5">
+                                <span className="text-[11px] font-bold text-emerald-400 block">🛏️ 추천 자세:</span>
+                                <p className="text-xs text-slate-300 leading-relaxed pl-2">
+                                    • <b>편안히 눕기 (강력 추천)</b>: 침대나 바닥에 등을 대고 편안하게 누워 팔다리를 가볍게 벌리고 손바닥은 하늘을 향합니다.<br />
+                                    • <b>기대어 앉기</b>: 의자나 소파에 몸을 푹 맡기고 등과 목의 힘을 완전히 뺍니다.
+                                </p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <span className="text-[11px] font-bold text-purple-300 block">🍃 추천 생각 (마인드셋):</span>
+                                <p className="text-xs text-slate-300 leading-relaxed pl-2">
+                                    • <b>잔잔한 자연 상상</b>: 잔잔하고 맑은 호숫가 물결이나, 시원하고 상쾌한 솔바람이 부는 푸른 숲속을 떠올려보세요.<br />
+                                    • <b>행복했던 기억</b>: 따뜻하고 행복했던 추억을 느끼며 오직 호흡의 리듬에만 온몸을 맡깁니다.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Biofeedback Simulation Area */}
-                        <div className="w-full max-w-sm bg-slate-900/50 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl">
-                            <div className="flex justify-between items-end mb-4">
-                                <div>
-                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-1">Bio-Metric Pulse</p>
-                                    <h4 className="text-xl font-bold text-white tracking-tight">Brain Stability</h4>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-3xl font-black text-emerald-400 tabular-nums">{simulatedScore.toFixed(1)} <span className="text-[10px] text-emerald-500/50 uppercase">pts</span></p>
-                                </div>
-                            </div>
-                            <div className="h-12 flex items-center gap-1.5">
-                                {[...Array(24)].map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex-1 bg-gradient-to-t from-emerald-600/20 to-emerald-400/40 rounded-full transition-all duration-700"
-                                        style={{
-                                            height: `${15 + Math.random() * 70}%`,
-                                            animation: `wave 2s ease-in-out infinite`,
-                                            animationDelay: `${i * 0.08}s`
-                                        }}
-                                    ></div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right: Step-by-Step Guide */}
-                    <div className="space-y-4 max-w-md mx-auto lg:mx-0">
                         {prescription.guide.map((g, i) => (
                             <div
                                 key={i}
@@ -226,6 +296,7 @@ export const PrescriptionZenMode: React.FC<PrescriptionZenModeProps> = ({ prescr
                         ))}
                     </div>
                 </div>
+                )}
 
                 {/* Footer Controls & Message */}
                 <div className="flex flex-col items-center gap-6 mt-4">

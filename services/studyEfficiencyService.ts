@@ -1,6 +1,7 @@
 import { SurveyData } from '../types';
 import {
     ChronotypeResult,
+    getChronotypeResult,
     VARKResult,
     TAIResult,
     DigitalAddictionResult,
@@ -23,8 +24,9 @@ export interface StudyEfficiencyResults {
 /**
  * StudyEfficiencyResults 객체를 SurveyData(DB 저장용 플랫 구조)로 변환
  */
-export const mapResultsToSurveyData = (results: Partial<StudyEfficiencyResults>): Partial<SurveyData> => {
+export const mapResultsToSurveyData = (results?: Partial<StudyEfficiencyResults> | null): Partial<SurveyData> => {
     const data: Partial<SurveyData> = {};
+    if (!results) return data;
 
     if (results.chronotype) {
         data.chronotypeScore = results.chronotype.score;
@@ -74,10 +76,11 @@ export const mapSurveyDataToResults = (survey: SurveyData, date: string): Partia
     };
 
     // 1. Chronotype 복원
-    if (survey.chronotypeScore !== undefined && survey.chronotypeResult) {
+    if (survey.chronotypeScore !== undefined || survey.chronotypeResult) {
+        const score = survey.chronotypeScore ?? 0;
         results.chronotype = {
-            score: survey.chronotypeScore,
-            result: survey.chronotypeResult as ChronotypeResult
+            score,
+            result: (survey.chronotypeResult as ChronotypeResult) || getChronotypeResult(score)
         };
     }
 
@@ -111,10 +114,15 @@ export const mapSurveyDataToResults = (survey: SurveyData, date: string): Partia
     if (survey.digitalAddictionScore !== undefined && survey.digitalAddictionLevel) {
         // 상세 점수는 DB에 없으므로 총점에서 역산 불가능 -> 0으로 채우거나 approximate
         // 리포트 렌더링에는 level과 totalScore만 주로 사용됨
+        const lvl = survey.digitalAddictionLevel;
+        const dopamineStatus = lvl === 'healthy' ? '정상: 도파민 보상 체계가 건강합니다.' :
+            lvl === 'caution' ? '주의: 도파민 민감도가 다소 저하되었을 수 있습니다.' :
+            lvl === 'risk' ? '경계: 도파민 수용체 둔감화가 진행 중일 수 있습니다.' :
+            '위험: 즉각적 보상에 길들여져 지연된 보상(공부)이 어렵습니다.';
         results.digitalAddiction = {
             totalScore: survey.digitalAddictionScore,
-            level: survey.digitalAddictionLevel as any,
-            dopamineStatus: '', // 단순 복원이므로 비워둠, 리포트에서 다시 계산 or 텍스트 생성
+            level: lvl as any,
+            dopamineStatus,
             toleranceScore: 0,
             withdrawalScore: 0,
             controlScore: 0,

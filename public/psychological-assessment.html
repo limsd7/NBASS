@@ -653,7 +653,7 @@
                     case 'L-Beta': return '주변 인식 상태 - 주의력 분산 가능';
                     case 'Alpha': return '안정/이완 상태 - 창의성에 유리';
                     case 'Theta': return '졸음/수면 상태 - 휴식 필요';
-                    default: return '뇌파 분석 중';
+                    default: return '인지 상태 분석 중';
                 }
             };
 
@@ -671,7 +671,7 @@
                             </RadarChart>
                         </ResponsiveContainer>
                     </div>
-                    <p className="text-xs text-slate-500 text-center mt-2">우세 뇌파: {hrv.dominantEEG} - {getDominantInterpretation()}</p>
+                    <p className="text-xs text-slate-500 text-center mt-2">우세 인지상태: {hrv.dominantEEG} - {getDominantInterpretation()}</p>
                 </div>
             );
         };

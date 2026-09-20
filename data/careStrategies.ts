@@ -22,7 +22,7 @@ export const CARE_STRATEGIES: Partial<Record<CareType, ExamStrategy & { recovery
         studyStrategy: "인지적 과부하를 막기 위해 '하루 3가지 핵심 과제(Big 3)'만 설정하고 나머지는 과감히 위임하거나 미루는 '선택과 집중' 전략이 필요합니다.",
         nutritionGuide: "비타민C(메가도스 고려), 포스파티딜세린(스트레스 호르몬 조절), 아연(면역 유지) 등 항산화 및 항스트레스 제제가 권장됩니다.",
         exerciseGuide: "쌓인 스트레스 호르몬을 물리적으로 배출하기 위해 샌드백 치기, 코인 노래방 등 건전한 발산형 활동이나 맨발 걷기(어싱)가 유효합니다.",
-        preStudyRoutine: "백색 소음(White Noise)이나 432Hz 힐링 주파수 음악을 배경음으로 사용하여 뇌파를 안정시키고 외부 자극을 차폐하십시오.",
+        preStudyRoutine: "백색 소음(White Noise)이나 432Hz 힐링 주파수 음악을 배경음으로 사용하여 신경 긴장을 안정시키고 외부 자극을 차폐하십시오.",
         recoveryGuide: "부신기능 회복을 위해 자정 이전 취침은 타협할 수 없는 원칙입니다. 낮 시간 동안 짧은 'NSDR(비수면 깊은 휴식)'을 10분간 활용하십시오.",
         lifestyleGuide: "멀티태스킹은 스트레스 레벨을 급격히 높입니다. 식사할 때는 식사만, 걸을 때는 걷기만 하는 '싱글 태스킹' 습관을 들이십시오."
     },
@@ -53,7 +53,7 @@ export const CARE_STRATEGIES: Partial<Record<CareType, ExamStrategy & { recovery
         lifestyleGuide: "카페인, 설탕, 정제 탄수화물 등 '가짜 에너지'를 주는 자극제들을 철저히 배제하고, 혈당 스파이크를 막는 식단을 유지하십시오."
     },
 
-    // === 뇌파/인지 축 ===
+    // === 신경인지/집중 축 ===
     [CareType.BRAIN_FATIGUE]: {
         studyStrategy: "뇌의 정보 처리 용량을 고려하여 '싱글 태스킹'을 원칙으로 하십시오. 학습 중간 의도적인 '멍때리기(DMN 활성화)' 시간이 필수적입니다.",
         nutritionGuide: "포스파티딜세린(PS), 오메가-3(DHA 500mg 이상), 은행잎 추출물 등 뇌막 유동성과 혈류를 개선하는 브레인 푸드를 권장합니다.",

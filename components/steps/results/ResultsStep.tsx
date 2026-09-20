@@ -20,6 +20,7 @@ import { AIAssistantPanel } from '../../common/AIAssistantPanel';
 import { AIModelConfig } from '../../../types';
 import { BrainBodyDashboard } from '../../reports/BrainBodyDashboard';
 import { evaluateBrainBodyCoherence } from '../../../services/brainBodyEngine';
+import { UserTierService } from '../../../services/userTierService';
 
 interface ResultsStepProps {
     // Result data
@@ -33,7 +34,7 @@ interface ResultsStepProps {
     setIsCustomLoc: React.Dispatch<React.SetStateAction<boolean>>;
 
     // Layout props
-    activeMenu: 'dashboard' | 'assessment' | 'history' | 'progress' | 'resources';
+    activeMenu: any;
     onMenuChange: (menu: any) => void;
     isDarkMode: boolean;
     onToggleDarkMode: () => void;
@@ -131,7 +132,7 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
         config.expertModePassword ? 'student' : 'expert'
     );
 
-    const brainBodyState = evaluateBrainBodyCoherence(result.hrv, result.survey, result.careType);
+    const brainBodyState = evaluateBrainBodyCoherence(result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults);
 
     // Print window handler
     const handlePrintWindow = () => {
@@ -162,7 +163,7 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
         <html lang="ko">
           <head>
             <title>NBASS Assessment Report - ${result.student.name}</title>
-            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
             <style>
               ${tailwindStyles}
               ${printStyle}
@@ -217,7 +218,16 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
             <div id="report-section" className="space-y-8 animate-in fade-in duration-500 pb-20 relative">
                 {/* [NEW] Hidden Medical Report container for Print Logic */}
                 <div id="medical-report-container" className="hidden">
-                    <MedicalReport result={result} config={config} />
+                    <MedicalReport 
+                        result={result} 
+                        config={config} 
+                        membershipTier={UserTierService.getEffectiveTier(
+                            { id: result.student?.id, name: result.student?.name, email: result.student?.email },
+                            result.student?.membershipTier,
+                            result.student?.name,
+                            result.student?.email
+                        )}
+                    />
                 </div>
 
                 {/* Watermark for Print */}
@@ -246,7 +256,15 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
 
                 {/* Brain-Body Dashboard */}
                 <div id="section-brain-body" className="mb-8">
-                    <BrainBodyDashboard brainBodyState={brainBodyState} careType={result.careType} previousResult={result.previousResult} />
+                    <BrainBodyDashboard 
+                        brainBodyState={brainBodyState} 
+                        careType={result.careType} 
+                        previousResult={result.previousResult}
+                        isExpertMode={reportMode === 'expert' || result.student?.membershipTier === 'expert'}
+                        studentName={result.student?.name}
+                        membershipTier={result.student?.membershipTier}
+                        reportMode={reportMode}
+                    />
                 </div>
 
                 {/* Medical Section */}
@@ -310,7 +328,7 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
                 {/* AI Assistant Panel for Overall Analysis */}
                 <AIAssistantPanel 
                     contextData={result}
-                    systemPrompt="당신은 뇌파, 심박변이도, 심리설문 결과를 종합 분석하는 NBASS 시스템의 전문 AI입니다. 학생의 상태를 분석하고 학부모가 이해하기 쉽게 3~4문단으로 친절하게 종합 평가를 요약해 주세요."
+                    systemPrompt="당신은 신경인지, 자율신경 밸런스, 심리설문 결과를 종합 분석하는 NBASS 시스템의 전문 AI입니다. 학생의 상태를 분석하고 학부모가 이해하기 쉽게 3~4문단으로 친절하게 종합 평가를 요약해 주세요."
                     aiModels={aiModels}
                     buttonLabel="✨ 종합 결과 AI 분석하기"
                     membershipTier={result.student?.membershipTier || 'free'}

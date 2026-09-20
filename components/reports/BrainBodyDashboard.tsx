@@ -1,7 +1,5 @@
 import React from 'react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { BrainBodyState, CareType, AssessmentResult } from '../../types';
-import { EEG_BASED_STRATEGIES } from '../../data/eegStrategies';
 import { CoherenceTimelineChart } from '../charts/CoherenceTimelineChart';
 
 interface BrainBodyDashboardProps {
@@ -9,39 +7,48 @@ interface BrainBodyDashboardProps {
     careType: CareType;
     previousResult?: any; // To access previous coherence
     history?: (AssessmentResult & { date: string })[];
+    isExpertMode?: boolean;
+    studentName?: string;
+    membershipTier?: string;
+    reportMode?: 'expert' | 'student';
 }
 
-export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({ brainBodyState, careType, previousResult, history }) => {
-    // 1. Radar Chart Data for EEG
-    const hasEEG = brainBodyState.eegBalance.gamma > 0 || brainBodyState.eegBalance.alpha > 0;
-    
+export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({
+    brainBodyState,
+    careType,
+    previousResult,
+    history,
+    isExpertMode,
+    studentName,
+    membershipTier,
+    reportMode
+}) => {
+    const hasHRV = brainBodyState.snsLevel > 0 || brainBodyState.pnsLevel > 0;
+
+    // Check if Expert mode / Paid Tier
+    const isExpertOrPaid = isExpertMode || reportMode === 'expert' || membershipTier === 'expert' || membershipTier === 'vip' || membershipTier === 'premium_plus' || membershipTier === 'premium' || membershipTier === 'pro';
+    const isFreeOrSurveyOnly = !isExpertOrPaid && !hasHRV;
+
+    // Coherence calculation:
+    // [정합성] 등급/모드에 따른 하드코딩 값(95/52)을 제거하고,
+    // 실제 3계층 통합 진단(brainBodyState)의 일치도 값을 그대로 표시합니다.
+    const coherencePercentage = brainBodyState.coherence;
+    const coherenceLevel = brainBodyState.coherenceLevel;
+
     // Coherence trend
     const prevCoherence = previousResult?.brainBodyState?.coherence;
-    const coherenceChange = prevCoherence ? brainBodyState.coherence - prevCoherence : 0;
+    const coherenceChange = prevCoherence ? coherencePercentage - prevCoherence : 0;
     const changeSymbol = coherenceChange > 0 ? '▲' : coherenceChange < 0 ? '▼' : '-';
     const changeColor = coherenceChange > 0 ? 'text-emerald-500' : coherenceChange < 0 ? 'text-rose-500' : 'text-slate-400';
 
-    
-    const radarData = [
-        { subject: 'Gamma', A: brainBodyState.eegBalance.gamma, fullMark: 100 },
-        { subject: 'H-Beta', A: brainBodyState.eegBalance.betaH, fullMark: 100 },
-        { subject: 'M-Beta', A: brainBodyState.eegBalance.betaM, fullMark: 100 },
-        { subject: 'L-Beta', A: brainBodyState.eegBalance.betaL, fullMark: 100 },
-        { subject: 'Alpha', A: brainBodyState.eegBalance.alpha, fullMark: 100 },
-        { subject: 'Theta', A: brainBodyState.eegBalance.theta, fullMark: 100 },
-    ];
-
-    // 2. Coherence Gauge Calculation
-    const coherencePercentage = brainBodyState.coherence; // 0-100
+    // Coherence Gauge Calculation
     const circumference = 2 * Math.PI * 45; // r=45
     const strokeDashoffset = circumference - (coherencePercentage / 100) * circumference;
 
-    const coherenceColor = coherencePercentage >= 80 ? 'text-emerald-500' 
-                        : coherencePercentage >= 50 ? 'text-amber-500' : 'text-rose-500';
-    const strokeColor = coherencePercentage >= 80 ? '#10b981' 
-                      : coherencePercentage >= 50 ? '#f59e0b' : '#f43f5e';
-
-    const eegStrategy = EEG_BASED_STRATEGIES[brainBodyState.pattern] || EEG_BASED_STRATEGIES['UNKNOWN'];
+    const coherenceColor = coherencePercentage >= 80 ? 'text-emerald-500'
+        : coherencePercentage >= 50 ? 'text-amber-500' : 'text-rose-500';
+    const strokeColor = coherencePercentage >= 80 ? '#10b981'
+        : coherencePercentage >= 50 ? '#f59e0b' : '#f43f5e';
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
@@ -50,18 +57,31 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({ brainBod
                     <span className="text-2xl">🧠</span> Brain-Body 통합 진단 리포트
                 </h3>
                 <div className="text-xs font-mono bg-slate-800 px-3 py-1 rounded text-slate-300">
-                    3-Layer Verification
+                    {isExpertOrPaid ? '3-Layer Expert Full Verification' : (isFreeOrSurveyOnly ? '3분 무료체험 (설문 진단 모드)' : '3-Layer Full Verification')}
                 </div>
             </div>
 
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* 무료 체험 신뢰도 안내 배너 (유료/전문가 모드가 아닐 때만 표시) */}
+            {isFreeOrSurveyOnly && (
+                <div className="bg-amber-50 border-b border-amber-200 p-3.5 text-xs text-amber-950 flex items-start gap-2.5">
+                    <span className="text-lg shrink-0">💡</span>
+                    <div className="leading-relaxed">
+                        <strong className="font-bold text-amber-900 block mb-0.5">
+                            현재 결과는 [3분 무료체험 간이 설문] 기반 진단입니다. (신뢰도 {coherencePercentage}%)
+                        </strong>
+                        정밀 종합 검사를 진행하시면 심층 설문과 신경인지·자율신경 정밀 분석을 통해 <b>신뢰도 95% 이상의 정밀 판정</b>과 <b>3가지 다차원 복합 유형 진단</b>을 제공합니다. (무료체험: 1가지 핵심 집중 진단)
+                    </div>
+                </div>
+            )}
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* 1. Coherence Gauge */}
                 <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0">
                     <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">진단 신뢰도 (Confidence)</h4>
                     <div className="relative w-32 h-32">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="45" fill="none" className="stroke-slate-100" strokeWidth="8" />
-                            <circle 
+                            <circle
                                 cx="50" cy="50" r="45" fill="none" stroke={strokeColor} strokeWidth="8"
                                 strokeDasharray={circumference}
                                 strokeDashoffset={strokeDashoffset}
@@ -74,9 +94,9 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({ brainBod
                         </div>
                     </div>
                     <div className="text-center mt-4">
-                        <div className={`font-bold text-lg ${coherenceColor}`}>{brainBodyState.coherenceLevel}</div>
+                        <div className={`font-bold text-lg ${coherenceColor}`}>{coherenceLevel}</div>
                         <div className="text-xs text-slate-500 mt-1">
-                            Survey + HRV {hasEEG ? '+ EEG' : ''} 통합 검증
+                            {isExpertOrPaid ? '심층 설문 & 신경인지 통합 분석' : '기본 설문 기반 분석'}
                         </div>
                         {prevCoherence !== undefined && (
                             <div className="mt-2 text-[10px] font-bold bg-slate-50 border border-slate-100 rounded-full px-3 py-1 inline-flex items-center gap-1">
@@ -89,35 +109,12 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({ brainBod
                     </div>
                 </div>
 
-                {/* 2. EEG Radar */}
-                <div className="flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 relative min-h-[200px]">
-                    <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2 z-10 relative">뇌파 밸런스 (EEG)</h4>
-                    {hasEEG ? (
-                        <div className="w-full h-48 -mt-4">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                                    <PolarGrid stroke="#e2e8f0" />
-                                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }} />
-                                    <PolarRadiusAxis angle={30} domain={[0, 40]} tick={false} axisLine={false} />
-                                    <Radar name="EEG" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
-                                </RadarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-300 w-full h-full">
-                            <span className="text-4xl mb-2">📡</span>
-                            <span className="text-sm">EEG 데이터 없음</span>
-                            <span className="text-xs mt-1">(2층 검증 모드)</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* 3. Analysis & Action */}
+                {/* 2. Analysis & Action */}
                 <div className="flex flex-col justify-center">
                     <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">분석 요약</h4>
                     <div className="space-y-4">
                         <div>
-                            <div className="text-xs text-slate-400 mb-1">자율신경 (HRV)</div>
+                            <div className="text-xs text-slate-400 mb-1">자율신경 (ANS)</div>
                             <div className="font-bold text-slate-700">
                                 SNS {brainBodyState.snsLevel}% / PNS {brainBodyState.pnsLevel}%
                                 <span className="ml-2 text-xs font-normal bg-slate-100 px-2 py-1 rounded text-slate-600">
@@ -125,41 +122,18 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({ brainBod
                                 </span>
                             </div>
                         </div>
-                        {hasEEG && (
-                            <div>
-                                <div className="text-xs text-slate-400 mb-1">지배 뇌파 (Dominant)</div>
-                                <div className="font-bold text-slate-700">
-                                    {brainBodyState.dominantFrequency} 
-                                    {brainBodyState.secondaryFrequency && <span className="text-slate-400 font-normal"> / {brainBodyState.secondaryFrequency}</span>}
-                                    <span className="ml-2 text-xs font-normal bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                                        {brainBodyState.pattern}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
                         <div>
-                            <div className="text-xs text-slate-400 mb-1">최종 뇌-신체 판정</div>
-                            <div className="font-bold text-slate-800 text-lg">
-                                {brainBodyState.brainState}
+                            <div className="text-xs text-slate-400 mb-1">종합 진단 판정</div>
+                            <div className="font-bold text-slate-800 text-base flex items-center gap-2">
+                                <span>{careType}</span>
+                                <span className="text-xs font-normal px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {isFreeOrSurveyOnly ? '1차 핵심 케어' : brainBodyState.brainState}
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* Immediate Actions Footer */}
-            {hasEEG && eegStrategy.pattern !== 'UNKNOWN' && (
-                <div className="bg-blue-50 p-4 border-t border-blue-100">
-                    <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                        <span>⚡</span> 즉각 조치 권장사항 (Immediate Actions)
-                    </h4>
-                    <ul className="text-sm text-blue-900 list-disc list-inside space-y-1">
-                        {eegStrategy.immediateActions.map((action, i) => (
-                            <li key={i}>{action}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
 
             {/* Coherence Timeline (Phase 1) */}
             {history && history.length > 0 && (

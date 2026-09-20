@@ -11,7 +11,8 @@
     ],
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
@@ -35,6 +36,11 @@
     "dist-electron",
     "backups",
     "**/*.backup*",
-    "**/*.bak.*"
+    "**/*.bak.*",
+    "HTML",
+    "study",
+    "schedule",
+    "src",
+    "server.ts"
   ]
 }

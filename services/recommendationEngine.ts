@@ -84,7 +84,7 @@ export const generateMultiLayerRecommendation = (
     return {
         layer1_survey: layer1.length ? layer1 : ['특이사항 없음'],
         layer2_hrv: layer2.length ? layer2 : ['정상 자율신경'],
-        layer3_eeg: layer3.length ? layer3 : ['정상 뇌파'],
+        layer3_eeg: layer3.length ? layer3 : ['정상 인지 활성'],
         consensus: consensus.length ? consensus : ['각 지표가 복합적인 상태를 나타냄 (부분 일치)'],
         priority,
         details

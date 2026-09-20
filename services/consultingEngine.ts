@@ -101,7 +101,7 @@ const getAnxietyReport = (survey: SurveyData, hrv: HRVData): string => {
 
     // [진단]
     if (isHighAnxiety && isHighBeta) {
-        parts.push(`🚨 [진단: 과각성형 불안] 학생은 실력이 없는 게 아니라, 시험장에서 제 실력을 발휘 못하는 전형적인 '**유리 멘탈(Glass Mind)**' 상태입니다. 뇌파 검사상 'High Beta(고베타파)'가 과도하게 발생하고 있습니다. 이는 뇌가 항상 '전투 모드'로 켜져 있어, 시험지라는 자극을 보자마자 '백지화(Freezing)' 현상을 일으키는 유형입니다.`);
+        parts.push(`🚨 [진단: 과각성형 불안] 학생은 실력이 없는 게 아니라, 시험장에서 제 실력을 발휘 못하는 전형적인 '**유리 멘탈(Glass Mind)**' 상태입니다. 신경계 과각성 상태가 과도하게 지속되고 있습니다. 이는 뇌가 항상 '전투 모드'로 켜져 있어, 시험지라는 자극을 보자마자 '백지화(Freezing)' 현상을 일으키는 유형입니다.`);
     } else if (isHighAnxiety && !isHighBeta) {
         parts.push(`⚠️ [진단: 인지적 불안] 신체적인 긴장도보다는 '실수하면 어떡하지?', '망치면 끝장이다'라는 부정적인 생각(Intrusive Thoughts)이 꼬리에 꼬리를 물어 집중력을 갉아먹는 유형입니다. 몸은 차분한데 머릿속이 시끄러운 상태입니다.`);
     } else {

@@ -1,13 +1,6 @@
-
-import React, { useEffect, useState, useMemo } from 'react';
-import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    ComposedChart, Area, Bar, BarChart
-} from 'recharts';
-import { TrendService, ComprehensiveTrendData, TrendDataPoint } from '../../services/trendEngine';
-import { AssessmentResult, CareType } from '../../types';
-
-import { SummaryView, SurveyView, HrvView, EegView, PastPrescriptionsView, ManageHistoryView } from '../HistoryCharts';
+import React, { useEffect, useState } from 'react';
+import { TrendService, ComprehensiveTrendData } from '../../services/trendEngine';
+import { SummaryView, SurveyView, CognitiveView, AcademicView, PastPrescriptionsView, ManageHistoryView } from '../HistoryCharts';
 import { AIAssistantPanel } from '../common/AIAssistantPanel';
 import { AIModelConfig } from '../../types';
 
@@ -16,32 +9,27 @@ interface HistoryAnalysisModalProps {
     onClose: () => void;
     studentName: string;
     studentBirthDate?: string;
-    studentId?: string; // Fallback용 ID
+    studentId?: string;
     aiModels?: AIModelConfig | null;
 }
 
 export const HistoryAnalysisModal: React.FC<HistoryAnalysisModalProps> = ({
     isOpen, onClose, studentName, studentBirthDate, studentId, aiModels
 }) => {
-    const [activeTab, setActiveTab] = useState<'summary' | 'survey' | 'hrv' | 'eeg' | 'prescriptions' | 'manage'>('summary');
+    const [activeTab, setActiveTab] = useState<'summary' | 'cognitive' | 'survey' | 'academic' | 'prescriptions' | 'manage'>('summary');
     const [data, setData] = useState<ComprehensiveTrendData | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        console.log(`[HistoryModal] Open: ${isOpen}, Name: ${studentName}, BirthDate: ${studentBirthDate}, ID: ${studentId}`);
         if (isOpen && (studentName || studentId)) {
-            console.log("[HistoryModal] Triggering loadData...");
             loadData();
-        } else {
-            console.log("[HistoryModal] Not loading data (Missing name/ID or closed)");
         }
-    }, [isOpen, studentName]);
+    }, [isOpen, studentName, studentId]);
 
     const loadData = async () => {
         setLoading(true);
         try {
             const processedData = await TrendService.fetchAndProcessStudentHistory(studentName, studentBirthDate, studentId);
-            console.log(`[HistoryModal] Data loaded:`, processedData);
             setData(processedData);
         } catch (error) {
             console.error("Failed to load history data", error);
@@ -57,108 +45,72 @@ export const HistoryAnalysisModal: React.FC<HistoryAnalysisModalProps> = ({
             <div className="bg-white dark:bg-slate-900 w-full max-w-6xl h-[85vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden">
 
                 {/* Header */}
-                <div className="p-8 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                <div className="p-6 md:p-8 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
-                            <span className="text-3xl">📈</span>
-                            {studentName}님 히스토리 분석
-                        </h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                            누적된 검사 데이터를 기반으로 변화 추이를 분석합니다.
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl sm:text-3xl">📈</span>
+                            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                                {studentName} 수험생 성장 이력 분석
+                            </h2>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                정기 성장 트래킹
+                            </span>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1">
+                            누적된 인지 테스트, 심리·기질 설문, 공부 효율 변화 추이를 정밀 분석합니다.
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-3 bg-white dark:bg-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                        className="p-2.5 bg-white dark:bg-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shadow-sm text-slate-500 hover:text-slate-800 font-bold"
                     >
-                        ❌
+                        ✕
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-800 px-8 bg-white dark:bg-slate-900">
-                    {['summary', 'survey', 'hrv', 'eeg', 'prescriptions', 'manage'].map((tab) => (
+                <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 bg-white dark:bg-slate-900 scrollbar-thin">
+                    {[
+                        { id: 'summary', label: '🌟 종합 성장' },
+                        { id: 'cognitive', label: '🧠 인지·두뇌' },
+                        { id: 'survey', label: '📝 심리·기질' },
+                        { id: 'academic', label: '📚 학업·순공' },
+                        { id: 'prescriptions', label: '📋 과거 처방' },
+                        { id: 'manage', label: '⚙️ 데이터 관리' }
+                    ].map((tab) => (
                         <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab as any)}
-                            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 ${activeTab === tab
-                                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 min-w-fit px-3 sm:px-4 py-3.5 font-bold text-xs sm:text-sm transition-all border-b-2 whitespace-nowrap cursor-pointer text-center ${activeTab === tab.id
+                                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 font-black bg-blue-50/40 dark:bg-blue-950/20'
+                                : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/30'
                                 }`}
                         >
-                            {tab === 'summary' && '종합 분석 (Score)'}
-                            {tab === 'survey' && '설문 변화 (Psychology)'}
-                            {tab === 'hrv' && 'Clinical Biometrics (HRV)'}
-                            {tab === 'eeg' && 'EEG Biometrics'}
-                            {tab === 'prescriptions' && '과거 처방 내역'}
-                            {tab === 'manage' && '데이터 관리 (Manage)'}
+                            {tab.label}
                         </button>
                     ))}
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900/50">
                     {loading ? (
                         <div className="h-full flex items-center justify-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                         </div>
                     ) : !data || data.summary.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-20 text-center">
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-16 text-center">
                             <span className="text-4xl mb-4">📭</span>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">분석할 과거 데이터가 부족합니다</h3>
-                            <p className="max-w-md mx-auto mb-6">
-                                이전 검사 기록이 없거나, 이름/생년월일 정보가 일치하지 않아 트렌드를 분석할 수 없습니다.
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">분석할 과거 검사 데이터가 없습니다</h3>
+                            <p className="max-w-md mx-auto mb-4 text-xs sm:text-sm">
+                                현재 수험생의 이전 검사 기록이 저장되면 회차별 인지 테스트, 설문 지표, 학업 효율 성장 곡선이 자동으로 시각화됩니다.
                             </p>
-
-                            {/* Diagnostic Info (Debug Mode) */}
-                            <div className="bg-slate-100 dark:bg-slate-800 p-6 rounded-2xl text-left text-xs font-mono text-slate-600 dark:text-slate-400 mb-4 w-full max-w-lg border border-slate-200 dark:border-slate-700 shadow-inner">
-                                <p className="font-bold text-red-500 mb-3 flex items-center gap-2">
-                                    <span className="text-lg">🔍</span> [데이터 진단 분석기]
-                                </p>
-                                <div className="space-y-1.5 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
-                                    <p><span className="text-blue-500">▶ Name:</span> "{studentName}"</p>
-                                    <p><span className="text-blue-500">▶ BirthDate:</span> "{studentBirthDate || 'N/A'}"</p>
-                                    <p><span className="text-blue-500">▶ ID:</span> "{studentId || 'N/A'}"</p>
-                                    <p><span className="text-red-500">▶ Records Found:</span> 0</p>
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
-                                    <button
-                                        onClick={async () => {
-                                            const { DatabaseService } = await import('../../services/database');
-                                            const dbRecords = await DatabaseService.getAllHistory();
-                                            const names = dbRecords.map(r => `"${r.student.name}"`).join(', ');
-                                            alert(`[DB 레포트]\n\n• 총 기록 수: ${dbRecords.length}\n• DB 내 학생 이름들: ${names || '없음'}\n\n콘솔(F12)에서 상세 데이터를 확인하세요.`);
-                                            console.log("Full DB Data:", dbRecords);
-                                        }}
-                                        className="w-full py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        📡 DB 데이터 무결성 검사
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            const mockData: ComprehensiveTrendData = {
-                                                summary: [
-                                                    { date: '1/1', timestamp: Date.now() - 2000000, score: 70, careType: CareType.BURNOUT },
-                                                    { date: '1/10', timestamp: Date.now() - 1000000, score: 85, careType: CareType.HEALTHY }
-                                                ],
-                                                survey: [], hrv: [], eeg: [], rawHistory: []
-                                            };
-                                            setData(mockData);
-                                            alert("임시 데이터를 로드했습니다. 차트가 나타나는지 확인해주세요.");
-                                        }}
-                                        className="w-full py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl font-bold hover:bg-blue-100 transition-all"
-                                    >
-                                        🧪 테스트 데이터로 차트 강제 호출
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     ) : (
                         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                             {activeTab === 'summary' && <SummaryView data={data.summary} />}
+                            {activeTab === 'cognitive' && <CognitiveView data={data.cognitive} />}
                             {activeTab === 'survey' && <SurveyView data={data.survey} />}
-                            {activeTab === 'hrv' && <HrvView data={data.hrv} />}
-                            {activeTab === 'eeg' && <EegView data={data.eeg} />}
+                            {activeTab === 'academic' && <AcademicView data={data.academic} />}
                             {activeTab === 'prescriptions' && <PastPrescriptionsView rawHistory={data.rawHistory} />}
                             {activeTab === 'manage' && <ManageHistoryView rawHistory={data.rawHistory} onDataChanged={loadData} />}
                             
@@ -166,9 +118,9 @@ export const HistoryAnalysisModal: React.FC<HistoryAnalysisModalProps> = ({
                             {data && (
                                 <AIAssistantPanel 
                                     contextData={data}
-                                    systemPrompt="당신은 누적된 히스토리 데이터를 분석하는 AI입니다. 학생의 변화 추이(설문, HRV, EEG)와 과거 처방을 바탕으로 긍정적인 변화나 주의해야 할 점을 3문단으로 요약해주세요."
+                                    systemPrompt="당신은 누적된 수험생 데이터를 분석하는 AI 학습 컨설턴트입니다. 학생의 변화 추이(설문 점수, 작업기억력 정답률/반응속도, 순공 효율)와 과거 처방을 바탕으로 긍정적인 성장 포인트와 앞으로 집중해야 할 학습 관리 제안을 3문단으로 명확히 요약해주세요."
                                     aiModels={aiModels || null}
-                                    buttonLabel="✨ 누적 데이터 통합 AI 분석"
+                                    buttonLabel="✨ 누적 데이터 기반 AI 성장 분석 보고서 생성"
                                     membershipTier={data.rawHistory[0]?.student?.membershipTier || 'free'}
                                 />
                             )}

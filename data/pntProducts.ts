@@ -484,6 +484,23 @@ export const ALL_PNT_PRODUCTS: Record<string, PntProduct> = {
         timing: '식후',
         image: 'https://gcwbstoacc.blob.core.windows.net/gcwbdata/product/f769be42-0235-4523-9940-34a602c8a177.png',
         url: 'https://www.pntmall.com/product/detail?pno=1000000098'
+    },
+    // 16. 수험생 스마트 두뇌 & 대사 부스터 (HL Coffee x NBASS 특화 처방)
+    'hl_focus_booster': {
+        id: 'HL-COFFEE-001',
+        name: 'HL 아르기닌·카르니틴 스마트 아메리카노',
+        subName: '아르기닌 2,600mg · 카르니틴 1,200mg · 시트룰린(수박추출물) · 마일드 카페인',
+        price: 32000,
+        capacity: '1개월분 (30포)',
+        category: 'Brain',
+        mainIngredients: ['L-아르기닌 2,600mg', 'L-카르니틴 1,200mg', '시트룰린 (수박추출물)', '마일드 카페인 (스타벅스 Tall 수준)'],
+        targetSymptoms: ['기상 슬럼프', '식곤증/Brain Fog', '두뇌 피로', '만성 집중력 저하', '운동 부족/체지방'],
+        targetConditions: ['LOW_ENERGY', 'BRAIN_FATIGUE', 'BURNOUT', 'ADRENAL', 'CONCENTRATION'],
+        dosageMethod: '1일 1회, 1포를 미온수 또는 냉수 500ml 이상에 연하게 희석',
+        timing: '아침 기상 직후 또는 공부 시작 30분 전 공복',
+        caution: '⚠️ 아르기닌 열 변성 방지를 위해 뜨거운 물은 피하시고, 특유의 향을 완화하기 위해 반드시 500ml 이상 시원한 물에 희석해 드세요.',
+        image: '/hl_coffee_circle.png',
+        url: 'https://www.hl-coffee.com/category/coffee/29/'
     }
 };
 

@@ -8,6 +8,8 @@
 import Dexie, { type Table } from 'dexie';
 import { AssessmentResult, StudentInfo, GradeRecord, GradeGoal, SleepRecord, SleepGoal } from '../types';
 import { StudyEfficiencyResults } from './studyEfficiencyService';
+import { supabase, isSupabaseReady } from '../lib/supabase';
+import { safeStorage } from '../utils/safeStorage';
 
 // History Record 타입 정의
 export interface HistoryRecord extends AssessmentResult {
@@ -244,13 +246,88 @@ export const DatabaseService = {
             const newRecord: HistoryRecord = {
                 ...result,
                 date: new Date().toISOString(),
-                syncStatus: 'local'
+                syncStatus: 'pending'
             };
 
-            return await db.history.add(newRecord);
+            const id = await db.history.add(newRecord);
+            newRecord.id = id;
+
+            // 백그라운드 자동 동기화 (UI 지연 없음)
+            setTimeout(() => {
+                this.syncRecordToSupabase(newRecord).catch(() => {});
+            }, 100);
+
+            return id;
         } catch (error) {
             console.error('Failed to add history:', error);
             throw error;
+        }
+    },
+
+    /**
+     * 개별 레코드 Supabase 백그라운드 자동 동기화
+     */
+    async syncRecordToSupabase(record: HistoryRecord): Promise<boolean> {
+        try {
+            if (!isSupabaseReady() || !supabase) return false;
+            const studentName = record.student?.name || '미지정';
+            const payload: any = {
+                student_name: studentName,
+                student_info: record.student || {},
+                survey_data: record.survey || {},
+                hrv_data: record.hrv || {},
+                protocol_data: record.protocol || {},
+                classification_result: record.classificationResult || {},
+                care_type: record.careType || 'Type-1',
+                care_score: record.score || 0,
+                study_efficiency_data: record.studyEfficiencyResults || {},
+                analysis_text: record.analysisText || '',
+                status: 'completed',
+                updated_at: new Date().toISOString()
+            };
+
+            const { error } = await supabase.from('assessments' as any).insert(payload);
+            if (!error) {
+                if (record.id) {
+                    await db.history.update(record.id, { syncStatus: 'synced' });
+                }
+                return true;
+            }
+            if (error.code === '401' || (error as any).status === 401 || error.message?.includes('JWT') || error.message?.includes('apikey')) {
+                // 401 Unauthorized - Key or RLS issue
+                return false;
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    },
+
+    /**
+     * 로컬에 있는 모든 미동기화 레코드를 Supabase로 자동 일괄 동기화
+     */
+    async autoSyncAllToSupabase(): Promise<{ total: number; synced: number }> {
+        try {
+            if (!isSupabaseReady()) return { total: 0, synced: 0 };
+            const all = await db.history.toArray();
+            const unSynced = all.filter(r => r.syncStatus !== 'synced');
+            if (unSynced.length === 0) return { total: all.length, synced: 0 };
+
+            // 첫 번째 레코드로 통신 가능 여부 사전 점검 (401 에러 반복 호출 방지)
+            const firstTest = await this.syncRecordToSupabase(unSynced[0]);
+            if (!firstTest) {
+                // Supabase 키가 유효하지 않거나 RLS/테이블 설정 대기 중이면 반복 중단
+                return { total: all.length, synced: 0 };
+            }
+
+            let count = 1;
+            for (let i = 1; i < unSynced.length; i++) {
+                const ok = await this.syncRecordToSupabase(unSynced[i]);
+                if (ok) count++;
+            }
+            return { total: all.length, synced: count };
+        } catch (e) {
+            return { total: 0, synced: 0 };
         }
     },
 
@@ -267,15 +344,117 @@ export const DatabaseService = {
     },
 
     /**
-     * 기존 히스토리 레코드를 업데이트합니다.
+     * 특정 학생의 모든 히스토리 및 프로필 삭제
      */
+    async deleteStudentRecords(studentIdOrName: string): Promise<number> {
+        try {
+            const target = studentIdOrName.trim();
+            const all = await db.history.toArray();
+            const toDelete = all.filter(r => 
+                r.student?.id === target || 
+                r.student?.name === target ||
+                r.student?.name?.toLowerCase().includes(target.toLowerCase())
+            );
+            const deleteIds = toDelete.map(r => r.id!).filter(Boolean);
+            if (deleteIds.length > 0) {
+                await db.history.bulkDelete(deleteIds);
+            }
+            // student table profile delete
+            const profiles = await db.students.toArray();
+            const profIds = profiles.filter(p => p.name === target || p.studentId === target).map(p => p.id!).filter(Boolean);
+            if (profIds.length > 0) {
+                await db.students.bulkDelete(profIds);
+            }
+            return deleteIds.length;
+        } catch (error) {
+            console.error('Failed to delete student records:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 특정 학생의 모든 히스토리 및 프로필의 멤버십 등급 일괄 업데이트
+     */
+    async updateStudentMembershipTier(studentIdOrName: string, newTier: string): Promise<number> {
+        try {
+            const target = studentIdOrName.trim().toLowerCase();
+            const all = await db.history.toArray();
+            let updatedCount = 0;
+            for (const record of all) {
+                const sName = (record.student?.name || '').trim().toLowerCase();
+                const sId = (record.student?.id || '').trim().toLowerCase();
+                if (sName === target || sId === target) {
+                    if (!record.student) (record as any).student = {};
+                    record.student.membershipTier = newTier as any;
+                    await db.history.put(record);
+                    updatedCount++;
+                }
+            }
+            const profiles = await db.students.toArray();
+            for (const prof of profiles) {
+                const pName = (prof.name || '').trim().toLowerCase();
+                const pId = (prof.studentId || '').trim().toLowerCase();
+                if (pName === target || pId === target) {
+                    prof.membershipTier = newTier as any;
+                    await db.students.put(prof);
+                }
+            }
+            return updatedCount;
+        } catch (error) {
+            console.error('Failed to update student membership tier in DB:', error);
+            return 0;
+        }
+    },
+
+    /**
+     * 학생 중복 레코드 정리 (Deduplication)
+     * 동일 학생의 동일 날짜 또는 동일 검사 중복 레코드 자동 통합
+     */
+    async deduplicateHistory(): Promise<number> {
+        try {
+            const all = await db.history.toArray();
+            const seen = new Set<string>();
+            const deleteIds: number[] = [];
+
+            all.forEach(record => {
+                const sName = record.student?.name?.trim() || '';
+                const sId = record.student?.id?.trim() || '';
+                const sDate = record.date || record.student?.testDate || '';
+                const sCare = record.careType || '';
+                const key = `${sName}_${sId}_${sDate}_${sCare}_${record.score || 0}`;
+
+                if (seen.has(key)) {
+                    if (record.id) deleteIds.push(record.id);
+                } else {
+                    seen.add(key);
+                }
+            });
+
+            if (deleteIds.length > 0) {
+                await db.history.bulkDelete(deleteIds);
+            }
+            return deleteIds.length;
+        } catch (error) {
+            console.error('Failed to deduplicate history:', error);
+            return 0;
+        }
+    },
     async updateHistory(record: HistoryRecord): Promise<void> {
         try {
-            if (!record.id) {
-                throw new Error("Cannot update history without an id");
+            if (!record.id && record.student?.id) {
+                const existing = await db.history
+                    .where('student.id')
+                    .equals(record.student.id)
+                    .and(h => h.date === record.date)
+                    .first();
+                if (existing?.id) {
+                    record.id = existing.id;
+                }
             }
-            record.syncStatus = 'pending';
-            await db.history.put(record);
+            if (record.id) {
+                record.syncStatus = 'pending';
+                await db.history.put(record);
+            }
         } catch (error) {
             console.error('Failed to update history:', error);
             throw error;
@@ -455,25 +634,68 @@ export const DatabaseService = {
      */
     async updateStudent(student: StudentInfo): Promise<void> {
         try {
-            // name과 id(studentId)가 모두 일치하는 항목 찾기
-            const existing = await db.students.where('name').equals(student.name).toArray();
-            const profile = existing.find(p => p.studentId === student.id || !p.studentId);
-            
+            if (!student.name && !student.id) return;
+
             const { id: studentIdStr, ...studentData } = student;
-            
+
+            // 1. studentId 또는 name으로 기존 프로필 조회
+            let profile: StudentProfile | undefined;
+
+            if (student.name) {
+                const existingByName = await db.students.where('name').equals(student.name).toArray();
+                profile = existingByName.find(p => p.studentId === student.id);
+                if (!profile && student.birthDate) {
+                    profile = existingByName.find(p => p.birthDate === student.birthDate);
+                }
+                if (!profile && existingByName.length > 0) {
+                    profile = existingByName[0];
+                }
+            }
+
+            if (!profile && studentIdStr) {
+                const all = await db.students.toArray();
+                profile = all.find(p => p.studentId === studentIdStr);
+            }
+
             if (profile && profile.id !== undefined) {
                 await db.students.update(profile.id, {
                     ...studentData,
-                    studentId: studentIdStr,
+                    studentId: studentIdStr || profile.studentId,
                     updatedAt: new Date().toISOString()
                 } as any);
             } else {
-                await db.students.add({
-                    ...studentData,
-                    studentId: studentIdStr,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                } as any);
+                try {
+                    await db.students.add({
+                        ...studentData,
+                        studentId: studentIdStr,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    } as any);
+                } catch (addErr: any) {
+                    // [name+birthDate] 복합 유니크 제약 충돌 시 기존 레코드 찾아서 update 수행
+                    let conflict = null;
+                    if (student.name && student.birthDate) {
+                        try {
+                            conflict = await db.students
+                                .where('[name+birthDate]')
+                                .equals([student.name, student.birthDate])
+                                .first();
+                        } catch { /* ignore */ }
+                    }
+                    if (!conflict && student.name) {
+                        conflict = await db.students.where('name').equals(student.name).first();
+                    }
+
+                    if (conflict && conflict.id !== undefined) {
+                        await db.students.update(conflict.id, {
+                            ...studentData,
+                            studentId: studentIdStr || conflict.studentId,
+                            updatedAt: new Date().toISOString()
+                        } as any);
+                    } else {
+                        console.warn('Student profile upsert fallback:', addErr);
+                    }
+                }
             }
         } catch (error) {
             console.error('Failed to update student:', error);
@@ -538,19 +760,39 @@ export const DatabaseService = {
             const dbRecords = await db.history.toArray();
             const dbDates = new Set(dbRecords.map(r => r.date));
 
-            // DB에 없는 레코드만 필터링하여 추가
+            // DB에 없는 레코드만 필터링하여 추가 (date 기준)
             const missingRecords = localRecords.filter(local => !dbDates.has(local.date));
 
             if (missingRecords.length > 0) {
-                // syncStatus 추가하여 bulkAdd
-                const toAdd = missingRecords.map(r => ({
-                    ...r,
-                    syncStatus: 'local' as const
-                }));
+                // ++id 자동증가 컬럼 충돌 방지를 위해 기존 id 제거 후 추가
+                const toAdd = missingRecords.map(r => {
+                    const { id, ...rest } = r as any;
+                    return {
+                        ...rest,
+                        syncStatus: 'local' as const
+                    };
+                });
 
-                await db.history.bulkAdd(toAdd);
-                addedCount = missingRecords.length;
+                try {
+                    await db.history.bulkAdd(toAdd);
+                    addedCount = missingRecords.length;
+                } catch {
+                    // bulkAdd 실패 시 레코드별 개별 안전 추가
+                    for (const item of toAdd) {
+                        try {
+                            await db.history.add(item);
+                            addedCount++;
+                        } catch (err) {
+                            console.warn('Skipping duplicate record sync:', err);
+                        }
+                    }
+                }
                 console.log(`Synced ${addedCount} missing records from localStorage to IndexedDB.`);
+            }
+
+            // localStorage에 비대해진 sn1_history가 있다면 3개로 축소하여 5MB Quota 공간 확보
+            if (localRecords.length > 3) {
+                safeStorage.saveJSON('sn1_history', localRecords.slice(0, 3));
             }
 
             return addedCount;
@@ -840,9 +1082,50 @@ export const DatabaseService = {
 
     // ==================== Grade Management ====================
 
+    async syncGradeRecordToSupabase(record: GradeRecord): Promise<boolean> {
+        try {
+            if (!isSupabaseReady() || !supabase) return false;
+            const payload: any = {
+                student_id: record.studentId,
+                exam_name: record.examName,
+                exam_type: record.examType,
+                exam_date: record.examDate,
+                subjects: record.subjects || [],
+                memo: record.memo || '',
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('grade_records' as any).upsert(payload, { onConflict: 'student_id,exam_name,exam_date' } as any);
+            return !error;
+        } catch {
+            return false;
+        }
+    },
+
+    async syncGradeGoalToSupabase(goal: GradeGoal): Promise<boolean> {
+        try {
+            if (!isSupabaseReady() || !supabase) return false;
+            const payload: any = {
+                student_id: goal.studentId,
+                subject_id: goal.subjectId,
+                tier1_target: goal.tier1Target,
+                tier2_target: goal.tier2Target,
+                tier3_target: goal.tier3Target,
+                current_grade: goal.currentGrade,
+                memo: goal.memo || '',
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('grade_goals' as any).upsert(payload, { onConflict: 'student_id,subject_id' } as any);
+            return !error;
+        } catch {
+            return false;
+        }
+    },
+
     async addGradeRecord(record: GradeRecord): Promise<string | undefined> {
         try {
-            return await db.gradeRecords.add(record);
+            const id = await db.gradeRecords.add(record);
+            this.syncGradeRecordToSupabase(record).catch(() => {});
+            return id;
         } catch (error) {
             console.error('Failed to add grade record:', error);
             throw error;
@@ -852,6 +1135,7 @@ export const DatabaseService = {
     async updateGradeRecord(record: GradeRecord): Promise<string | undefined> {
         try {
             await db.gradeRecords.put(record);
+            this.syncGradeRecordToSupabase(record).catch(() => {});
             return record.id;
         } catch (error) {
             console.error('Failed to update grade record:', error);
@@ -883,6 +1167,7 @@ export const DatabaseService = {
 
     async upsertGradeGoal(goal: GradeGoal): Promise<string | undefined> {
         try {
+            let resId: string | undefined;
             const existing = await db.gradeGoals
                 .where('studentId')
                 .equals(goal.studentId)
@@ -891,10 +1176,12 @@ export const DatabaseService = {
 
             if (existing) {
                 await db.gradeGoals.put({ ...goal, id: existing.id });
-                return existing.id;
+                resId = existing.id;
             } else {
-                return await db.gradeGoals.add(goal);
+                resId = await db.gradeGoals.add(goal);
             }
+            this.syncGradeGoalToSupabase(goal).catch(() => {});
+            return resId;
         } catch (error) {
             console.error('Failed to upsert grade goal:', error);
             throw error;
@@ -923,9 +1210,58 @@ export const DatabaseService = {
     },
 
     // ==================== Sleep Record 관련 ====================
+    async syncSleepRecordToSupabase(record: SleepRecord): Promise<boolean> {
+        try {
+            if (!isSupabaseReady() || !supabase) return false;
+            const payload: any = {
+                student_id: record.studentId,
+                date: record.date,
+                bedtime: record.bedtime,
+                wake_time: record.wakeTime,
+                sleep_quality: record.sleepQuality,
+                memo: record.memo || '',
+                stages: record.stages || {},
+                night_hrv: record.nightHrv || null,
+                screen_time: record.screenTimeBeforeBed || null,
+                sleep_delay: record.sleepDelay || null,
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('sleep_records' as any).upsert(payload, { onConflict: 'student_id,date' } as any);
+            return !error;
+        } catch {
+            return false;
+        }
+    },
+
+    async syncSleepGoalToSupabase(goal: SleepGoal): Promise<boolean> {
+        try {
+            if (!isSupabaseReady() || !supabase) return false;
+            const payload: any = {
+                student_id: goal.studentId,
+                target_bedtime: goal.targetBedtime,
+                target_wake_time: goal.targetWakeTime,
+                target_duration: goal.targetDuration,
+                memo: goal.memo || '',
+                current_streak: goal.currentStreak || 0,
+                longest_streak: goal.longestStreak || 0,
+                condition_score: goal.conditionScore || 0,
+                is_dday_mode: goal.isDdayMode || false,
+                dday_date: goal.dDayDate || null,
+                dday_target_wake_time: goal.dDayTargetWakeTime || null,
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase.from('sleep_goals' as any).upsert(payload, { onConflict: 'student_id' } as any);
+            return !error;
+        } catch {
+            return false;
+        }
+    },
+
     async addSleepRecord(record: SleepRecord): Promise<string | undefined> {
         try {
-            return await db.sleepRecords.add(record);
+            const id = await db.sleepRecords.add(record);
+            this.syncSleepRecordToSupabase(record).catch(() => {});
+            return id;
         } catch (error) {
             console.error('Failed to add sleep record:', error);
             throw error;
@@ -935,6 +1271,7 @@ export const DatabaseService = {
     async updateSleepRecord(record: SleepRecord): Promise<string | undefined> {
         try {
             await db.sleepRecords.put(record);
+            this.syncSleepRecordToSupabase(record).catch(() => {});
             return record.id;
         } catch (error) {
             console.error('Failed to update sleep record:', error);
@@ -966,6 +1303,7 @@ export const DatabaseService = {
 
     async upsertSleepGoal(goal: SleepGoal): Promise<string | undefined> {
         try {
+            let resId: string | undefined;
             const existing = await db.sleepGoals
                 .where('studentId')
                 .equals(goal.studentId)
@@ -973,10 +1311,12 @@ export const DatabaseService = {
 
             if (existing) {
                 await db.sleepGoals.put({ ...goal, id: existing.id });
-                return existing.id;
+                resId = existing.id;
             } else {
-                return await db.sleepGoals.add(goal);
+                resId = await db.sleepGoals.add(goal);
             }
+            this.syncSleepGoalToSupabase(goal).catch(() => {});
+            return resId;
         } catch (error) {
             console.error('Failed to upsert sleep goal:', error);
             throw error;

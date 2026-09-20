@@ -1,9 +1,9 @@
 /**
- * 작업 기억 용량 테스트 컴포넌트
+ * 작업 기억 용량 테스트 컴포넌트 (WorkingMemoryAssessment)
  * - Digit Span (숫자 따라하기): 순방향/역방향
  * - N-Back: 1-Back, 2-Back 테스트
  * 
- * StudyEfficiencyAssessment.tsx와 동일한 UI/UX 패턴
+ * 디자인 시스템 토큰 및 다크모드 완벽 대응, 뉴로 피드백 UI 적용
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -69,6 +69,10 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
     const [nBackShowCurrent, setNBackShowCurrent] = useState(false);
     const [nBackUserResponded, setNBackUserResponded] = useState(false);
 
+    // Simulation State
+    const [simulationType, setSimulationType] = useState<WorkingMemoryTestType | null>(null);
+    const [simulationStep, setSimulationStep] = useState(0);
+
     const inputRef = useRef<HTMLInputElement>(null);
 
     // 권장 테스트 목록
@@ -95,7 +99,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         setDsFeedbackMessage(null);
     };
 
-    // Digit 표시 애니메이션
     useEffect(() => {
         if (dsTestPhase !== 'showing' || currentTest !== 'digitSpan') return;
 
@@ -105,7 +108,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
             }, DIGIT_SPAN_CONFIG.displayTimeMs);
             return () => clearTimeout(timer);
         } else {
-            // 모든 숫자 표시 완료 → 입력 단계
             const timer = setTimeout(() => {
                 setDsTestPhase('input');
                 setTimeout(() => inputRef.current?.focus(), 100);
@@ -121,7 +123,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
 
         const isCorrect = dsUserInput === expectedSequence;
 
-        // 결과 기록
         const lengthIndex = dsCurrentLength - DIGIT_SPAN_CONFIG.minLength;
         if (dsPhase === 'forward') {
             setDsForwardTrials(prev => {
@@ -139,16 +140,14 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
             });
         }
 
-        // 피드백 표시
         setDsFeedbackMessage({
             correct: isCorrect,
             message: isCorrect
-                ? `✅ 정답! ${dsCurrentLength}자리 성공`
-                : `❌ 오답. 정답: ${expectedSequence}`
+                ? `정답! ${dsCurrentLength}자리 성공`
+                : `오답. 정답: ${expectedSequence}`
         });
         setDsTestPhase('feedback');
 
-        // 다음 단계 결정
         setTimeout(() => {
             if (isCorrect) {
                 setDsConsecutiveFails(0);
@@ -156,7 +155,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                     setDsCurrentLength(prev => prev + 1);
                     startNewDigitSequence(dsCurrentLength + 1);
                 } else {
-                    // 최대 길이 도달 → 다음 페이즈
                     if (dsPhase === 'forward') {
                         setDsPhase('backward');
                         setDsCurrentLength(DIGIT_SPAN_CONFIG.minLength);
@@ -171,7 +169,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                 setDsConsecutiveFails(newFails);
 
                 if (newFails >= DIGIT_SPAN_CONFIG.triesPerLength) {
-                    // 2회 연속 실패 → 다음 페이즈
                     if (dsPhase === 'forward') {
                         setDsPhase('backward');
                         setDsCurrentLength(DIGIT_SPAN_CONFIG.minLength);
@@ -181,11 +178,10 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                         finishDigitSpan();
                     }
                 } else {
-                    // 재시도
                     startNewDigitSequence(dsCurrentLength);
                 }
             }
-        }, 1500);
+        }, 1400);
     };
 
     const finishDigitSpan = () => {
@@ -211,17 +207,14 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         nBackRespondedRef.current = false;
     };
 
-    // N-Back 자극 표시
     useEffect(() => {
         if (nBackTestPhase !== 'showing' || !['nBack1', 'nBack2'].includes(currentTest || '')) return;
 
         if (nBackIndex >= nBackSequence.length) {
-            // 시퀀스 완료
             finishNBack();
             return;
         }
 
-        // 자극 표시
         setNBackShowCurrent(true);
         setNBackUserResponded(false);
         nBackRespondedRef.current = false;
@@ -232,7 +225,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         }, config.displayTimeMs);
 
         const nextTimer = setTimeout(() => {
-            // 무응답 처리
             if (!nBackRespondedRef.current) {
                 setNBackResponses(prev => [...prev, {
                     isTarget: nBackSequence[nBackIndex].isTarget,
@@ -253,7 +245,7 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
 
         setNBackUserResponded(true);
         nBackRespondedRef.current = true;
-        
+
         setNBackResponses(prev => [...prev, {
             isTarget: nBackSequence[nBackIndex].isTarget,
             userResponse: true
@@ -275,7 +267,6 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         setNBackTestPhase('idle');
     };
 
-    // ========== 완료 처리 ==========
     const handleFinish = () => {
         const overallResult = calculateOverallLevel(results as WorkingMemoryResult);
         onComplete({
@@ -286,53 +277,192 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         } as WorkingMemoryResult);
     };
 
-    // ========== 렌더링 ==========
-    const renderSelectionScreen = () => (
-        <div className="p-6 space-y-6">
-            <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
-                    🧩 작업 기억 용량 테스트
-                </h2>
-                <p className="text-gray-600 dark:text-gray-300">
-                    머리(RAM)의 크기를 측정하여 최적 학습 전략을 제안합니다.
-                </p>
-                {careType && careType !== CareType.UNASSESSED && (
-                    <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                        <p className="text-sm text-purple-700 dark:text-purple-300">
-                            💡 <strong>{careType}</strong> 유형에게 권장되는 검사:{' '}
-                            {recommendedTests.map((t, i) => (
-                                <span key={t}>
-                                    {WORKING_MEMORY_TEST_INFO[t]?.title.split(' ')[0]}
-                                    {i < recommendedTests.length - 1 ? ', ' : ''}
-                                </span>
-                            ))}
-                        </p>
-                    </div>
-                )}
+    // ========== Simulation Modal ==========
+    const renderSimulationModal = () => {
+        if (!simulationType) return null;
 
-                {/* 완료 버튼 */}
-                <div className="mt-4">
+        const demoData: Record<WorkingMemoryTestType, { title: string; steps: { num: number; stimulus: string; desc: string; action: string; badge: string }[] }> = {
+            nBack1: {
+                title: '1-Back 테스트 시뮬레이션',
+                steps: [
+                    { num: 1, stimulus: 'A', desc: '첫 번째 글자입니다. (기억해 둡니다)', action: '직전 글자가 없으므로 [대기]', badge: '대기 단계' },
+                    { num: 2, stimulus: 'A', desc: '두 번째 글자입니다. 직전 글자(A)와 같습니다!', action: '[같음!] 버튼 클릭!', badge: '정답 (클릭)' },
+                    { num: 3, stimulus: 'C', desc: '세 번째 글자입니다. 직전 글자(A)와 다릅니다.', action: '버튼을 누르지 않고 대기', badge: '정답 (통과)' }
+                ]
+            },
+            nBack2: {
+                title: '2-Back 테스트 시뮬레이션',
+                steps: [
+                    { num: 1, stimulus: 'B', desc: '첫 번째 문자입니다.', action: '2개 전 글자가 없으므로 [대기]', badge: '대기 단계' },
+                    { num: 2, stimulus: 'D', desc: '두 번째 문자입니다.', action: '2개 전 글자가 없으므로 [대기]', badge: '대기 단계' },
+                    { num: 3, stimulus: 'B', desc: '세 번째 문자입니다. 2개 전 문자(1번째 B)와 일치합니다!', action: '[같음!] 버튼 클릭!', badge: '정답 (클릭)' }
+                ]
+            },
+            digitSpan: {
+                title: '숫자 따라하기 (Digit Span) 시뮬레이션',
+                steps: [
+                    { num: 1, stimulus: '4 → 8 → 2', desc: '숫자가 1초 간격으로 한 자리씩 깜빡입니다.', action: '화면의 숫자를 기억합니다.', badge: '기억 단계' },
+                    { num: 2, stimulus: '입력: 4 8 2', desc: '순방향인 경우 순서대로 입력합니다.', action: '키보드로 "482" 입력 후 [확인]', badge: '순방향' },
+                    { num: 3, stimulus: '입력: 2 8 4', desc: '역방향인 경우 뒤에서부터 역순으로 입력합니다.', action: '키보드로 "284" 입력 후 [확인]', badge: '역방향' }
+                ]
+            }
+        };
+
+        const currentDemo = demoData[simulationType];
+        const stepInfo = currentDemo.steps[simulationStep];
+
+        return (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md animate-in fade-in">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6">
+                    <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white">{currentDemo.title}</h3>
+                                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">예시 {simulationStep + 1} / 3</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setSimulationType(null)}
+                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-800/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 text-center space-y-4">
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">화면 표시 시뮬레이션</div>
+                        <div className="h-28 flex items-center justify-center bg-white dark:bg-slate-900 rounded-2xl shadow-inner border border-slate-200 dark:border-slate-700">
+                            <span className="text-4xl md:text-5xl font-black text-indigo-600 dark:text-indigo-400 tracking-wider">
+                                {stepInfo.stimulus}
+                            </span>
+                        </div>
+                        <div className="space-y-1.5 text-left bg-indigo-50 dark:bg-indigo-950/40 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/60">
+                            <p className="text-xs font-bold text-indigo-900 dark:text-indigo-300">설명: {stepInfo.desc}</p>
+                            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">행동: {stepInfo.action}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center gap-3">
+                        {simulationStep < 2 ? (
+                            <button
+                                onClick={() => setSimulationStep(prev => prev + 1)}
+                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                            >
+                                다음 예시 ({simulationStep + 2}/3) →
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    const t = simulationType;
+                                    setSimulationType(null);
+                                    setCurrentTest(t);
+                                    if (t === 'digitSpan') startDigitSpan();
+                                    else if (t === 'nBack1') startNBack(1);
+                                    else if (t === 'nBack2') startNBack(2);
+                                }}
+                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                            >
+                                이해 완료! 검사 시작하기 →
+                            </button>
+                        )}
+                        <button
+                            onClick={() => {
+                                const t = simulationType;
+                                setSimulationType(null);
+                                setCurrentTest(t);
+                                if (t === 'digitSpan') startDigitSpan();
+                                else if (t === 'nBack1') startNBack(1);
+                                else if (t === 'nBack2') startNBack(2);
+                            }}
+                            className="px-3.5 py-3 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 text-xs font-bold"
+                        >
+                            건너뛰기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderResultPreview = (type: WorkingMemoryTestType) => {
+        if (type === 'digitSpan' && results.digitSpan) {
+            return (
+                <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/60">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        순방향: {results.digitSpan.forwardSpan}자리 • 역방향: {results.digitSpan.backwardSpan}자리
+                    </p>
+                </div>
+            );
+        }
+        if (type === 'nBack1' && results.nBack1) {
+            return (
+                <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/60">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        1-Back 정확도: {results.nBack1.accuracy}%
+                    </p>
+                </div>
+            );
+        }
+        if (type === 'nBack2' && results.nBack2) {
+            return (
+                <div className="mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800/60">
+                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        2-Back 정확도: {results.nBack2.accuracy}%
+                    </p>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const renderSelectionScreen = () => (
+        <div className="p-6 md:p-8 space-y-6 relative">
+            {renderSimulationModal()}
+
+            <div className="text-center mb-6 max-w-2xl mx-auto">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs mb-3">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    <span>Cognitive Capacity Assessment</span>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
+                    작업 기억 용량 검사 (Working Memory)
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    전두엽의 정보 처리 용량(RAM)을 정밀 측정하여 최적의 시험 시간 분배 및 복합 사고 전략을 도출합니다.
+                </p>
+
+                {/* 권장 가이드 카드 */}
+                <div className="mt-4 p-4 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl text-left space-y-1.5 shadow-sm">
+                    <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-black text-xs">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span>검사 가이드라인</span>
+                    </div>
+                    <p className="text-xs text-indigo-950 dark:text-indigo-200 font-medium leading-relaxed">
+                        <b>1-Back</b>과 <b>2-Back</b> 검사를 진행하시는 것을 권장하며, 1개 이상 완료 시 다음 단계로 진행하실 수 있습니다. 실수하셨다면 언제든 [재도전] 가능합니다.
+                    </p>
+                </div>
+
+                {/* 다음 단계 진행 버튼 */}
+                <div className="mt-5">
                     <button
                         onClick={handleFinish}
-                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedTests.size > 0
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        className={`w-full py-3.5 rounded-2xl font-black text-sm md:text-base transition-all shadow-md ${completedTests.size > 0
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-emerald-200 dark:shadow-none'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
                             }`}
                         disabled={completedTests.size === 0}
                     >
                         {completedTests.size > 0
-                            ? `✅ ${completedTests.size}개 검사 완료! 다음 단계로 →`
-                            : '검사를 시작해 주세요'}
+                            ? `${completedTests.size}개 검사 완료 • 다음 단계로 진행 →`
+                            : '아래 검사 항목 중 하나를 선택해 주세요'}
                     </button>
-                    {completedTests.size > 0 && (
-                        <p className="text-xs text-gray-500 mt-2">
-                            ({completedTests.size}/{Object.keys(WORKING_MEMORY_TEST_INFO).length} 검사 완료)
-                        </p>
-                    )}
                 </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-3.5 max-w-2xl mx-auto">
                 {(Object.keys(WORKING_MEMORY_TEST_INFO) as WorkingMemoryTestType[]).map(type => {
                     const info = WORKING_MEMORY_TEST_INFO[type];
                     const isCompleted = completedTests.has(type);
@@ -341,176 +471,153 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                     return (
                         <div
                             key={type}
-                            className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${isCompleted
-                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                            className={`p-5 rounded-2xl border transition-all ${isCompleted
+                                ? 'border-emerald-300 dark:border-emerald-800/80 bg-emerald-50/50 dark:bg-emerald-950/20'
                                 : isRecommended
-                                    ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:shadow-lg'
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                                    ? 'border-indigo-300 dark:border-indigo-800/80 bg-indigo-50/30 dark:bg-indigo-950/20 hover:shadow-md'
+                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                                 }`}
-                            onClick={() => {
-                                if (isCompleted) return;
-                                setCurrentTest(type);
-                                if (type === 'digitSpan') startDigitSpan();
-                                else if (type === 'nBack1') startNBack(1);
-                                else if (type === 'nBack2') startNBack(2);
-                            }}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-3xl">{info.icon}</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-start gap-3.5">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
+                                    </div>
                                     <div>
-                                        <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
-                                            {info.title}
-                                            {isRecommended && !isCompleted && (
-                                                <span className="text-xs bg-purple-500 text-white px-2 py-0.5 rounded-full">추천</span>
-                                            )}
+                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                            <h3 className="font-black text-sm md:text-base text-slate-900 dark:text-white">
+                                                {info.title}
+                                            </h3>
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                                                {info.badge || info.difficulty}
+                                            </span>
                                             {isCompleted && (
-                                                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">완료</span>
+                                                <span className="text-[10px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-md">완료됨</span>
                                             )}
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{info.description}</p>
+                                        </div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{info.description}</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <span className="text-xs text-gray-400">{info.time}</span>
-                                    <div className="text-xs text-gray-400 mt-1">
-                                        난이도: <span className={info.difficulty === '어려움' ? 'text-red-500' : info.difficulty === '보통' ? 'text-orange-500' : 'text-green-500'}>{info.difficulty}</span>
-                                    </div>
-                                    {!isCompleted && (
-                                        <div className="mt-1 text-purple-500">
-                                            <span className="text-sm">시작 →</span>
-                                        </div>
-                                    )}
+
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSimulationType(type);
+                                            setSimulationStep(0);
+                                        }}
+                                        className="px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold shadow-sm transition-all"
+                                    >
+                                        3문제 시뮬레이션
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCurrentTest(type);
+                                            if (type === 'digitSpan') startDigitSpan();
+                                            else if (type === 'nBack1') startNBack(1);
+                                            else if (type === 'nBack2') startNBack(2);
+                                        }}
+                                        className={`px-3.5 py-2 text-white font-bold rounded-xl text-xs shadow-sm transition-all ${isCompleted
+                                            ? 'bg-slate-700 hover:bg-slate-800'
+                                            : 'bg-indigo-600 hover:bg-indigo-700'
+                                            }`}
+                                    >
+                                        {isCompleted ? '재도전' : '검사 시작'}
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* 완료된 검사 결과 미리보기 */}
                             {isCompleted && renderResultPreview(type)}
                         </div>
                     );
                 })}
             </div>
 
-            <div className="flex flex-col gap-3 pt-4 border-t dark:border-gray-700">
-                <div className="flex justify-between">
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300"
-                    >
-                        ← 이전 단계
-                    </button>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                        완료: {completedTests.size}/{Object.keys(WORKING_MEMORY_TEST_INFO).length} 검사
-                    </div>
-                </div>
+            <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-800 max-w-2xl mx-auto">
                 <button
-                    onClick={handleFinish}
-                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedTests.size > 0
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 hover:shadow-xl'
-                        : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
-                        }`}
+                    onClick={onClose}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 font-bold text-xs transition-colors"
                 >
-                    {completedTests.size > 0
-                        ? `✅ 검사 완료 - 다음 단계로 →`
-                        : '⚠️ 최소 1개 이상의 검사를 완료해 주세요'}
+                    ← 이전 단계
                 </button>
+                <div className="text-xs text-slate-500 font-semibold">
+                    완료 항목: {completedTests.size}/{Object.keys(WORKING_MEMORY_TEST_INFO).length}
+                </div>
             </div>
         </div>
     );
 
-    const renderResultPreview = (type: WorkingMemoryTestType) => {
-        if (type === 'digitSpan' && results.digitSpan) {
-            return (
-                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                        순방향: {results.digitSpan.forwardSpan}자리 • 역방향: {results.digitSpan.backwardSpan}자리
-                    </p>
-                </div>
-            );
-        }
-        if (type === 'nBack1' && results.nBack1) {
-            return (
-                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                        정확도: {results.nBack1.accuracy}%
-                    </p>
-                </div>
-            );
-        }
-        if (type === 'nBack2' && results.nBack2) {
-            return (
-                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                    <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                        정확도: {results.nBack2.accuracy}%
-                    </p>
-                </div>
-            );
-        }
-        return null;
-    };
-
     // Digit Span 테스트 UI
     const renderDigitSpanTest = () => (
-        <div className="p-6 space-y-6">
+        <div className="p-6 md:p-8 space-y-6 max-w-lg mx-auto">
             <div className="text-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white">
-                    🔢 숫자 따라하기 ({dsPhase === 'forward' ? '순방향' : '역방향'})
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs mb-2">
+                    <span>Digit Span Test</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                    숫자 기억 검사 ({dsPhase === 'forward' ? '순방향' : '역방향'})
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {dsPhase === 'forward'
-                        ? '보이는 숫자를 순서대로 입력하세요'
-                        : '보이는 숫자를 거꾸로 입력하세요'}
+                        ? '화면에 표시된 숫자를 처음 순서대로 입력하세요'
+                        : '화면에 표시된 숫자를 거꾸로 역순으로 입력하세요'}
                 </p>
-                <div className="mt-2 text-lg font-bold text-purple-600">
-                    현재: {dsCurrentLength}자리
+                <div className="mt-3 font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                    현재 길이: {dsCurrentLength}자리
                 </div>
             </div>
 
-            {/* 숫자 표시 영역 */}
-            <div className="flex justify-center items-center h-40 bg-gray-100 dark:bg-gray-800 rounded-2xl">
+            <div className="flex justify-center items-center h-44 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-inner">
                 {dsTestPhase === 'showing' && dsShowingIndex < dsCurrentSequence.length && (
-                    <div className="text-8xl font-bold text-purple-600 animate-pulse">
+                    <div className="text-7xl md:text-8xl font-black text-indigo-600 dark:text-indigo-400 animate-pulse">
                         {dsCurrentSequence[dsShowingIndex]}
                     </div>
                 )}
                 {dsTestPhase === 'showing' && dsShowingIndex >= dsCurrentSequence.length && (
-                    <div className="text-2xl text-gray-400">준비 중...</div>
+                    <div className="text-sm font-bold text-slate-400">준비 중...</div>
                 )}
                 {dsTestPhase === 'input' && (
-                    <div className="text-center">
-                        <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">
-                            {dsPhase === 'forward' ? '순서대로' : '거꾸로'} 입력하세요
+                    <div className="text-center w-full px-6">
+                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-3">
+                            {dsPhase === 'forward' ? '순서대로' : '거꾸로(역순)'} 입력 후 엔터를 누르세요
                         </p>
                         <input
                             ref={inputRef}
                             type="text"
                             inputMode="numeric"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                             value={dsUserInput}
-                            onChange={e => setDsUserInput(e.target.value.replace(/\D/g, ''))}
+                            onChange={e => setDsUserInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
                             onKeyDown={e => e.key === 'Enter' && handleDigitSubmit()}
-                            className="w-48 text-center text-3xl py-3 border-2 border-purple-400 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            className="w-48 text-center font-mono font-bold py-3 bg-white dark:bg-slate-900 border-2 border-indigo-500 rounded-xl focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-950 focus:outline-none touch-manipulation"
+                            style={{ fontSize: '18px' }}
                             placeholder="숫자 입력"
                             autoFocus
                         />
                         <button
-                            onClick={handleDigitSubmit}
-                            className="block mx-auto mt-4 px-8 py-2 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600"
+                            onPointerDown={(e) => { e.preventDefault(); handleDigitSubmit(); }}
+                            className="block mx-auto mt-3 px-6 min-h-[44px] min-w-[88px] py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 active:scale-95 shadow-sm touch-manipulation select-none"
                         >
                             확인
                         </button>
                     </div>
                 )}
                 {dsTestPhase === 'feedback' && dsFeedbackMessage && (
-                    <div className={`text-2xl font-bold ${dsFeedbackMessage.correct ? 'text-green-500' : 'text-red-500'}`}>
+                    <div className={`text-base font-black ${dsFeedbackMessage.correct ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {dsFeedbackMessage.message}
                     </div>
                 )}
             </div>
 
-            {/* 진행 상황 */}
-            <div className="flex justify-between text-sm text-gray-500">
+            <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
                 <span>페이즈: {dsPhase === 'forward' ? '1/2 (순방향)' : '2/2 (역방향)'}</span>
-                <span>연속 실패: {dsConsecutiveFails}/{DIGIT_SPAN_CONFIG.triesPerLength}</span>
+                <span>오답 카운트: {dsConsecutiveFails}/{DIGIT_SPAN_CONFIG.triesPerLength}</span>
             </div>
 
             <button
@@ -518,82 +625,82 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
                     setCurrentTest(null);
                     setDsTestPhase('idle');
                 }}
-                className="w-full py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200"
             >
-                ← 돌아가기
+                ← 검사 목록으로
             </button>
         </div>
     );
 
     // N-Back 테스트 UI
     const renderNBackTest = () => (
-        <div className="p-6 space-y-6">
+        <div className="p-6 md:p-8 space-y-6 max-w-lg mx-auto">
             <div className="text-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white">
-                    {nBackLevel === 1 ? '1️⃣' : '2️⃣'} {nBackLevel}-Back 테스트
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs mb-2">
+                    <span>N-Back Protocol</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                    {nBackLevel}-Back 실시간 인지 검사
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {nBackLevel}개 전 문자와 같으면 버튼을 누르세요!
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    지금 나오는 글자가 <span className="font-bold text-indigo-600 dark:text-indigo-400">{nBackLevel}개 전</span> 문자와 일치하면 버튼을 누르세요.
                 </p>
             </div>
 
-            {/* 자극 표시 영역 */}
-            <div className="flex justify-center items-center h-48 bg-gray-100 dark:bg-gray-800 rounded-2xl relative">
+            <div className="flex justify-center items-center h-48 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl relative shadow-inner">
                 {nBackShowCurrent && nBackIndex < nBackSequence.length && (
-                    <div className="text-9xl font-bold text-indigo-600 animate-bounce">
+                    <div className="text-8xl font-black text-indigo-600 dark:text-indigo-400 scale-100 animate-in zoom-in-50 duration-150">
                         {nBackSequence[nBackIndex].value}
                     </div>
                 )}
                 {!nBackShowCurrent && nBackIndex < nBackSequence.length && (
-                    <div className="text-4xl text-gray-300">+</div>
+                    <div className="text-4xl text-slate-300 dark:text-slate-600">+</div>
                 )}
                 {nBackIndex >= nBackSequence.length && (
-                    <div className="text-2xl text-green-500 font-bold">테스트 완료!</div>
+                    <div className="text-lg text-emerald-500 font-black">검사 완료!</div>
                 )}
             </div>
 
-            {/* 응답 버튼 */}
             <button
-                onClick={handleNBackResponse}
+                onPointerDown={(e) => { e.preventDefault(); handleNBackResponse(); }}
                 disabled={!nBackShowCurrent || nBackUserResponded || nBackIndex >= nBackSequence.length}
-                className={`w-full py-6 rounded-xl font-bold text-2xl transition-all duration-200 ${
-                    nBackUserResponded
-                        ? 'bg-green-500 text-white scale-[0.98] shadow-inner'
-                        : !nBackShowCurrent
-                            ? 'bg-gray-200 text-gray-400'
-                            : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg active:scale-95'
-                }`}
+                className={`w-full py-4 min-h-[56px] rounded-2xl font-black text-lg transition-all duration-150 touch-none select-none [-webkit-tap-highlight-color:transparent] ${nBackUserResponded
+                    ? 'bg-emerald-600 text-white shadow-inner scale-[0.98]'
+                    : !nBackShowCurrent
+                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-700 hover:to-blue-700 shadow-lg shadow-indigo-200 dark:shadow-none active:scale-95'
+                    }`}
             >
-                {nBackUserResponded ? '✅ 선택 완료' : '🎯 같음!'}
+                {nBackUserResponded ? '선택 완료' : '일치! (Target)'}
             </button>
 
-            {/* 진행 상황 */}
-            <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                    className="bg-indigo-500 h-2 rounded-full transition-all"
-                    style={{ width: `${(nBackIndex / nBackSequence.length) * 100}%` }}
-                />
+            <div className="space-y-2">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                        className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${(nBackIndex / Math.max(1, nBackSequence.length)) * 100}%` }}
+                    />
+                </div>
+                <p className="text-center text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                    진행: {nBackIndex} / {nBackSequence.length}
+                </p>
             </div>
-            <p className="text-center text-sm text-gray-500">
-                {nBackIndex} / {nBackSequence.length}
-            </p>
 
             <button
                 onClick={() => {
                     setCurrentTest(null);
                     setNBackTestPhase('idle');
                 }}
-                className="w-full py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200"
             >
-                ← 돌아가기 (결과 저장 안됨)
+                ← 검사 중단 및 목록으로
             </button>
         </div>
     );
 
-    // 메인 렌더링
     if (isInline) {
         return (
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl w-full border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 {currentTest === null && renderSelectionScreen()}
                 {currentTest === 'digitSpan' && renderDigitSpanTest()}
                 {(currentTest === 'nBack1' || currentTest === 'nBack2') && renderNBackTest()}
@@ -601,10 +708,9 @@ export const WorkingMemoryAssessment: React.FC<WorkingMemoryAssessmentProps> = (
         );
     }
 
-    // 모달 모드
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
                 {currentTest === null && renderSelectionScreen()}
                 {currentTest === 'digitSpan' && renderDigitSpanTest()}
                 {(currentTest === 'nBack1' || currentTest === 'nBack2') && renderNBackTest()}

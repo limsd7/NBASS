@@ -128,7 +128,7 @@ export const QUICK_ACTIONS: Partial<Record<CareType, QuickAction[]>> = {
             id: 'focus_1',
             icon: '🎯',
             title: '단일 초점 응시 훈련',
-            description: '시각적 집중을 통한 뇌파(M-Beta) 정렬',
+            description: '시각적 집중을 통한 인지 몰입도 정렬',
             duration: 2,
             implementation: '벽면의 점이나 작은 물체 하나를 정해두고 깜빡임을 최소화하며 2분간 응시하세요.',
             results: { expectedCoherenceImprovement: 20, timeToEffect: '즉시' }

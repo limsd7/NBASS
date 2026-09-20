@@ -4,7 +4,7 @@ export function useDarkMode() {
     const [isDarkMode, setIsDarkMode] = useState(() => {
         const saved = localStorage.getItem('darkMode');
         if (saved !== null) return saved === 'true';
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return false; // Default to bright/light mode
     });
 
     useEffect(() => {

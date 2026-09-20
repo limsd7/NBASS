@@ -5,8 +5,24 @@ interface NavGroup {
     links: { id: string; label: string; icon?: string }[];
 }
 
-export const ReportNavigator: React.FC = () => {
+interface ReportNavigatorProps {
+    isExpertUser?: boolean;
+}
+
+export const ReportNavigator: React.FC<ReportNavigatorProps> = ({ isExpertUser = false }) => {
     const [activeId, setActiveId] = useState<string>('');
+
+    const expertLinks = [
+        { id: "section-medical-analysis", label: "의학적 정밀 분석" },
+        { id: "section-mind-prescription", label: "오늘의 마음 처방전" },
+        { id: "section-gamification", label: "인지 훈련 (Gamification)" },
+        { id: "section-expert-memo", label: "전문가 소견 (Secret Point)" },
+        { id: "section-charts", label: "생체 데이터 차트 분석" },
+        { id: "section-nutrition", label: "맞춤형 영양 처방 (Nutrition)" },
+        { id: "section-ai-schedule", label: "AI 최적 학습 스케줄링" },
+        { id: "section-mental-health", label: "정신건강 처방전" },
+        ...(isExpertUser ? [{ id: "section-ai-assistant", label: "나의 전문소견 & AI 보조 어시스턴트" }] : [])
+    ];
 
     const navGroups: NavGroup[] = [
         {
@@ -31,7 +47,6 @@ export const ReportNavigator: React.FC = () => {
                 { id: "section-4-2", label: "최적 두뇌 가동 골든타임표" },
                 { id: "section-5", label: "자율신경 균형에 따른 공부법" },
                 { id: "section-5-2", label: "Vitality & Fatigue Index" },
-                { id: "section-5-3", label: "Brain Balance Radar 분석" },
                 { id: "section-5-4", label: "Stress & Concentration Gauge" },
                 { id: "section-5-5", label: "통합 학습 최적화 요약" },
                 { id: "section-5-6", label: "통합 인지 진단" },
@@ -42,17 +57,7 @@ export const ReportNavigator: React.FC = () => {
         },
         {
             title: "전문가 심층 처방 (Expert)",
-            links: [
-                { id: "section-medical-analysis", label: "의학적 정밀 분석" },
-                { id: "section-mind-prescription", label: "오늘의 마음 처방전" },
-                { id: "section-gamification", label: "인지 훈련 (Gamification)" },
-                { id: "section-expert-memo", label: "전문가 소견 (Secret Point)" },
-                { id: "section-charts", label: "생체 데이터 차트 분석" },
-                { id: "section-nutrition", label: "맞춤형 영양 처방 (Nutrition)" },
-                { id: "section-ai-schedule", label: "AI 최적 학습 스케줄링" },
-                { id: "section-mental-health", label: "정신건강 처방전" },
-                { id: "section-ai-assistant", label: "나의 전문소견 & AI 보조 어시스턴트" }
-            ]
+            links: expertLinks
         }
     ];
 
@@ -86,7 +91,7 @@ export const ReportNavigator: React.FC = () => {
         const element = document.getElementById(id);
         if (element) {
             // Account for possible sticky headers
-            const y = element.getBoundingClientRect().top + window.scrollY - 100;
+            const y = element.getBoundingClientRect().top + window.scrollY - 210;
             window.scrollTo({ top: y, behavior: 'smooth' });
             setActiveId(id);
         } else {
@@ -95,7 +100,7 @@ export const ReportNavigator: React.FC = () => {
     };
 
     return (
-        <div className="sticky top-24 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm max-h-[calc(100vh-8rem)] overflow-y-auto no-print">
+        <div className="sticky top-[200px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm max-h-[calc(100vh-14rem)] overflow-y-auto no-print">
             <h3 className="font-black text-slate-800 mb-4 flex items-center gap-2">
                 <span className="text-indigo-600">📑</span> Report Navigator
             </h3>

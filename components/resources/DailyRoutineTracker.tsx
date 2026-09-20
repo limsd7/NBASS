@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DailyRoutineData } from '../../data/resourceContents';
-import DatabaseService from '../../services/database';
+import DatabaseService from '../../services/unifiedSyncService';
 import { RoutineCalendarModal } from '../modals/RoutineCalendarModal';
 
 interface DailyRoutineTrackerProps {

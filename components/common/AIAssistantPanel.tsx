@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { generateAIResponse } from '../../services/aiService';
-import { AIModelConfig } from '../../types';
+import { AIModelConfig, MembershipTier } from '../../types';
 
 interface AIAssistantPanelProps {
     contextData: any;
     systemPrompt: string;
     buttonLabel?: string;
     aiModels: AIModelConfig | null;
-    membershipTier?: 'free' | 'basic' | 'premium' | 'vip' | 'standard';
+    membershipTier?: MembershipTier | string;
 }
 
 export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({ 
@@ -21,8 +21,9 @@ export const AIAssistantPanel: React.FC<AIAssistantPanelProps> = ({
     const [response, setResponse] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // If no AI models are configured, don't show the panel at all
-    if (!aiModels || (!aiModels.geminiKey && !aiModels.sonnetKey && !aiModels.localModelUrl)) {
+    // If no AI models and no env key configured, don't show the panel
+    const hasApiKey = !!(aiModels?.openRouterKey || aiModels?.geminiKey || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENROUTER_API_KEY));
+    if (!aiModels && !hasApiKey) {
         return null;
     }
 

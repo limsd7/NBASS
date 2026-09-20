@@ -1,16 +1,33 @@
-import React, { useMemo } from 'react';
-import { CareType, LearningAnalyticsData, SleepPrescription } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { CareType, LearningAnalyticsData, SleepPrescription, SleepRecord } from '../../types';
 import { generateSleepPrescription } from '../../utils/sleepLogic';
+import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
 
 interface SleepDashboardProps {
   careType: CareType;
   analytics: LearningAnalyticsData;
+  studentId?: string;
+  sleepRecords?: SleepRecord[];
 }
 
-export const SleepDashboard: React.FC<SleepDashboardProps> = ({ careType, analytics }) => {
+export const SleepDashboard: React.FC<SleepDashboardProps> = ({ careType, analytics, studentId, sleepRecords: propRecords }) => {
+  const [loadedRecords, setLoadedRecords] = useState<SleepRecord[]>(propRecords || []);
+
+  useEffect(() => {
+    if (propRecords) {
+      setLoadedRecords(propRecords);
+    } else if (studentId) {
+      DatabaseService.getSleepRecords(studentId).then(records => {
+        if (records && records.length > 0) {
+          setLoadedRecords(records);
+        }
+      }).catch(err => console.error('Failed to load sleep records in SleepDashboard:', err));
+    }
+  }, [studentId, propRecords]);
+
   const prescription: SleepPrescription = useMemo(() => 
-    generateSleepPrescription(careType, analytics), 
-  [careType, analytics]);
+    generateSleepPrescription(careType, analytics, loadedRecords), 
+  [careType, analytics, loadedRecords]);
 
   const styles = {
     container: {
@@ -89,6 +106,17 @@ export const SleepDashboard: React.FC<SleepDashboardProps> = ({ careType, analyt
         {prescription.sleepStrategy}
       </p>
 
+      {/* [NEW] 실측 수면 데이터 역피드백 배너 */}
+      {prescription.feedbackFromRecords && (
+        <div className="mb-6 p-4 bg-indigo-950/70 border border-indigo-500/40 rounded-xl flex items-start gap-3">
+          <span className="text-2xl">📊</span>
+          <div className="text-sm leading-relaxed text-indigo-100">
+            <strong className="text-amber-300 font-bold block mb-1">실시간 수면 기록 피드백 연동</strong>
+            {prescription.feedbackFromRecords}
+          </div>
+        </div>
+      )}
+
       <div style={styles.grid}>
         <div style={styles.card}>
           <div style={styles.cardTitle}>권장 취침 시간</div>
@@ -100,7 +128,14 @@ export const SleepDashboard: React.FC<SleepDashboardProps> = ({ careType, analyt
         </div>
         <div style={styles.card}>
           <div style={styles.cardTitle}>목표 수면 시간</div>
-          <div style={styles.cardValue}>{prescription.targetSleepDuration} 시간</div>
+          <div style={styles.cardValue}>
+            {prescription.targetSleepDuration} 시간
+            {prescription.actualSleepAvg && (
+              <span className="text-xs text-indigo-300 font-normal ml-2">
+                (실측: {prescription.actualSleepAvg}h)
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

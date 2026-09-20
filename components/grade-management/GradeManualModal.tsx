@@ -19,25 +19,49 @@ export const GradeManualModal: React.FC<GradeManualModalProps> = ({ isOpen, onCl
         </div>
 
         <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-800">
-            <h4 className="font-bold text-blue-900 dark:text-blue-300 text-base mb-2">💡 성적 시뮬레이션 활용법</h4>
-            <p className="leading-relaxed">
-              학생의 현재 원점수/표준점수/백분위/등급 이력을 바탕으로 수능 목표 등급 달성을 위한 영역별 전략을 계산합니다.
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-blue-100 dark:border-indigo-800">
+            <h4 className="font-bold text-indigo-900 dark:text-indigo-300 text-base mb-1.5 flex items-center gap-1.5">
+              <span>🧠</span> 12대 CareType 연계 성적 관리 &amp; 6단계 AI 사다리 훈련
+            </h4>
+            <p className="leading-relaxed text-xs text-slate-600 dark:text-slate-300">
+              단순한 점수 누적을 넘어, 학생의 두뇌 신경인지 상태(번아웃, 시험불안, 저활력, 뇌피로 등)와 국·수·영 취약단원을 연계하여 수능 1·2·3년 듀얼트랙 로드맵과 6단계 사다리 문제를 제공하는 프리미엄 학습 케어 시스템입니다.
             </p>
           </div>
 
-          <div className="space-y-3">
-            <h4 className="font-bold text-slate-800 dark:text-white text-base">주요 기능</h4>
-            <ul className="list-disc pl-5 space-y-2">
-              <li><strong>성적 입력/추이:</strong> 중간/기말/모의고사 등급 추이를 시각적 그래프로 분석</li>
-              <li><strong>목표 설정 (Tier 1~3):</strong> 단계별 현실적 목표와 최종 정복 목표 설정</li>
-              <li><strong>수능 D-Day 로드맵:</strong> D-Day별 일별/주별 뽀모도로 및 과목 밸런스 제안</li>
-              <li><strong>학부모 리포트:</strong> 성적 종합 상황판 및 인쇄용 브리핑 생성</li>
-            </ul>
+          <div className="space-y-4">
+            <h4 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-1.5">
+              <span>📌</span> 8대 핵심 메뉴별 상세 기능
+            </h4>
+            <div className="grid grid-cols-1 gap-2.5 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-blue-600 dark:text-blue-400">1. 📊 대시보드 (Dashboard):</span> 전 과목 최근 성적 추이 차트, OCR 성적표 인식, 12대 CareType 맞춤 국·수·영 사다리 훈련 3분할 밸런스 카드(국어 1위, 수학 1위, 영어 1위) 및 과목별 TOP 3 전환 기능.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-slate-700 dark:text-slate-300">2. 📝 성적 관리 (Grades):</span> 모의고사/학평/내신 성적표 테이블, 취약단원 TOP 1·2·3순위 지정 뱃지, 미지정 시에도 원클릭 사다리 훈련 지원.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">3. 🎯 목표 &amp; AI 플랜 (Goals &amp; Plan):</span> 3단계 등급 목표(Tier 1~3), 목표 대학 정시 컷 자동 연동, 뽀모도로 탄력 타이머 기반 주간 순공 시간 배분.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-purple-600 dark:text-purple-400">4. 🎓 수능 1·2·3년 로드맵 (Roadmap):</span> 고1(3년/12분기), 고2(2년/8분기), 고3·N수(1년/4분기) 전 분기 국·수·영 교과 플랜과 12대 CareType 두뇌 케어 마일스톤의 듀얼트랙 편성 및 자유로운 커스텀 편집.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-rose-600 dark:text-rose-400">5. 🪜 국·수·영 6단계 AI 사다리 (Ladder):</span> 두뇌 프라이밍 ➔ 필수 개념 메타점검 ➔ A(기본 5문항)부터 F(수능 킬러 5문항)까지 30문항 사다리 돌파, 수능 킬러 18대 단원 라이브러리 및 임의 단원 실시간 AI 생성기 탑재.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-teal-600 dark:text-teal-400">6. 🏫 합격 예측 (University):</span> 전국 주요 대학/학과의 최신 수능 환산점수 및 백분위 기준 안정/적정/소신/상향 예측.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-amber-600 dark:text-amber-400">7. 🔮 AI 시뮬레이션 (Simulation):</span> 목표 등급 향상에 따른 전국 백분위 상승 및 합격 가능 대학 군 변동 시뮬레이션.
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">8. 📈 상세 분석 (Analysis):</span> 누적 시험 편차 통계, 과목별 취약 영역 상관도, 단원 정복률 심층 분석.
+              </div>
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end">
-            <button onClick={onClose} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
+            <button onClick={onClose} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors cursor-pointer">
               확인
             </button>
           </div>

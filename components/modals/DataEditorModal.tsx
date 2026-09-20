@@ -141,7 +141,7 @@ export const DataEditorModal: React.FC<DataEditorModalProps> = ({ isOpen, onClos
                         <div className="space-y-1">
                             {[
                                 { id: 'info', label: 'Student Info', icon: '👤' },
-                                { id: 'hrv', label: data.hrv.portableHrv ? 'Biometrics (Portable)' : 'HRV / EEG (Clinical)', icon: data.hrv.portableHrv ? '📱' : '🧠' },
+                                { id: 'hrv', label: '자율신경 지표 (ANS)', icon: '💓' },
                                 { id: 'medical', label: 'Medical (Blood Test)', icon: '🩺', hidden: !data.bloodTest },
                                 { id: 'protocol', label: 'Protocol', icon: '📋' },
                                 { id: 'survey', label: 'Surveys', icon: '📝' },

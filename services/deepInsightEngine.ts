@@ -34,7 +34,7 @@ export const generateDeepInsight = (result: AssessmentResult): DeepInsight => {
             title: "교감신경 과열 & 인지 효율 저하",
             items: [
                 { label: "뇌 건강점수", value: `${hrv.brainScore}점`, impact: "번아웃 위험", severity: hrv.brainScore < 70 ? 'high' : 'medium' },
-                { label: "긴장도(High-Beta)", value: `${hrv.eegHBeta}%`, impact: "정보 처리 차단", severity: hrv.eegHBeta > 20 ? 'high' : 'medium' },
+                { label: "신경 긴장도", value: `${hrv.sns || 60}%`, impact: "정보 처리 차단", severity: (hrv.sns || 60) > 60 ? 'high' : 'medium' },
                 { label: "신체 스트레스", value: `${hrv.physicalStress}%`, impact: "만성 피로 누적", severity: hrv.physicalStress > 60 ? 'high' : 'medium' }
             ]
         });
@@ -85,7 +85,7 @@ export const generateDeepInsight = (result: AssessmentResult): DeepInsight => {
             items: [
                 { label: "집중도", value: `${hrv.concentrationLevel}`, impact: "학습 밀도 저하", severity: hrv.concentrationLevel < 6 ? 'high' : 'medium' },
                 { label: "순공 비율", value: `${analytics.pureStudyRatio}%`, impact: "시간 낭비 심각", severity: analytics.pureStudyRatio < 60 ? 'high' : 'medium' },
-                { label: "산만도(Theta)", value: `${hrv.eegTheta}%`, impact: "멍 때림", severity: hrv.eegTheta > 15 ? 'high' : 'medium' }
+                { label: "주의 산만도", value: `${protocol.noiseLevel ? protocol.noiseLevel * 10 : 30}%`, impact: "멍 때림 및 집중 누수", severity: (protocol.noiseLevel || 0) > 6 ? 'high' : 'medium' }
             ]
         });
 

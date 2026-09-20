@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { CareType } from '../types';
+import { now as highResNow, calibratedReactionMs, haptic } from '../utils/mobileTestUtils';
 
 // Working Memory imports
 import {
@@ -99,11 +100,11 @@ const COGNITIVE_TEST_INFO: Record<CognitiveTestType, {
     subTests: string[];
 }> = {
     workingMemory: {
-        title: '작업 기억 용량 테스트',
-        description: '머리(RAM)의 크기를 측정합니다. 멀티태스킹과 복합 문제 해결 능력을 평가합니다.',
-        icon: '🧩',
-        time: '약 5-8분',
-        subTests: ['숫자 따라하기 (Digit Span)', 'N-Back 테스트']
+        title: '작업기억력 테스트 (Working Memory)',
+        description: '정보를 일시적으로 유지하고 조작하는 단기 뇌 용량을 측정합니다.',
+        icon: '🧠',
+        time: '약 3-5분',
+        subTests: ['숫자 기억 (Digit Span)', 'N-Back 테스트']
     },
     delayDiscounting: {
         title: '도파민 보상 지연 테스트',
@@ -379,6 +380,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
     };
 
     // ========== N-Back Logic ==========
+    const nBackRespondedRef = useRef(false);
+
     const startNBack = (level: 1 | 2) => {
         setWmSubTest('nBack');
         setNBackLevel(level);
@@ -389,6 +392,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
         setNBackTestPhase('showing');
         setNBackShowCurrent(false);
         setNBackUserResponded(false);
+        nBackRespondedRef.current = false;
     };
 
     useEffect(() => {
@@ -401,6 +405,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
         setNBackShowCurrent(true);
         setNBackUserResponded(false);
+        nBackRespondedRef.current = false;
 
         const config = NBACK_CONFIG[nBackLevel];
         const displayTimer = setTimeout(() => {
@@ -408,7 +413,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
         }, config.displayTimeMs);
 
         const nextTimer = setTimeout(() => {
-            if (!nBackUserResponded) {
+            if (!nBackRespondedRef.current) {
                 setNBackResponses(prev => [...prev, {
                     isTarget: nBackSequence[nBackIndex].isTarget,
                     userResponse: false
@@ -421,12 +426,13 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
             clearTimeout(displayTimer);
             clearTimeout(nextTimer);
         };
-    }, [nBackTestPhase, nBackIndex, nBackSequence, wmSubTest, nBackLevel, nBackUserResponded]);
+    }, [nBackTestPhase, nBackIndex, nBackSequence, wmSubTest, nBackLevel]);
 
     const handleNBackResponse = () => {
-        if (nBackUserResponded || nBackIndex >= nBackSequence.length) return;
+        if (nBackRespondedRef.current || nBackIndex >= nBackSequence.length) return;
 
         setNBackUserResponded(true);
+        nBackRespondedRef.current = true;
         setNBackResponses(prev => [...prev, {
             isTarget: nBackSequence[nBackIndex].isTarget,
             userResponse: true
@@ -699,13 +705,15 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
         setTimeout(() => {
             setRtPhase('ready'); // Green
-            setRtStartTime(Date.now());
+            setRtStartTime(highResNow());
         }, delay);
     };
 
-    const handleReactionClick = () => {
+    const handleReactionClick = (e?: React.PointerEvent | React.MouseEvent) => {
+        if (e) e.preventDefault();
         if (rtPhase === 'waiting') {
             // 부정 출발 (초록색 전 클릭)
+            haptic(40);
             setRtMessage('너무 빨랐습니다! 다시 시도하세요.');
             // 페널티 로직은 복잡해지므로 단순 경고 후 재시작
             setRtPhase('idle');
@@ -713,7 +721,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
         }
 
         if (rtPhase === 'ready') {
-            const reactionTime = Date.now() - rtStartTime;
+            const reactionTime = calibratedReactionMs(rtStartTime, e as { timeStamp?: number });
+            haptic(10);
             const newTimes = [...rtTimes, reactionTime];
             setRtTimes(newTimes);
             setRtPhase('clicked');
@@ -750,113 +759,94 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
     };
 
     // ========== Attention (Go/No-Go) Logic ==========
+    const [atFeedbackText, setAtFeedbackText] = useState<string | null>(null);
+    const atTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+
+    const clearAtTimeouts = () => {
+        atTimeoutsRef.current.forEach(t => clearTimeout(t));
+        atTimeoutsRef.current = [];
+    };
+
     const startAttention = () => {
+        clearAtTimeouts();
         setAtPhase('test');
         setAtTrial(0);
         setAtScore({ correct: 0, commission: 0, omission: 0 });
         setAtReactionTimes([]);
-        scheduleAttentionStimulus();
+        setAtFeedbackText(null);
+        scheduleAttentionStimulus(0);
     };
 
-    const scheduleAttentionStimulus = () => {
-        if (atTrial >= ATTENTION_TEST_CONFIG.totalTrials) {
+    const scheduleAttentionStimulus = (trialNum: number) => {
+        if (trialNum >= ATTENTION_TEST_CONFIG.totalTrials) {
             finishAttention();
             return;
         }
 
-        // Random delay before stimulus
-        setTimeout(() => {
+        // Random delay before stimulus (700ms ~ 1200ms)
+        const delay = 700 + Math.random() * 500;
+        const preTimer = setTimeout(() => {
+            if (document.hidden) return;
             const isNoGo = Math.random() < ATTENTION_TEST_CONFIG.noGoProbability;
             setAtCurrentStimulus(isNoGo ? 'nogo' : 'go');
-            setAtStimulusStartTime(Date.now());
+            setAtStimulusStartTime(highResNow());
+            atClickedRef.current = false;
 
             // Stimulus display time
-            setTimeout(() => {
-                setAtCurrentStimulus(null);
-                // If Go and no click -> Omission Error (handled in next step or via ref? 
-                // Simpler: check if clicked in state, but simpler here is to wait for next trial)
-                // We need to capture omission.
-                // Let's use a timeout for the response window.
-
-                // Wait for Inter-Stimulus Interval then next trial
-                setTimeout(() => {
-                    setAtTrial(prev => prev + 1);
-                    scheduleAttentionStimulus();
-                }, ATTENTION_TEST_CONFIG.interStimulusInterval);
-
-            }, ATTENTION_TEST_CONFIG.displayTimeMs);
-
-        }, 1000);
-    };
-
-    // Need to handle click/response. 
-    // This is tricky with setTimeout loops. 
-    // Refactoring to a simpler effect-based approach or ref-based state for omitting might be safer 
-    // but sticking to this imperative flow:
-    // We'll update the score when the user clicks.
-    // Omission detection needs to happen if user DIDN'T click by end of display time.
-    // For simplicity in this constraints: we will count omission if click didn't happen when 'go' was active.
-
-    // Actually, let's use a specialized effect in the render part or keep it simple.
-    // Let's rely on a ref to track if clicked for current trial.
-    const atClickedRef = useRef(false);
-
-    useEffect(() => {
-        if (atCurrentStimulus) {
-            atClickedRef.current = false;
-            const timer = setTimeout(() => {
-                if (atCurrentStimulus === 'go' && !atClickedRef.current) {
+            const displayTimer = setTimeout(() => {
+                if (isNoGo === false && !atClickedRef.current) {
                     setAtScore(prev => ({ ...prev, omission: prev.omission + 1 }));
                 }
-            }, ATTENTION_TEST_CONFIG.displayTimeMs);
-            return () => clearTimeout(timer);
-        }
-    }, [atCurrentStimulus, atTrial]);
+                setAtCurrentStimulus(null);
 
-    const handleAttentionClick = () => {
+                // Wait for Inter-Stimulus Interval then next trial
+                const isiTimer = setTimeout(() => {
+                    setAtFeedbackText(null);
+                    setAtTrial(trialNum + 1);
+                    if (trialNum + 1 >= ATTENTION_TEST_CONFIG.totalTrials) {
+                        finishAttention();
+                    } else {
+                        scheduleAttentionStimulus(trialNum + 1);
+                    }
+                }, ATTENTION_TEST_CONFIG.interStimulusInterval);
+                atTimeoutsRef.current.push(isiTimer);
+
+            }, ATTENTION_TEST_CONFIG.displayTimeMs);
+            atTimeoutsRef.current.push(displayTimer);
+
+        }, delay);
+        atTimeoutsRef.current.push(preTimer);
+    };
+
+    const atClickedRef = useRef(false);
+
+    const handleAttentionClick = (e?: React.PointerEvent | React.MouseEvent) => {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
         if (!atCurrentStimulus || atClickedRef.current) return;
 
         atClickedRef.current = true;
-        const reactionTime = Date.now() - atStimulusStartTime;
+        const reactionTime = calibratedReactionMs(atStimulusStartTime, e as { timeStamp?: number });
+        haptic(10);
 
         if (atCurrentStimulus === 'go') {
             setAtScore(prev => ({ ...prev, correct: prev.correct + 1 }));
             setAtReactionTimes(prev => [...prev, reactionTime]);
+            setAtFeedbackText(`✅ 잘 눌렀습니다! (${reactionTime}ms)`);
         } else {
             // No-Go Clicked -> Commission Error
             setAtScore(prev => ({ ...prev, commission: prev.commission + 1 }));
+            setAtFeedbackText(`⚠️ No-Go 신호(빨간색)는 클릭하면 안 됩니다!`);
         }
 
-        // Hide stimulus immediately on click to give feedback? 
-        // Or keep it? Usually keep it.
-        setAtCurrentStimulus(null); // Immediate feedback: disappear
+        setAtCurrentStimulus(null); // Immediate disappearance
     };
 
-    // Correct logic for scheduling next trial needs to handle the 'early exit' from click.
-    // But since we have a nested setTimeout in scheduleAttentionStimulus, it overrides.
-    // Use a Ref to cancel timeouts? 
-    // Given the constraints and existing code style, I'll stick to a simpler implementation:
-    // User clicks -> sets state. The main loop continues running regardless.
-    // The Omission check is done in the useEffect.
-
     const finishAttention = () => {
-        const total = ATTENTION_TEST_CONFIG.totalTrials;
-        const accuracy = Math.round(((atScore.correct + (total * ATTENTION_TEST_CONFIG.noGoProbability - atScore.commission)) / total) * 100);
-        // Simplified accuracy: (Correct Gos + Correct No-Gos) / Total
-        // But simpler: just use Correct Go % or something. 
-        // Let's use standard accuracy: (Correct Responses / Total Trials) * 100
-        // Correct Response = Clicked on Go + Not Clicked on No-Go
-        // Total No-Go = Total * Prob. 
-        // Correct No-Go = Total No-Go - Commission.
-        // Total Go = Total - Total No-Go.
-        // Correct Go = atScore.correct.
-
-        // Actually, just calculating simplistic accuracy:
-        // (Correct Go + Correct Rejection) / Total * 100
+        clearAtTimeouts();
+        const total = Math.max(atTrial + 1, ATTENTION_TEST_CONFIG.totalTrials);
         const noGoCount = Math.round(total * ATTENTION_TEST_CONFIG.noGoProbability);
-        const goCount = total - noGoCount;
-        const correctRejection = noGoCount - atScore.commission;
-        const finalAccuracy = Math.round(((atScore.correct + correctRejection) / total) * 100);
+        const correctRejection = Math.max(0, noGoCount - atScore.commission);
+        const finalAccuracy = Math.min(100, Math.max(0, Math.round(((atScore.correct + correctRejection) / total) * 100)));
 
         const avgReactionTime = atReactionTimes.length > 0
             ? Math.round(atReactionTimes.reduce((a, b) => a + b, 0) / atReactionTimes.length)
@@ -875,8 +865,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
         setResults(prev => ({ ...prev, attention: result }));
         setCompletedTests(prev => new Set([...prev, 'attention']));
-        setCurrentTest(null);
-        setAtPhase('idle');
+        setAtPhase('complete');
     };
 
     // ========== 전체 완료 ==========
@@ -1000,11 +989,11 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
     const renderResultPreview = (type: CognitiveTestType) => {
         if (type === 'workingMemory' && results.workingMemory) {
             const wm = results.workingMemory;
-            const desc = WORKING_MEMORY_DESCRIPTIONS[wm.overallLevel];
+            const desc = wm.overallLevel ? WORKING_MEMORY_DESCRIPTIONS[wm.overallLevel] : null;
             return (
                 <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
                     <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                        {desc.label} • 점수: {wm.overallScore}점
+                        {desc?.label || '검사 완료'} • 점수: {wm.overallScore ?? '-'}점
                     </p>
                 </div>
             );
@@ -1061,8 +1050,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                 {/* Digit Span */}
                 <div
                     className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${dsCompleted
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-purple-300 bg-purple-50 hover:shadow-lg'
+                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                        : 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 hover:shadow-lg'
                         }`}
                     onClick={() => !dsCompleted && startDigitSpan()}
                 >
@@ -1070,8 +1059,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">🔢</span>
                             <div>
-                                <h4 className="font-semibold">숫자 따라하기 (Digit Span)</h4>
-                                <p className="text-sm text-gray-500">순방향/역방향 숫자 기억</p>
+                                <h4 className="font-semibold text-gray-800 dark:text-white">숫자 따라하기 (Digit Span)</h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">순방향/역방향 숫자 기억</p>
                             </div>
                         </div>
                         {dsCompleted ? (
@@ -1081,7 +1070,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         )}
                     </div>
                     {dsResult && (
-                        <p className="mt-2 text-sm text-green-600">
+                        <p className="mt-2 text-sm text-green-600 dark:text-green-400">
                             순방향: {dsResult.forwardSpan}자리 | 역방향: {dsResult.backwardSpan}자리
                         </p>
                     )}
@@ -1090,8 +1079,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                 {/* N-Back 1 */}
                 <div
                     className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${nBack1Result
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-blue-300 bg-blue-50 hover:shadow-lg'
+                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                        : 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 hover:shadow-lg'
                         }`}
                     onClick={() => !nBack1Result && startNBack(1)}
                 >
@@ -1099,8 +1088,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">1️⃣</span>
                             <div>
-                                <h4 className="font-semibold">1-Back 테스트</h4>
-                                <p className="text-sm text-gray-500">직전 문자와 일치 여부 판단</p>
+                                <h4 className="font-semibold text-gray-800 dark:text-white">1-Back 테스트</h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">직전 문자와 일치 여부 판단</p>
                             </div>
                         </div>
                         {nBack1Result ? (
@@ -1110,15 +1099,15 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         )}
                     </div>
                     {nBack1Result && (
-                        <p className="mt-2 text-sm text-green-600">정확도: {nBack1Result.accuracy}%</p>
+                        <p className="mt-2 text-sm text-green-600 dark:text-green-400">정확도: {nBack1Result.accuracy}%</p>
                     )}
                 </div>
 
                 {/* N-Back 2 (선택) */}
                 <div
                     className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${nBack2Result
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-indigo-300 bg-indigo-50 hover:shadow-lg'
+                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                        : 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 hover:shadow-lg'
                         }`}
                     onClick={() => !nBack2Result && startNBack(2)}
                 >
@@ -1126,8 +1115,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">2️⃣</span>
                             <div>
-                                <h4 className="font-semibold">2-Back 테스트 <span className="text-xs text-orange-500">(어려움)</span></h4>
-                                <p className="text-sm text-gray-500">2개 전 문자와 일치 여부 판단</p>
+                                <h4 className="font-semibold text-gray-800 dark:text-white">2-Back 테스트 <span className="text-xs text-orange-500">(어려움)</span></h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">2개 전 문자와 일치 여부 판단</p>
                             </div>
                         </div>
                         {nBack2Result ? (
@@ -1137,7 +1126,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                         )}
                     </div>
                     {nBack2Result && (
-                        <p className="mt-2 text-sm text-green-600">정확도: {nBack2Result.accuracy}%</p>
+                        <p className="mt-2 text-sm text-green-600 dark:text-green-400">정확도: {nBack2Result.accuracy}%</p>
                     )}
                 </div>
             </div>
@@ -1145,7 +1134,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
             <div className="flex gap-3 pt-4">
                 <button
                     onClick={() => setCurrentTest(null)}
-                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl"
+                    className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
                 >
                     ← 돌아가기
                 </button>
@@ -1153,8 +1142,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                     onClick={finishWorkingMemory}
                     disabled={!dsCompleted && !nBack1Result}
                     className={`flex-1 py-3 rounded-xl font-bold ${(dsCompleted || nBack1Result)
-                        ? 'bg-green-500 text-white hover:bg-green-600'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        ? 'bg-green-500 text-white hover:bg-green-600 shadow-md'
+                        : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         }`}
                 >
                     {(dsCompleted || nBack1Result) ? '검사 완료 ✓' : '최소 1개 완료 필요'}
@@ -1170,20 +1159,20 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                 <h3 className="text-xl font-bold text-gray-800 dark:text-white">
                     🔢 숫자 따라하기 ({dsPhase === 'forward' ? '순방향' : '역방향'})
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                     {dsPhase === 'forward' ? '보이는 숫자를 순서대로 입력하세요' : '보이는 숫자를 거꾸로 입력하세요'}
                 </p>
-                <div className="mt-2 text-lg font-bold text-purple-600">현재: {dsCurrentLength}자리</div>
+                <div className="mt-2 text-lg font-bold text-purple-600 dark:text-purple-400">현재: {dsCurrentLength}자리</div>
             </div>
 
             <div className="flex justify-center items-center h-40 bg-gray-100 dark:bg-gray-800 rounded-2xl">
                 {dsTestPhase === 'showing' && dsShowingIndex < dsCurrentSequence.length && (
-                    <div className="text-8xl font-bold text-purple-600 animate-pulse">
+                    <div className="text-8xl font-bold text-purple-600 dark:text-purple-400 animate-pulse">
                         {dsCurrentSequence[dsShowingIndex]}
                     </div>
                 )}
                 {dsTestPhase === 'showing' && dsShowingIndex >= dsCurrentSequence.length && (
-                    <div className="text-2xl text-gray-400">준비 중...</div>
+                    <div className="text-2xl text-gray-400 dark:text-gray-500">준비 중...</div>
                 )}
                 {dsTestPhase === 'input' && (
                     <div className="text-center">
@@ -1194,13 +1183,13 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                             value={dsUserInput}
                             onChange={e => setDsUserInput(e.target.value.replace(/\D/g, ''))}
                             onKeyDown={e => e.key === 'Enter' && handleDigitSubmit()}
-                            className="w-48 text-center text-3xl py-3 border-2 border-purple-400 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                            className="w-48 text-center text-3xl py-3 border-2 border-purple-400 dark:border-purple-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
                             placeholder="숫자 입력"
                             autoFocus
                         />
                         <button
                             onClick={handleDigitSubmit}
-                            className="block mx-auto mt-4 px-8 py-2 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600"
+                            className="block mx-auto mt-4 px-8 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-bold transition-colors"
                         >
                             확인
                         </button>
@@ -1214,8 +1203,11 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
             </div>
 
             <button
-                onClick={() => setWmSubTest(null)}
-                className="w-full py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+                onClick={() => {
+                    setDsTestPhase('idle');
+                    setWmSubTest(null);
+                }}
+                className="w-full py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium text-sm rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
             >
                 ← 돌아가기
             </button>
@@ -1229,7 +1221,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                 <h3 className="text-xl font-bold text-gray-800 dark:text-white">
                     {nBackLevel}-Back 테스트
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                     {nBackLevel}개 전 문자와 같으면 버튼을 누르세요!
                 </p>
             </div>
@@ -1241,7 +1233,7 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                     </div>
                 )}
                 {!nBackShowCurrent && nBackIndex < nBackSequence.length && (
-                    <div className="text-4xl text-gray-300">+</div>
+                    <div className="text-4xl text-gray-300 dark:text-gray-600">+</div>
                 )}
                 {nBackIndex >= nBackSequence.length && (
                     <div className="text-2xl text-green-500 font-bold">테스트 완료!</div>
@@ -1253,18 +1245,28 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
                 disabled={!nBackShowCurrent || nBackUserResponded || nBackIndex >= nBackSequence.length}
                 className={`w-full py-6 rounded-xl font-bold text-2xl transition-all ${nBackShowCurrent && !nBackUserResponded
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-lg'
-                    : 'bg-gray-200 text-gray-400'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
                     }`}
             >
                 {nBackUserResponded ? '✅ 응답함' : '🎯 같음!'}
             </button>
 
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div
                     className="bg-indigo-500 h-2 rounded-full transition-all"
                     style={{ width: `${(nBackIndex / nBackSequence.length) * 100}%` }}
                 />
             </div>
+
+            <button
+                onClick={() => {
+                    setNBackTestPhase('idle');
+                    setWmSubTest(null);
+                }}
+                className="w-full py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium text-sm rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+                ← 중단하고 돌아가기
+            </button>
         </div>
     );
 
@@ -1683,8 +1685,12 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
         // Working Memory
         if (currentTest === 'workingMemory') {
-            if (wmSubTest === 'digitSpan') return renderDigitSpanTest();
-            if (wmSubTest === 'nBack') return renderNBackTest();
+            if (wmSubTest === 'digitSpan') {
+                return renderDigitSpanTest();
+            }
+            if (wmSubTest === 'nBack') {
+                return renderNBackTest();
+            }
             return renderWorkingMemoryMain();
         }
 
@@ -1781,8 +1787,8 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
         return (
             <div
-                className={`fixed inset-0 z-[60] flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 ${bgColor}`}
-                onMouseDown={handleReactionClick}
+                className={`fixed inset-0 z-[60] flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 touch-none select-none [-webkit-tap-highlight-color:transparent] ${bgColor}`}
+                onPointerDown={handleReactionClick}
             >
                 {content}
                 {rtPhase === 'waiting' && (
@@ -1842,28 +1848,58 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
         // 테스트 중
         return (
             <div
-                className="fixed inset-0 z-[60] bg-gray-900 flex flex-col items-center justify-center cursor-pointer select-none"
-                onMouseDown={handleAttentionClick}
+                className="fixed inset-0 z-[60] bg-gray-950 flex flex-col items-center justify-center cursor-pointer select-none touch-none [-webkit-tap-highlight-color:transparent]"
+                onPointerDown={handleAttentionClick}
             >
-                <div className="absolute top-10 text-white/50 font-mono">
-                    Trial: {atTrial + 1} / {ATTENTION_TEST_CONFIG.totalTrials}
+                {/* 상단 진행 상태 및 조기 종료 버튼 */}
+                <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-10 pointer-events-auto">
+                    <div className="text-white/80 font-mono text-sm bg-black/40 px-4 py-2 rounded-xl border border-white/10">
+                        진행 횟수: <span className="text-emerald-400 font-bold">{Math.min(atTrial + 1, ATTENTION_TEST_CONFIG.totalTrials)}</span> / {ATTENTION_TEST_CONFIG.totalTrials}회
+                    </div>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            finishAttention();
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-1.5"
+                    >
+                        <span>⏹️</span>
+                        <span>검사 즉시 종료 및 결과 확인</span>
+                    </button>
                 </div>
 
-                {atCurrentStimulus === 'go' && (
-                    <div className="w-48 h-48 rounded-full bg-green-500 shadow-[0_0_50px_rgba(34,197,94,0.6)] flex items-center justify-center animate-pulse">
-                        <span className="text-6xl">Go!</span>
-                    </div>
-                )}
+                {/* 중앙 자극 영역 */}
+                <div className="flex flex-col items-center justify-center min-h-[250px]">
+                    {atCurrentStimulus === 'go' && (
+                        <div className="w-52 h-52 rounded-full bg-green-500 shadow-[0_0_60px_rgba(34,197,94,0.8)] flex flex-col items-center justify-center animate-pulse border-4 border-white">
+                            <span className="text-5xl font-black text-white">Go!</span>
+                            <span className="text-xs text-green-100 font-bold mt-1">클릭하세요!</span>
+                        </div>
+                    )}
 
-                {atCurrentStimulus === 'nogo' && (
-                    <div className="w-48 h-48 rounded-xl bg-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] flex items-center justify-center">
-                        <span className="text-6xl">STOP</span>
-                    </div>
-                )}
+                    {atCurrentStimulus === 'nogo' && (
+                        <div className="w-52 h-52 rounded-2xl bg-red-600 shadow-[0_0_60px_rgba(239,68,68,0.8)] flex flex-col items-center justify-center border-4 border-white">
+                            <span className="text-5xl font-black text-white">STOP</span>
+                            <span className="text-xs text-red-100 font-bold mt-1">누르지 마세요!</span>
+                        </div>
+                    )}
 
-                {!atCurrentStimulus && (
-                    <div className="text-gray-500">+</div>
-                )}
+                    {!atCurrentStimulus && (
+                        <div className="text-gray-600 text-6xl font-light">+</div>
+                    )}
+                </div>
+
+                {/* 하단 피드백 멘트 */}
+                <div className="absolute bottom-12 text-center h-12 flex items-center justify-center">
+                    {atFeedbackText ? (
+                        <div className="px-6 py-2.5 bg-white/90 text-slate-900 rounded-full font-bold text-sm shadow-xl animate-in fade-in zoom-in-95 border border-slate-300">
+                            {atFeedbackText}
+                        </div>
+                    ) : (
+                        <p className="text-white/40 text-xs font-medium">초록색 Go 신호가 나오면 화면 아무 곳이나 빠르게 클릭하세요.</p>
+                    )}
+                </div>
             </div>
         );
     };

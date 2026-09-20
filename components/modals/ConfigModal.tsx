@@ -96,7 +96,7 @@ const THRESHOLD_DESCRIPTIONS: Record<string, { label: string; description: strin
     },
     brainScoreLow: {
         label: 'Brain Score Low (두뇌 건강점수 저하 기준)',
-        description: '두뇌 건강 점수가 이 값 이하이면 "뇌피로/집중력 저하"로 진단합니다. EEG 측정 시 사용됩니다.',
+        description: '두뇌 건강 점수가 이 값 이하이면 "뇌피로/집중력 저하"로 진단합니다. 인지 기능 평가 시 사용됩니다.',
         color: 'purple',
         recommended: '권장: 65~75점'
     },
@@ -311,7 +311,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
             return;
         }
         const currentExaminers = config.examiners || [];
-        
+
         if (editingExaminerId) {
             setExaminerToEdit(editingExaminerId);
             return;
@@ -329,8 +329,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
 
         onConfigChange({
             ...config,
-            examiners: [...currentExaminers, { 
-                id: newExaminerId, 
+            examiners: [...currentExaminers, {
+                id: newExaminerId,
                 name: newExaminerName,
                 position: newExaminerPosition || undefined,
                 gender: newExaminerGender || undefined,
@@ -835,16 +835,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                         key={m.id}
                                         type="button"
                                         onClick={() => onAiModelsChange({ ...aiModels, openRouterModel: m.id })}
-                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                            (aiModels.openRouterModel || 'anthropic/claude-sonnet-4.6') === m.id
+                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${(aiModels.openRouterModel || 'anthropic/claude-sonnet-4.6') === m.id
                                                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
                                                 : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50/50'
-                                        }`}
+                                            }`}
                                     >
                                         <span className="font-bold text-sm">{m.name}</span>
-                                        <span className={`text-[10px] mt-1 ${
-                                            (aiModels.openRouterModel || 'anthropic/claude-sonnet-4.6') === m.id ? 'text-indigo-200' : 'text-slate-400'
-                                        }`}>{m.tag}</span>
+                                        <span className={`text-[10px] mt-1 ${(aiModels.openRouterModel || 'anthropic/claude-sonnet-4.6') === m.id ? 'text-indigo-200' : 'text-slate-400'
+                                            }`}>{m.tag}</span>
                                     </button>
                                 ))}
                             </div>
@@ -882,24 +880,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                 <div ref={scrollAreaRef} onScroll={saveScrollPosition} className="p-6 overflow-y-auto custom-scrollbar">
                     {activeTab === 'general' ? (
                         <div className="space-y-4">
-                            {/* Current Mode Status Banner */}
-                            <div className="bg-slate-900 text-white p-6 rounded-2xl mb-6 shadow-lg">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Current Operation Mode</h4>
-                                <div className="flex items-center gap-4">
-                                    <div className={`text-4xl ${config.isMedicalMode ? 'grayscale-0' : 'grayscale text-slate-700'}`}>🩸</div>
-                                    <div className={`text-4xl ${config.usePortable ? 'grayscale-0' : 'grayscale text-slate-700'}`}>📱</div>
-                                    <div className={`text-4xl ${config.useBrainBody !== false ? 'grayscale-0' : 'grayscale text-slate-700'}`}>🧠</div>
-                                    <div className="h-12 w-px bg-slate-700 mx-2"></div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-white">
-                                            {config.isMedicalMode ? 'Medical Expert Mode' : config.usePortable ? 'Portable Lite Mode' : 'Standard Clinical Mode'}
-                                        </h3>
-                                        <p className="text-sm text-slate-400 font-medium mt-1">
-                                            {config.isMedicalMode ? '의학적 정밀 분석 및 혈액검사 연동' : config.usePortable ? '보급형 장비(uBioMacpa) 기반 간편 측정' : '뇌파(EEG) - 심박변이도(HRV) 정밀 통합 분석'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
                             <label className="flex items-center justify-between p-4 border rounded-xl cursor-pointer hover:bg-slate-50">
                                 <div className="space-y-1">
                                     <p className="font-bold text-slate-900">시험대비 모드 (Exam Mode)</p>
@@ -914,48 +894,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                 </div>
                                 <input type="checkbox" checked={config.showDetail} onChange={e => onConfigChange({ ...config, showDetail: e.target.checked })} className="toggle accent-blue-600 w-5 h-5" />
                             </label>
-                            <label className="flex items-center justify-between p-4 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-50 bg-rose-50/50">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-lg">🩸</span>
-                                        <p className="font-bold text-rose-800">의학전문가용 모드 (Medical Expert)</p>
-                                    </div>
-                                    <p className="text-xs text-rose-600">혈액검사 결과 입력 및 기존 검사와 Cross-Matching 분석</p>
-                                </div>
-                                <input type="checkbox" checked={config.isMedicalMode} onChange={e => onConfigChange({ ...config, isMedicalMode: e.target.checked })} className="toggle accent-rose-600 w-5 h-5" />
-                            </label>
-
-                            {/* Device Configuration */}
-                            <div className="border rounded-xl overflow-hidden mt-4">
-                                <div className="bg-slate-100 px-4 py-2 border-b">
-                                    <h4 className="font-bold text-slate-700 text-sm">측정 장비 설정</h4>
-                                </div>
-                                <div className="divide-y">
-                                    <label className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50">
-                                        <div className="space-y-1">
-                                            <p className="font-bold text-slate-900">BrainBody (HRV+EEG)</p>
-                                            <p className="text-xs text-slate-500">전문 장비를 사용하여 정밀 HRV 및 뇌파(EEG) 측정</p>
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            checked={config.useBrainBody !== false}
-                                            onChange={e => onConfigChange({ ...config, useBrainBody: e.target.checked })}
-                                            className="toggle accent-indigo-600 w-5 h-5"
-                                        />
-                                    </label>
-                                    <label className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50">
-                                        <div className="space-y-1">
-                                            <p className="font-bold text-slate-900">Portable (uBioMacpa)</p>
-                                            <p className="text-xs text-slate-500">보급형 장비를 사용하여 기본 맥파/스트레스 측정</p>
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            checked={config.usePortable === true}
-                                            onChange={e => onConfigChange({ ...config, usePortable: e.target.checked })}
-                                            className="toggle accent-indigo-600 w-5 h-5"
-                                        />
-                                    </label>
-                                </div>
                             <div className="border rounded-xl overflow-hidden mt-4">
                                 <div className="bg-slate-100 px-4 py-2 border-b">
                                     <h4 className="font-bold text-slate-700 text-sm">보안 설정</h4>
@@ -967,7 +905,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                         value={config.expertModePassword || ''}
                                         onChange={e => onConfigChange({ ...config, expertModePassword: e.target.value })}
                                         className="w-full p-2 border rounded-lg"
-                                        placeholder="암호를 입력하세요 (예: 3123)"
+                                        placeholder="오너 전용 비밀번호를 입력하세요"
                                     />
                                     <p className="text-xs text-slate-500 mt-1">결과 화면에서 '전문가용' 모드를 선택할 때 요구되는 암호입니다.</p>
                                 </div>
@@ -981,13 +919,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-slate-500 uppercase">현재 검사자 선택 (활성화 시 암호 필요)</label>
                                         <div className="flex flex-wrap gap-2">
-                                            <button 
-                                                onClick={() => onConfigChange({...config, currentExaminerId: null})}
+                                            <button
+                                                onClick={() => onConfigChange({ ...config, currentExaminerId: null })}
                                                 className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${!config.currentExaminerId ? 'bg-blue-100 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                             >선택 안함</button>
                                             {config.examiners?.map(ex => (
                                                 <div key={ex.id} className={`flex items-stretch rounded-lg border overflow-hidden transition-colors ${config.currentExaminerId === ex.id ? 'border-blue-500' : 'border-slate-200'}`}>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             if (config.currentExaminerId !== ex.id) {
                                                                 setExaminerToActivate(ex.id);
@@ -997,7 +935,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                                     >
                                                         {ex.name} ({ex.id})
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             setEditingExaminerId(ex.id);
                                                             setNewExaminerName(ex.name);
@@ -1013,7 +951,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                                     >
                                                         ✏️
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => setExaminerToDelete(ex.id)}
                                                         className={`px-2 flex items-center justify-center transition-colors ${config.currentExaminerId === ex.id ? 'bg-blue-100 text-blue-400 hover:text-blue-700 hover:bg-blue-200' : 'bg-white text-slate-400 hover:text-red-600 hover:bg-red-50'} border-l border-slate-200`}
                                                         title="검사자 삭제"
@@ -1024,7 +962,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                             ))}
                                         </div>
                                     </div>
-                                    
+
                                     <div className="pt-4 border-t border-slate-100">
                                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">새 검사자 등록</label>
                                         <div className="space-y-3">
@@ -1064,49 +1002,48 @@ export const ConfigModal: React.FC<ConfigModalProps> = memo(({
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Prompt Modal for Examiner Activation */}
-                        <PromptModal
-                            isOpen={examinerToActivate !== null}
-                            title="검사자 활성화 암호 입력"
-                            isPassword={true}
-                            onConfirm={(pwd) => {
-                                if (pwd === 'dlatmdeo7') {
-                                    onConfigChange({...config, currentExaminerId: examinerToActivate});
-                                } else {
-                                    alert("암호가 일치하지 않습니다.");
-                                }
-                                setExaminerToActivate(null);
-                            }}
-                            onCancel={() => setExaminerToActivate(null)}
-                        />
-
-                        {/* Prompt Modal for Examiner Deletion */}
-                        <PromptModal
-                            isOpen={examinerToDelete !== null}
-                            title="검사자 삭제 암호 입력"
-                            isPassword={true}
-                            onConfirm={(pwd) => {
-                                if (pwd === 'dlatmdeo7') {
-                                    const currentExaminers = config.examiners || [];
-                                    const nextExaminers = currentExaminers.filter(e => e.id !== examinerToDelete);
-                                    let nextCurrentId = config.currentExaminerId;
-                                    if (nextCurrentId === examinerToDelete) {
-                                        nextCurrentId = null;
+                            {/* Prompt Modal for Examiner Activation */}
+                            <PromptModal
+                                isOpen={examinerToActivate !== null}
+                                title="검사자 활성화 암호 입력"
+                                isPassword={true}
+                                onConfirm={(pwd) => {
+                                    if (pwd === 'dlatmdeo7') {
+                                        onConfigChange({ ...config, currentExaminerId: examinerToActivate });
+                                    } else {
+                                        alert("암호가 일치하지 않습니다.");
                                     }
-                                    onConfigChange({
-                                        ...config,
-                                        examiners: nextExaminers,
-                                        currentExaminerId: nextCurrentId
-                                    });
-                                } else {
-                                    alert("암호가 일치하지 않습니다.");
-                                }
-                                setExaminerToDelete(null);
-                            }}
-                            onCancel={() => setExaminerToDelete(null)}
-                        />
+                                    setExaminerToActivate(null);
+                                }}
+                                onCancel={() => setExaminerToActivate(null)}
+                            />
+
+                            {/* Prompt Modal for Examiner Deletion */}
+                            <PromptModal
+                                isOpen={examinerToDelete !== null}
+                                title="검사자 삭제 암호 입력"
+                                isPassword={true}
+                                onConfirm={(pwd) => {
+                                    if (pwd === 'dlatmdeo7') {
+                                        const currentExaminers = config.examiners || [];
+                                        const nextExaminers = currentExaminers.filter(e => e.id !== examinerToDelete);
+                                        let nextCurrentId = config.currentExaminerId;
+                                        if (nextCurrentId === examinerToDelete) {
+                                            nextCurrentId = null;
+                                        }
+                                        onConfigChange({
+                                            ...config,
+                                            examiners: nextExaminers,
+                                            currentExaminerId: nextCurrentId
+                                        });
+                                    } else {
+                                        alert("암호가 일치하지 않습니다.");
+                                    }
+                                    setExaminerToDelete(null);
+                                }}
+                                onCancel={() => setExaminerToDelete(null)}
+                            />
 
                             {analystStorage && onAnalystStorageChange && onResetAnalystStorage && (
                                 <div className="mt-4">

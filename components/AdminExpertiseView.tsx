@@ -121,10 +121,10 @@ export const AdminExpertiseView: React.FC<AdminExpertiseViewProps> = ({ onBack, 
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                 <h4 className="font-black text-slate-900 mb-2 text-lg flex items-center gap-2">
                                     <span className="bg-slate-200 text-slate-700 w-6 h-6 rounded flex items-center justify-center text-xs">2</span>
-                                    4-7-8 심호흡 (2분): 뇌파 조절
+                                    4-7-8 심호흡 (2분): 자율신경 조절
                                 </h4>
                                 <div className="text-sm text-slate-600 space-y-3">
-                                    <p className="font-bold text-emerald-600">"베타파에서 알파파로 강제 전환"</p>
+                                    <p className="font-bold text-emerald-600">"과각성 긴장에서 안정 이완 상태로 전환"</p>
                                     <ul className="space-y-2 list-disc pl-4 text-xs">
                                         <li><b>방법:</b> 코로 4초 흡입 → 7초 정지 → 입으로 8초 배출.</li>
                                         <li><b>효과:</b> 뇌로 산소 공급량 증가, 부교감 신경 활성화로 기억력 향상.</li>

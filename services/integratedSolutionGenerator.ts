@@ -36,9 +36,9 @@ export const generateIntegratedSolutions = (
 
     let bioSyncTip = "";
     if (chronotype === 'morning') {
-        bioSyncTip = "수험생의 **뇌파(Alpha)**는 **오전 9-11시**에 가장 안정적입니다.";
+        bioSyncTip = "수험생의 **인지 몰입도(집중 리듬)**는 **오전 9-11시**에 가장 안정적입니다.";
         if (brainFatigue) bioSyncTip += " 하지만 현재 뇌 피로도가 높아 오후 2시 이후에는 급격한 효율 저하가 예상됩니다.";
-        else bioSyncTip += " 오후 시간대에는 신체 활력(HRV)이 뒷받침되므로 지구력이 필요한 암기 과목이 적합합니다.";
+        else bioSyncTip += " 오후 시간대에는 신체 활력이 뒷받침되므로 지구력이 필요한 암기 과목이 적합합니다.";
         bioSyncTip += `\n   👉 **전략**: 사고력이 필요한 **수학/비문학은 ${analytics.goldenTimeStart ? analytics.goldenTimeStart : '오전 10시'}**, 체력이 필요한 **문제풀이 양치기는 오후 2시**에 배치하면 효율이 약 20% 상승합니다.`;
     } else if (chronotype === 'evening') {
         bioSyncTip = "수험생의 생체 리듬은 **오후 4시 이후**에 가장 활성화됩니다. 오전에는 뇌가 부팅되는 시간이 필요합니다.";
@@ -113,7 +113,7 @@ export const generateIntegratedSolutions = (
 
     // Fallback or additional tips if no specific medical issue found but sugar intake high (pseudo-check)
     if (!nutritionTip) {
-        nutritionTip = "오후 4시의 '마의 구간'을 넘기려면 **혈당 스파이크**를 막아야 합니다. 점심에 탄수화물(면, 빵)을 줄이고, 공부 시작 전 **견과류나 다크 초콜릿**을 섭취하세요. 뇌의 에너지원인 포도당을 안정적으로 공급하여, 졸음 없이 1시간 더 집중할 수 있는 '뇌 연비'를 만들어줍니다.";
+        nutritionTip = "오후 4시의 '마의 구간'을 넘기려면 **혈당 스파이크**를 막아야 합니다. 점심에 탄수화물(면, 방)을 줄이고, 공부 시작 전 **견과류나 다크 초콜릿**을 섭취하세요. 뇌의 에너지원인 포도당을 안정적으로 공급하여, 졸음 없이 1시간 더 집중할 수 있는 '뇌 연비'를 만들어줍니다.";
     }
 
     tips.push(`### 🩸 영양-학습 부스팅 (Neuro-Nutrition Boosting)\n${nutritionTip}`);
@@ -122,7 +122,7 @@ export const generateIntegratedSolutions = (
     // Combine all
     return `
 ## [SECRET] 🏆 상위 1% 학습 효율을 위한 통합 솔루션 (Killer Tips)
-*수집된 모든 데이터(HRV, 뇌파, 인지기능, 설문)를 교차 분석하여 도출된 핵심 전략입니다.*
+*수집된 모든 데이터(자율신경 밸런스, 신경인지 기능, 학습 설문)를 교차 분석하여 도출된 핵심 전략입니다.*
 
 ${tips.join('\n\n')}
     `.trim();

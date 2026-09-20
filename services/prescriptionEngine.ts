@@ -72,16 +72,18 @@ const extractHealthTags = (data: AssessmentResult, logicCurrentTags: string[] = 
     return Array.from(new Set(tags));
 };
 
-// 2. 제품 매칭 로직 (Logic Engine 결과를 그대로 수용)
-export const matchProducts = (tags: string[], existingProducts: PntProduct[] = []): PntProduct[] => {
-    // Logic Engine에서 이미 제품을 선정해서 existingProducts로 넘겨주므로
-    // 여기서는 태그 기반으로 추가 제품을 찾기보다는, 
-    // 넘겨받은 제품 리스트를 정렬하고 메가도스 같은 특수 로직만 적용하면 됨.
-
+// 2. 제품 매칭 로직 (Logic Engine 3-Tier 제품을 100% 1순위 보존)
+export const matchProducts = (tags: string[], existingProducts: PntProduct[] = [], hasBioSignals: boolean = false): PntProduct[] => {
+    // Logic Engine에서 넘어온 제품 리스트(핵심, 추천, 보조)를 순서대로 최우선 유지
     const matched: PntProduct[] = [...existingProducts];
     const productList = Object.values(PNT_PRODUCTS);
 
-    // 메가도스 제품 자동 추가 로직 (Logic Engine에 없을 수 있으므로 여기서 처리)
+    // 생체 신호 미측정 시: 3-Tier 기본 3개 제품만 엄격하게 반환
+    if (!hasBioSignals) {
+        return matched.slice(0, 3);
+    }
+
+    // 생체 신호(HRV/EEG) 정밀 측정 시: 메가도스 및 3대 영역 보완 제품을 추가하여 총 6개까지 확장
     if (tags.includes(MEGADOSE_TAG)) {
         const megadoseId = '1000000008';
         const lipoId = '1000000082';
@@ -89,26 +91,29 @@ export const matchProducts = (tags: string[], existingProducts: PntProduct[] = [
         if (tags.includes(MEGADOSE_SENSITIVE_TAG)) {
             const lipoProduct = productList.find(p => p.id === lipoId);
             if (lipoProduct && !matched.find(m => m.id === lipoId)) {
-                matched.unshift(lipoProduct);
+                matched.push(lipoProduct);
             }
         } else {
             const megaProduct = productList.find(p => p.id === megadoseId);
             if (megaProduct && !matched.find(m => m.id === megadoseId)) {
-                matched.unshift(megaProduct);
+                matched.push(megaProduct);
             }
         }
     }
 
-    // 최대 7개 및 우선순위 정렬
-    const priorityOrder = ['BRAIN', 'FATIGUE', 'LIVER', 'IMMUNITY', 'KIDNEY', 'THYROID', 'GASTRITIS', 'ADRENAL'];
+    // 6개가 안 될 경우 보완 카테고리에서 우선순위 순으로 채움
+    if (matched.length < 6) {
+        const currentIds = new Set(matched.map(p => p.id));
+        for (const prod of productList) {
+            if (matched.length >= 6) break;
+            if (!currentIds.has(prod.id)) {
+                matched.push(prod);
+                currentIds.add(prod.id);
+            }
+        }
+    }
 
-    return matched.sort((a, b) => {
-        const catA = a.targetConditions[0]?.split('_')[0] || '';
-        const catB = b.targetConditions[0]?.split('_')[0] || '';
-        const scoreA = priorityOrder.indexOf(catA) !== -1 ? priorityOrder.indexOf(catA) : 99;
-        const scoreB = priorityOrder.indexOf(catB) !== -1 ? priorityOrder.indexOf(catB) : 99;
-        return scoreA - scoreB;
-    }).slice(0, 7);
+    return matched.slice(0, 6);
 };
 
 // 3. 상담 스크립트 생성기 (300자 내외) - Student 객체 전체를 받도록 수정 (for Megadose Logic)
@@ -169,6 +174,20 @@ const translateTag = (tag: string): string => {
 
 // 메인 함수
 export const generateNutritionalPrescription = (data: AssessmentResult, matchedProducts: PntProduct[] = []): PrescriptionResult => {
+    // 0. 생체 신호(HRV/EEG) 측정 여부 판별
+    const hasHRV = Boolean(
+        data.hrv?.isHrvTested ?? (
+            (data.hrv?.portableHrv && data.hrv.portableHrv.pulseVariability > 0) ||
+            Boolean((data.hrv?.hrvIndex && data.hrv.hrvIndex > 0) || (data.hrv?.meanHr && data.hrv.meanHr > 0))
+        )
+    );
+    const hasEEG = Boolean(
+        data.hrv?.isEegTested ?? (
+            (data.hrv?.eegGamma || 0) > 0 || (data.hrv?.eegAlpha || 0) > 0 || (data.hrv?.dominantEEG && data.hrv.dominantEEG.length > 0)
+        )
+    );
+    const hasBioSignals = Boolean(data.hrv?.isSensorMeasured ?? (hasHRV || hasEEG));
+
     // 1. Logic Engine에서 넘어온 제품들의 태그를 추출 (Prescription Tag에 반영하기 위함)
     const productConditionTags = Array.from(new Set(
         matchedProducts.flatMap(p => p.targetConditions)
@@ -177,8 +196,8 @@ export const generateNutritionalPrescription = (data: AssessmentResult, matchedP
     // 2. 태그 추출 (Logic Engine 태그 + CareType + 설문 증상 종합)
     const tags = extractHealthTags(data, productConditionTags);
 
-    // 3. 제품 확정 (Logic Engine 제품 우선 + 메가도스 등 추가 제품)
-    const finalProducts = matchProducts(tags, matchedProducts);
+    // 3. 제품 확정 (Logic Engine 제품을 100% 1순위로 유지하며 생체신호 여부에 따라 3개/6개 분기)
+    const finalProducts = matchProducts(tags, matchedProducts, hasBioSignals);
 
     // 4. 스크립트 생성
     const script = generateCounselorScript(data.student, tags, finalProducts);

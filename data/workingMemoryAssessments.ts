@@ -416,27 +416,31 @@ export const WORKING_MEMORY_TEST_INFO: Record<WorkingMemoryTestType, {
     description: string;
     icon: string;
     time: string;
-    difficulty: '쉬움' | '보통' | '어려움';
+    difficulty: string;
+    badge: string;
 }> = {
-    digitSpan: {
-        title: '숫자 따라하기 (Digit Span)',
-        description: '화면에 나타나는 숫자를 순서대로, 또는 거꾸로 기억해서 입력합니다.',
-        icon: '🔢',
-        time: '약 3분',
-        difficulty: '쉬움'
-    },
     nBack1: {
         title: '1-Back 테스트',
-        description: '연속으로 나타나는 문자 중 직전 문자와 같으면 버튼을 누릅니다.',
+        description: '연속으로 나타나는 문자 중 직전(1개 전) 문자와 같으면 버튼을 누릅니다.',
         icon: '1️⃣',
-        time: '약 2분',
-        difficulty: '보통'
+        time: '약 1분 30초',
+        difficulty: '쉬움',
+        badge: '쉬움 / 기본 추천 ⭐'
     },
     nBack2: {
         title: '2-Back 테스트',
         description: '연속으로 나타나는 문자 중 2개 전 문자와 같으면 버튼을 누릅니다.',
         icon: '2️⃣',
-        time: '약 3분',
-        difficulty: '어려움'
+        time: '약 2분',
+        difficulty: '중급',
+        badge: '중급 / 도전 과제 🔥'
+    },
+    digitSpan: {
+        title: '숫자 따라하기 (Digit Span)',
+        description: '화면에 나타나는 숫자를 순서대로, 또는 거꾸로 기억해서 입력합니다.',
+        icon: '🔢',
+        time: '약 2분 30초',
+        difficulty: '고급',
+        badge: '고급 / 심화 측정 👑'
     }
 };

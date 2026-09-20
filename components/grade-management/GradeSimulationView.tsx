@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { GradeSimulationEngine, SimulationResult } from '../../services/gradeSimulationEngine';
 import { GradeRecord, GradeGoal, AssessmentResult, StudentInfo, AIModelConfig } from '../../types';
 import { generateAIResponse } from '../../services/aiService';
+import { getCareTypeDetail } from '../../data/careTypesData';
 
 interface GradeSimulationViewProps {
     student: StudentInfo;
@@ -32,10 +33,10 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
             goals,
             assessment,
             student.focusSubjects || (student.weakSubject ? [student.weakSubject] : []),
-            student.selectedSubjects || [],
+            student.selectedSubjects || ['korean', 'math', 'english'],
             student
         );
-    }, [student, records, goals, assessment]);
+    }, [records, goals, assessment, student]);
 
     if (!simulationResult || simulationResult.projections.length === 0) {
         return (
@@ -61,7 +62,9 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
         setIsGenerating(true);
         setAiReport(null);
 
-        const careType = assessment?.careType || '알 수 없음';
+        const careDetail = getCareTypeDetail(assessment?.careType);
+        const careType = assessment?.careType ? `${careDetail.emoji} ${careDetail.title} (${careDetail.subtitle})` : '알 수 없음';
+        
         const projectionsText = simulationResult.projections.map(p => 
             `- ${p.subjectName}: 현재 ${p.currentGrade}등급 -> 목표 ${p.targetGrade}등급 (달성확률: ${p.probability}%)
               보완점: ${p.bottlenecks.join(', ')}
@@ -73,6 +76,7 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
 
 [학생 정보]
 - 신체/심리 상태(CareType): ${careType}
+- 임상 처방: ${careDetail.prescription}
 - 전체 의견: ${simulationResult.overallAdvice}
 - 공통 전략: ${simulationResult.globalStrategies.join(', ')}
 
@@ -96,13 +100,16 @@ ${projectionsText}
         const proj = simulationResult.projections.find(p => p.subjectId === subjectId);
         if (!proj) return;
 
-        const careType = assessment?.careType || '알 수 없음';
+        const careDetail = getCareTypeDetail(assessment?.careType);
+        const careType = assessment?.careType ? `${careDetail.emoji} ${careDetail.title} (${careDetail.subtitle})` : '알 수 없음';
         
         const systemContext = `당신은 ${student.name} 학생의 전담 입시/학습 컨설턴트입니다. 항상 따뜻하고 전문적인 어조로 조언해 주세요.`;
         const prompt = `다음은 ${student.name} 학생의 ${proj.subjectName} 과목 분석 결과입니다.
 
 [학생 및 과목 분석 결과]
 - 신체/심리 상태(CareType): ${careType}
+- 생리적 특징 및 학업 영향: ${careDetail.physiology} / ${careDetail.studyImpact}
+- 맞춤 처방: ${careDetail.prescription}
 - ${proj.subjectName} 현재 ${proj.currentGrade}등급 -> 목표 ${proj.targetGrade}등급 (목표 달성 확률: ${proj.probability}%)
 - 기존 앱이 도출한 예상 병목 요인: ${proj.bottlenecks.join(', ')}
 - 기존 앱이 도출한 추천 전략 방향: ${proj.recommendations.join(' / ')}

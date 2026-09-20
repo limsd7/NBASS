@@ -28,9 +28,48 @@ export const calculateBMI = (height?: number, weight?: number): number => {
     return 0;
 };
 
+/**
+ * 나이 또는 생년월일 기반 예상 학년 자동 산출
+ */
+export const estimateGradeByAgeOrBirthDate = (birthDateOrAge: string | number): string => {
+    let yearAge = 19; // 기본 고3 연나이
+
+    if (typeof birthDateOrAge === 'number') {
+        yearAge = birthDateOrAge >= 10 && birthDateOrAge <= 25 ? (birthDateOrAge <= 19 ? birthDateOrAge + 1 : birthDateOrAge) : 19;
+    } else if (typeof birthDateOrAge === 'string' && birthDateOrAge.length >= 4) {
+        const birthYear = parseInt(birthDateOrAge.slice(0, 4), 10);
+        const currentYear = new Date().getFullYear();
+        if (!isNaN(birthYear) && birthYear > 1950 && birthYear <= currentYear) {
+            yearAge = currentYear - birthYear + 1; // 한국 학년 연나이 기준
+        }
+    }
+
+    if (yearAge <= 14) return "중등 1학년";
+    if (yearAge === 15) return "중등 2학년";
+    if (yearAge === 16) return "중등 3학년";
+    if (yearAge === 17) return "고등 1학년";
+    if (yearAge === 18) return "고등 2학년";
+    if (yearAge === 19) return "고등 3학년";
+    return "N수생";
+};
+
+export const normalizeGrade = (grade?: string): string => {
+    if (!grade) return "고등 3학년";
+    const clean = grade.trim();
+    if (clean === "고3" || clean.includes("고3") || clean.includes("고등 3") || clean.includes("고등학교 3")) return "고등 3학년";
+    if (clean === "고2" || clean.includes("고2") || clean.includes("고등 2") || clean.includes("고등학교 2")) return "고등 2학년";
+    if (clean === "고1" || clean.includes("고1") || clean.includes("고등 1") || clean.includes("고등학교 1")) return "고등 1학년";
+    if (clean === "중3" || clean.includes("중3") || clean.includes("중등 3") || clean.includes("중학교 3")) return "중등 3학년";
+    if (clean === "중2" || clean.includes("중2") || clean.includes("중등 2") || clean.includes("중학교 2")) return "중등 2학년";
+    if (clean === "중1" || clean.includes("중1") || clean.includes("중등 1") || clean.includes("중학교 1")) return "중등 1학년";
+    if (clean.includes("N수") || clean.includes("재수") || clean.includes("성인")) return "N수생";
+    if (GRADE_OPTIONS.includes(clean)) return clean;
+    return "고등 3학년";
+};
+
 export const GRADE_OPTIONS = [
-    "중등 1학년", "중등 2학년", "중등 3학년",
-    "고등 1학년", "고등 2학년", "고등 3학년",
+    "고등 3학년", "고등 2학년", "고등 1학년",
+    "중등 3학년", "중등 2학년", "중등 1학년",
     "N수생"
 ];
 
@@ -81,14 +120,17 @@ export const initialStudent: StudentInfo = {
     name: '',
     birthDate: '2008-05-20',
     testDate: getTodayStr(),
-    age: 16,
+    age: 18,
     gender: 'Male',
     grade: '고등 3학년',
     height: 175,
     weight: 65,
     activityLevel: 2,
     mbti: 'ISTJ',
-    bmi: 21.2
+    bmi: 21.2,
+    selectedSubjects: ['korean', 'math', 'english', 'korean_history'],
+    focusSubjects: ['math'],
+    weakSubject: 'math'
 };
 
 export const initialHRV: HRVData = {
@@ -104,6 +146,8 @@ export const initialHRV: HRVData = {
     tp: 0,
     hrvIndex: 0,
     meanHr: 0,
+    meanBpm: 75,
+    stressIndex: 0,
     ppgLevel: 1, // Default Level 1
     brainScore: 0,
     dominantEEG: [], // Changed to array for multi-select
@@ -127,6 +171,7 @@ export const initialProtocol: ProtocolData = {
     noiseLevel: 1,
     stressLevel: 1,
     avgSleep: 6, // Maintaining realistic default for sleep
+    sleepHours: 6,
     emotionalFactor: 1,
     motivationalFactor: 1,
     behavioralFactor: 1,
@@ -135,29 +180,59 @@ export const initialProtocol: ProtocolData = {
 };
 
 export const initialAnalytics: LearningAnalyticsData = {
-    pureStudyRatio: 70,
-    avgFocusDuration: 50,
-    distractionCount: 3,
-    goldenTimeStart: "10:00",
-    goldenTimeEnd: "12:00",
-    lowEfficiencyTime: "14:00-16:00",
+    isTested: false,
+    pureStudyRatio: 0,
+    avgFocusDuration: 0,
+    distractionCount: 0,
+    goldenTimeStart: "",
+    goldenTimeEnd: "",
+    lowEfficiencyTime: "",
     chronotype: 'neutral',
-    weekdayWeekendGap: 20,
+    weekdayWeekendGap: 0,
     subjectRatios: {
-        korean: 20,
-        math: 40,
-        english: 20,
-        science: 10,
-        social: 5,
-        other: 5
+        korean: 0,
+        math: 0,
+        english: 0,
+        science: 0,
+        social: 0,
+        other: 0
     },
-    goalAchievementRate: 80,
-    perceivedDifficulty: 3,
-    avgSleepHours: 6,
-    sleepQuality: 3,
-    preferredLocation: '독서실',
-    studyStreak: 12,
-    breakAdequacy: 3,
-    burnoutCycle: 21,
+    goalAchievementRate: 0,
+    perceivedDifficulty: 0,
+    avgSleepHours: 0,
+    sleepQuality: 0,
+    preferredLocation: '',
+    studyStreak: 0,
+    breakAdequacy: 0,
+    burnoutCycle: 0,
     energyPattern: 'stable'
+};
+
+/**
+ * 학습 밀도 및 패턴 분석 검사 실제 시행 여부 검증 함수
+ * - isTested === true 인 경우 정식 완료 인정
+ * - 구버전 하드코딩 더미 시그니처(70%, 80%, 12일, 10:00~12:00)는 미시행(false)으로 간주
+ * - 주요 입력값이 모두 비어있거나 0인 경우 미시행(false)
+ */
+export const isLearningAnalyticsTested = (analytics?: LearningAnalyticsData | null): boolean => {
+    if (!analytics) return false;
+    if (analytics.isTested === true) return true;
+    if (analytics.isTested === false) return false;
+
+    // 구버전 하드코딩 더미 시그니처 자동 필터링
+    const isLegacyMock = (
+        analytics.pureStudyRatio === 70 &&
+        analytics.goalAchievementRate === 80 &&
+        analytics.studyStreak === 12 &&
+        analytics.goldenTimeStart === "10:00" &&
+        analytics.goldenTimeEnd === "12:00"
+    );
+    if (isLegacyMock) return false;
+
+    // 주요 입력값이 전혀 없는 경우
+    if (!analytics.pureStudyRatio && !analytics.goldenTimeStart && !analytics.goalAchievementRate) {
+        return false;
+    }
+
+    return true;
 };

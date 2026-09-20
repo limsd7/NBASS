@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MembershipTier, FeatureKey, TIER_INFO, getNextTier, canAccess } from '../../utils/featureGate';
+import { MembershipTier, FeatureKey, TIER_INFO, getNextTier, canAccess, getMinimumRequiredTier, TIER_RANK } from '../../utils/featureGate';
 
 interface PaywallOverlayProps {
   currentTier: MembershipTier;
@@ -34,28 +34,36 @@ export const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
     return <>{children}</>;
   }
 
-  const nextTier = getNextTier(currentTier);
-  const nextTierInfo = nextTier ? TIER_INFO[nextTier] : null;
+  // Determine the exact minimum tier required for this specific feature
+  const minRequiredTier = getMinimumRequiredTier(requiredFeature);
+  const currentRank = TIER_RANK[currentTier] ?? 0;
+  const targetTier: MembershipTier = (TIER_RANK[minRequiredTier] ?? 0) > currentRank
+    ? minRequiredTier
+    : (getNextTier(currentTier) || minRequiredTier);
+
+  const targetTierInfo = targetTier ? TIER_INFO[targetTier] : null;
   const currentTierInfo = TIER_INFO[currentTier];
 
   // Feature display names (Korean)
-  const FEATURE_LABELS: Record<FeatureKey, string> = {
+  const FEATURE_LABELS: Record<string, string> = {
     basic_survey: '기본 설문 검사',
-    simple_tendency: '간단 성향 분석',
-    detailed_classification: '12가지 상세 진단 분류',
-    basic_prescription: '기본 처방',
-    detailed_prescription: '상세 맞춤 처방',
-    grade_tracking: '성적 입력 & 추이',
+    simple_tendency_summary: '간단 성향 분석 및 요약',
+    single_student_report: '1회 학생용 풀 리포트',
+    expert_learning_report: '전문가용 심층 학습 리포트',
+    kakaotalk_weekly_alert: '카카오톡 주간 알림톡',
     grade_simulation: '성적 시뮬레이션 & 예측',
-    ai_study_plan: 'AI 맞춤 공부 Plan',
-    cognitive_assessment: '인지 수행 평가',
+    grade_management: '심층 성적 관리 시스템',
+    habit_clinic: '수험생 공부습관 교정 클리닉 (Habit Clinic)',
+    sleep_management: '심층 맞춤형 수면 관리',
     sleep_analysis: '수면 분석 & 크로노타입',
-    hrv_eeg_analysis: 'HRV/EEG 정밀 진단',
-    medical_report: '의료급 전문 리포트',
-    expert_consultation: '전문가 1:1 상담',
-    prediction_engine: '위험 예측 엔진',
-    data_export: '데이터 내보내기',
-    unlimited_history: '무제한 검사 이력',
+    mental_management: '심층 멘탈 관리 및 마인드셋 케어',
+    prediction_engine: '뇌-신체 위험 예측 분석 엔진',
+    nutritional_prescription: '1:1 맞춤 영양제 처방 발급',
+    ai_study_plan: 'AI 맞춤 공부 시간표',
+    full_vip_features: 'VIP 전 기능 무제한',
+    unlimited_ai_consultation: '실시간 AI 1:1 학습 클리닉',
+    hrv_eeg_precision_analysis: 'VIP 심층 신경인지 & 멘탈 분석',
+    medical_report_pdf: '병의원/센터 연동 정밀 리포트',
   };
 
   const featureLabel = FEATURE_LABELS[requiredFeature] || requiredFeature;
@@ -170,7 +178,7 @@ export const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
             }}
           >
             {customMessage ||
-              `이 기능은 ${nextTierInfo?.name || '상위'} 등급 이상에서 사용할 수 있습니다.`}
+              `이 기능은 ${targetTierInfo?.name || '상위'} 등급 이상에서 사용할 수 있습니다.`}
           </p>
 
           {/* Current tier badge */}
@@ -200,9 +208,9 @@ export const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
           </div>
 
           {/* Upgrade button */}
-          {nextTier && nextTierInfo && (
+          {targetTier && targetTierInfo && (
             <button
-              onClick={() => onUpgradeClick?.(nextTier)}
+              onClick={() => onUpgradeClick?.(targetTier)}
               style={{
                 width: '100%',
                 padding: '14px 24px',
@@ -225,12 +233,12 @@ export const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)';
               }}
             >
-              {nextTierInfo.icon} {nextTierInfo.name}으로 업그레이드 — {nextTierInfo.price}
+              {targetTierInfo.icon} {targetTierInfo.name}으로 업그레이드 — {targetTierInfo.price}
             </button>
           )}
 
           {/* Benefits preview */}
-          {nextTier && (
+          {targetTier && (
             <p
               style={{
                 fontSize: '11px',

@@ -24,9 +24,19 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
     useEffect(() => {
         if (isOpen) {
             try {
-                const logicBasedProducts = recommendedProducts
-                    .map(p => PNT_PRODUCTS[p.productId])
-                    .filter(p => p !== undefined);
+                // Ensure 3-Tier order matching Dashboard: 1st ESSENTIAL, 2nd HL BOOSTER, 3rd RECOMMENDED, 4th SUPPORTIVE
+                const essentialItem = recommendedProducts.find(p => p.tier === 'ESSENTIAL' && p.productId !== 'hl_focus_booster');
+                const recommendedItem = recommendedProducts.find(p => p.tier === 'RECOMMENDED' && p.productId !== 'hl_focus_booster');
+                const supportiveItem = recommendedProducts.find(p => p.tier === 'SUPPORTIVE' && p.productId !== 'hl_focus_booster');
+
+                const p1 = essentialItem ? PNT_PRODUCTS[essentialItem.productId] : (PNT_PRODUCTS['1000000021'] || PNT_PRODUCTS['active_b_complex']);
+                const p2 = PNT_PRODUCTS['hl_focus_booster'];
+                const p3 = recommendedItem ? PNT_PRODUCTS[recommendedItem.productId] : (PNT_PRODUCTS['calm_sleep'] || PNT_PRODUCTS['active_b_complex']);
+                const p4 = supportiveItem ? PNT_PRODUCTS[supportiveItem.productId] : PNT_PRODUCTS['1000000001'];
+                const p5 = PNT_PRODUCTS['1000000008'] || PNT_PRODUCTS['active_b_complex'];
+                const p6 = PNT_PRODUCTS['1000000003'] || PNT_PRODUCTS['1000000002'];
+
+                const logicBasedProducts = [p1, p2, p3, p4, p5, p6].filter(Boolean) as PntProduct[];
 
                 const result = generateNutritionalPrescription(data, logicBasedProducts);
                 setPrescription(result);
@@ -196,47 +206,62 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
                     `}</style>
 
                     {/* PAGE 1 */}
-                    <div className="prescription-page">
+                    <div className="prescription-page font-sans text-slate-800">
                         <div className="prescription-card">
-                            {/* Header */}
-                            <div className="flex flex-col md:flex-row justify-between items-start border-b-2 border-slate-200 pb-2 mb-2">
-                                <div>
-                                    <div className="text-blue-700 font-bold text-xs tracking-widest uppercase">Neuro-Bio Academic Strategy System</div>
-                                    <h1 className="text-2xl font-black text-slate-800">NBASS 영양처방전</h1>
-                                    <p className="text-slate-500 text-xs italic">Personalized Nutritional Prescription</p>
+                            {/* Clinical Header */}
+                            <div className="border-b-2 border-slate-900 pb-2 mb-2 flex justify-between items-start">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center font-serif text-2xl font-black italic tracking-tighter">
+                                        ℞
+                                    </div>
+                                    <div>
+                                        <div className="text-[8.5px] font-black tracking-widest text-slate-500 uppercase">Neuro-Endocrine Clinical Nutrition Protocol</div>
+                                        <h1 className="text-xl font-black text-slate-900 tracking-tight">NBASS 정밀 영양 처방전</h1>
+                                        <p className="text-[9px] text-slate-500 font-mono">CLINICAL NUTRACEUTICAL PRESCRIPTION & BIO-TARGETING</p>
+                                    </div>
                                 </div>
-                                <div className="mt-2 md:mt-0 text-right">
-                                    <div className="inline-block bg-slate-100 px-3 py-1 rounded text-xs font-mono text-slate-600 mb-1">Ver 2.5.0-Precision</div>
-                                    <div className="text-xs font-medium">처방책임자: <span className="text-blue-700">{analystConfig ? getAnalystDisplayText(analystConfig) : 'Dr. Lim'}</span></div>
-                                </div>
-                            </div>
-
-                            {/* Patient Info */}
-                            <div className="grid grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl mb-2 border border-slate-100">
-                                <div>
-                                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">피검자 성명</label>
-                                    <div className="text-base font-bold">{data.student.name} <span className="text-sm font-normal text-slate-500">({genderStr} / {age}세)</span></div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">처방 코드</label>
-                                    <div className="text-sm font-mono font-medium">RX-{today.replace(/-/g, '').substring(2)}-{data.student.id.substring(0, 4)}</div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">처방 일시</label>
-                                    <div className="text-sm">{today}</div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">건강 점수</label>
-                                    <div className="text-sm font-bold text-blue-600">{prescription.healthScore}/100</div>
+                                <div className="text-right">
+                                    <div className="inline-block bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[8.5px] font-mono text-slate-700 font-bold mb-0.5">
+                                        DOC-ID: RX-{today.replace(/-/g, '').substring(2)}-{data.student.id.substring(0, 4)}
+                                    </div>
+                                    <div className="text-[9px] text-slate-600">처방 책임의: <strong className="text-slate-900 font-bold">{analystConfig ? getAnalystDisplayText(analystConfig) : 'Dr. Lim'}</strong></div>
                                 </div>
                             </div>
 
-                            {/* Symptoms Tags - Korean Translation */}
+                            {/* Patient Clinical Master Box */}
+                            <div className="border border-slate-300 rounded-lg bg-slate-50/70 p-2 mb-2 text-xs">
+                                <div className="grid grid-cols-5 gap-2">
+                                    <div className="border-r border-slate-200 pr-2">
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">피검자 성명</span>
+                                        <div className="text-xs font-black text-slate-900 mt-0.5">{data.student.name} <span className="text-[9px] font-normal text-slate-500">({genderStr}/{age}세)</span></div>
+                                    </div>
+                                    <div className="border-r border-slate-200 pr-2">
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">처방 일자</span>
+                                        <div className="text-[10px] font-medium text-slate-800 mt-0.5">{today}</div>
+                                    </div>
+                                    <div className="border-r border-slate-200 pr-2">
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">임상 케어 축</span>
+                                        <div className="text-[10px] font-bold text-indigo-700 mt-0.5">{data.careType || '자율신경 조절'}</div>
+                                    </div>
+                                    <div className="border-r border-slate-200 pr-2">
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">생체신호 상태</span>
+                                        <div className="text-[10px] font-bold text-emerald-700 mt-0.5">자율신경 정밀연동</div>
+                                    </div>
+                                    <div>
+                                        <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">뉴로 헬스 스코어</span>
+                                        <div className="text-xs font-black text-blue-700 mt-0.5">{prescription.healthScore || 85} <span className="text-[9px] text-slate-500 font-normal">/ 100 pt</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Clinical Target Symptoms */}
                             <div className="mb-2">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider">주요 증상 및 개선 목표</h3>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="text-[8.5px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                                    <span>임상 진단 바이오마커 및 개선 목표 (Target Indications)</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
                                     {(() => {
-                                        // Korean translation map
                                         const symptomTagMap: Record<string, string> = {
                                             'MEMORY_LOSS': '기억력 감퇴',
                                             'POOR_CIRCULATION': '혈액순환 불량',
@@ -266,81 +291,66 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
                                             'METABOLIC_SYNDROME': '대사 증후군',
                                             'DIGESTION_POOR': '소화 불량'
                                         };
-
-                                        // Translate and limit to top 5
-                                        const translatedTags = prescription.symptomTags
+                                        const translatedTags = (prescription.symptomTags || [])
                                             .map(tag => symptomTagMap[tag] || tag.replace(/_/g, ' '))
                                             .slice(0, 5);
-
                                         return translatedTags.map((tag, idx) => (
-                                            <span key={idx} className="px-2 py-1 bg-red-50 text-red-600 text-xs font-bold rounded border border-red-100">
-                                                {tag}
+                                            <span key={idx} className="px-2 py-0.5 bg-white border border-rose-200 text-rose-800 text-[8.5px] font-bold rounded shadow-sm">
+                                                #{tag}
                                             </span>
                                         ));
                                     })()}
                                 </div>
                             </div>
 
-                            {/* Expert Consultation Guide - Detailed */}
-                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-3 rounded-xl border-2 border-blue-200 mb-2">
-                                <h3 className="text-xs font-black text-blue-800 uppercase mb-2 flex items-center gap-2 border-b-2 border-blue-300 pb-1">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    전문가 소견 및 처방 근거
-                                </h3>
-                                <div className="bg-white/70 rounded-lg p-2 mb-2">
-                                    <p className="text-slate-800 leading-relaxed text-xs font-medium whitespace-pre-wrap">
+                            {/* Clinical Opinion & Rationale Card */}
+                            <div className="border border-blue-200 rounded-lg p-2.5 bg-gradient-to-b from-blue-50/40 to-slate-50 mb-2">
+                                <div className="flex items-center justify-between border-b border-blue-200/80 pb-1 mb-1.5">
+                                    <h3 className="text-[10px] font-black text-blue-950 uppercase flex items-center gap-1.5">
+                                        <span className="text-blue-600 font-serif">📋</span> 임상 소견서 (Clinical Assessment & Strategy)
+                                    </h3>
+                                    <span className="text-[8px] font-mono text-blue-600 font-bold">NBASS PROTOCOL-2026</span>
+                                </div>
+                                <div className="bg-white border border-blue-100 rounded p-2 mb-2">
+                                    <p className="text-slate-800 leading-relaxed text-[9px] font-medium whitespace-pre-wrap">
                                         {prescription.counselorScript}
                                     </p>
                                 </div>
 
-                                {/* Why These Supplements - Category-based explanation */}
-                                <div className="space-y-2">
+                                {/* 3-Axis Therapeutic Rationale */}
+                                <div className="grid grid-cols-3 gap-1.5">
                                     {Object.entries(categories).map(([category, products]) => {
                                         if (products.length === 0) return null;
 
                                         let rationale = '';
-                                        let benefits: string[] = [];
+                                        let targetMarker = '';
 
                                         switch (category) {
                                             case '뇌 기능 개선':
-                                                rationale = '뇌파 분석 결과 집중력/기억력 지표 이탈. 신경전달물질 균형 회복 필요.';
-                                                benefits = [
-                                                    '아세틸콜린 생성으로 기억력 향상',
-                                                    '뇌 혈류 증가로 영양소 공급 최적화'
-                                                ];
+                                                rationale = '신경전달물질(ACh/GABA) 균형 및 뇌혈류 최적화';
+                                                targetMarker = '작업기억 및 집중 지속력';
                                                 break;
                                             case '스트레스 관리':
-                                                rationale = 'HRV 분석상 교감신경 과항진, 코티솔 상승 추정. 수면 개선 시급.';
-                                                benefits = [
-                                                    'GABA 활성화로 신경 흥분 억제',
-                                                    '수면 주기 정상화 및 스트레스 적응력 향상'
-                                                ];
+                                                rationale = 'HPA 축 조절 및 교감신경 긴장 이완, 수면 회복';
+                                                targetMarker = '자율신경 균형도 및 코티솔';
                                                 break;
                                             case '신체 건강':
-                                                rationale = '신체 지표상 만성 염증 또는 면역 저하 의심. 전신 건강 회복 필요.';
-                                                benefits = [
-                                                    '항산화 작용으로 세포 손상 방지',
-                                                    '면역 활성화 및 혈액순환 개선'
-                                                ];
+                                                rationale = '만성 피로 해소, 세포 에너지(ATP) 대사 촉진';
+                                                targetMarker = '부신 피로 및 미토콘드리아 활성';
                                                 break;
                                         }
 
                                         return (
-                                            <div key={category} className="bg-white rounded-lg p-2 border border-slate-200">
-                                                <h4 className="text-xs font-black text-slate-700 mb-1 flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                                                    {category} ({products.length}개 제품)
-                                                </h4>
-                                                <p className="text-[11px] text-slate-600 leading-relaxed">
-                                                    <strong className="text-blue-700">처방 근거:</strong> {rationale}
-                                                </p>
-                                                <div className="text-[11px] text-slate-700">
-                                                    <strong className="text-emerald-700">기대 효과:</strong>
-                                                    <ul className="list-disc list-inside ml-2">
-                                                        {benefits.map((benefit, idx) => (
-                                                            <li key={idx}>{benefit}</li>
-                                                        ))}
-                                                    </ul>
+                                            <div key={category} className="bg-white rounded border border-slate-200 p-1.5 flex flex-col justify-between">
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-0.5">
+                                                        <span className="text-[9px] font-black text-slate-900">{category}</span>
+                                                        <span className="text-[7.5px] px-1 bg-blue-50 text-blue-700 font-bold rounded">{products.length}종</span>
+                                                    </div>
+                                                    <p className="text-[8px] text-slate-600 leading-tight mb-1">{rationale}</p>
+                                                </div>
+                                                <div className="text-[7.5px] text-slate-400 border-t border-slate-100 pt-0.5">
+                                                    <strong className="text-slate-600">지표:</strong> {targetMarker}
                                                 </div>
                                             </div>
                                         );
@@ -348,138 +358,157 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
                                 </div>
                             </div>
 
-                            {/* Lifestyle Guide */}
-                            <div className="bg-slate-900 text-white p-2 rounded-xl mb-2">
-                                <h3 className="text-xs font-bold text-blue-300 mb-1 flex items-center gap-2">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" /></svg>
-                                    복용 지도 및 생활 습관 개선
-                                </h3>
-                                <ul className="text-[11px] space-y-0.5 text-slate-300">
-                                    {prescription.lifestyleGuide.map((guide, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                            <span className="text-blue-400 mt-0.5">•</span>
-                                            <span>{guide}</span>
-                                        </li>
-                                    ))}
-                                </ul>
+                            {/* Clinical Administration & Lifestyle Guidance */}
+                            <div className="border border-slate-200 rounded-lg p-2 bg-slate-900 text-white mb-2">
+                                <div className="flex items-center justify-between border-b border-slate-700 pb-1 mb-1.5">
+                                    <h3 className="text-[9.5px] font-bold text-emerald-400 flex items-center gap-1.5">
+                                        <span>🩺</span> 임상 복용 지침 및 주의사항 (Administration Protocol)
+                                    </h3>
+                                    <span className="text-[8px] text-slate-400 font-mono">RX-GUIDE</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-[8.5px] text-slate-300">
+                                    <div className="bg-slate-800/80 p-1.5 rounded border border-slate-700/60">
+                                        <strong className="block text-emerald-300 font-bold mb-0.5">1. 복용 방법</strong>
+                                        <p>충분한 미온수와 함께 복용하며 위장 민감 시 식후 30분 내 섭취</p>
+                                    </div>
+                                    <div className="bg-slate-800/80 p-1.5 rounded border border-slate-700/60">
+                                        <strong className="block text-emerald-300 font-bold mb-0.5">2. 상호 작용</strong>
+                                        <p>고카페인 음료와 2시간 이상 간격을 두고 복용 권장</p>
+                                    </div>
+                                    <div className="bg-slate-800/80 p-1.5 rounded border border-slate-700/60">
+                                        <strong className="block text-emerald-300 font-bold mb-0.5">3. 모니터링</strong>
+                                        <p>3개월 주기 재검사를 통해 생체 지표 개선도 추적 평가</p>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Footer */}
-                            <div className="mt-auto pt-3 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 font-medium">
-                                <p>© 2026 NEURO-EDULAB. 본 처방전은 의료법에 따라 기밀로 취급됩니다.</p>
-                                <p className="uppercase tracking-widest">PRESCRIPTION : PAGE 01</p>
+                            {/* Official Verification Footer */}
+                            <div className="mt-auto pt-2 border-t border-slate-200 flex justify-between items-end text-[8px] text-slate-400 font-mono">
+                                <div>
+                                    <p>ISSUED BY: NBASS NEURO-BIOMEDICAL RESEARCH CLINIC</p>
+                                    <p>CONFIDENTIAL MEDICAL DATA • VERIFICATION CODE: NBASS-RX-{today.replace(/-/g, '')}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-sans font-bold text-slate-600">PAGE 01 OF 02</p>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {/* PAGE 2 - Product Details */}
-                    <div className="prescription-page">
+                    <div className="prescription-page font-sans text-slate-800">
                         <div className="prescription-card">
-                            {/* Header (Repeated) */}
-                            <div className="flex flex-col md:flex-row justify-between items-start border-b-2 border-slate-200 pb-3 mb-4">
-                                <div>
-                                    <div className="text-blue-700 font-bold text-xs tracking-widest uppercase">Neuro-Bio Academic Strategy System</div>
-                                    <h1 className="text-2xl font-black text-slate-800">NBASS 영양처방전</h1>
-                                    <p className="text-slate-500 text-xs italic">Personalized Nutritional Prescription</p>
+                            {/* Header */}
+                            <div className="border-b-2 border-slate-900 pb-2 mb-2 flex justify-between items-start">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center font-serif text-2xl font-black italic tracking-tighter">
+                                        ℞
+                                    </div>
+                                    <div>
+                                        <div className="text-[8.5px] font-black tracking-widest text-slate-500 uppercase">Itemized Nutraceutical Regimen Specification</div>
+                                        <h1 className="text-xl font-black text-slate-900 tracking-tight">처방 성분 및 복용 일정 상세표</h1>
+                                        <p className="text-[9px] text-slate-500 font-mono">CLINICAL SPECIFICATIONS & ADMINISTRATION SCHEDULE</p>
+                                    </div>
                                 </div>
-                                <div className="mt-2 md:mt-0 text-right">
-                                    <div className="inline-block bg-slate-100 px-3 py-1 rounded text-xs font-mono text-slate-600 mb-1">Ver 2.5.0-Precision</div>
-                                    <div className="text-xs font-medium">처방책임자: <span className="text-blue-700">{analystConfig ? getAnalystDisplayText(analystConfig) : 'Dr. Lim'}</span></div>
+                                <div className="text-right">
+                                    <div className="inline-block bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[8.5px] font-mono text-slate-800 font-bold mb-0.5">
+                                        TOTAL ITEMS: {finalProducts.length}
+                                    </div>
+                                    <div className="text-[9px] text-slate-600">처방의: <strong className="text-slate-900 font-bold">{analystConfig ? getAnalystDisplayText(analystConfig) : 'Dr. Lim'}</strong></div>
                                 </div>
                             </div>
 
-                            {/* Product Details */}
-                            <div className="flex-1 overflow-hidden">
-                                <h2 className="text-sm font-black text-slate-800 mb-3 border-l-4 border-blue-600 pl-2">처방 제품 상세 ({finalProducts.length}개)</h2>
+                            <div className="flex items-center justify-between mb-2">
+                                <h2 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                    <span className="w-2 h-2 bg-blue-700 rounded-sm"></span>
+                                    <span>맞춤 처방 제품군 상세 규격 ({finalProducts.length}종 전 품목)</span>
+                                </h2>
+                                <span className="text-[8px] text-slate-500 font-mono">DOSAGE & BIO-ACTIVE COMPOSITION</span>
+                            </div>
 
-                                {finalProducts.length === 0 ? (
-                                    <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                                        현재 처방된 제품이 없습니다.
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {finalProducts.map((product, index) => (
-                                            <div key={`${product.id}-${index}`} className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-lg p-3 relative group print:break-inside-avoid">
-                                                {/* Remove button - only visible on screen */}
-                                                <button
-                                                    onClick={() => handleRemoveProduct(product.id)}
-                                                    className="absolute top-2 right-2 p-1 bg-white/80 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-all print:hidden"
-                                                    title="목록에서 제외"
-                                                >
-                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                                </button>
+                            {/* 6 Products Grid (2 cols x 3 rows) */}
+                            <div className="grid grid-cols-2 gap-2 flex-1">
+                                {finalProducts.slice(0, 6).map((product, index) => (
+                                    <div key={`${product.id}-${index}`} className="border border-slate-300 bg-white rounded-lg p-2 flex items-start gap-2 text-[9px] shadow-sm relative overflow-hidden group">
+                                        {/* Remove button - only visible on screen */}
+                                        <button
+                                            onClick={() => handleRemoveProduct(product.id)}
+                                            className="absolute top-1.5 right-1.5 p-1 bg-white/80 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded opacity-0 group-hover:opacity-100 transition-all print:hidden"
+                                            title="목록에서 제외"
+                                        >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
 
-                                                <div className="flex items-start gap-3">
-                                                    <div className="flex-shrink-0 flex items-center gap-2">
-                                                        <div className="w-6 h-6 bg-blue-600 text-white rounded flex items-center justify-center font-black text-xs">
-                                                            {index + 1}
-                                                        </div>
-                                                        <img
-                                                            src={product.image}
-                                                            alt={product.name}
-                                                            className="w-12 h-12 rounded-lg border border-slate-200 object-cover"
-                                                            onError={(e) => {
-                                                                e.currentTarget.style.display = 'none';
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-baseline gap-2 mb-1">
-                                                            <h3 className="text-sm font-black text-slate-800">{product.name}</h3>
-                                                            <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{product.category}</span>
-                                                        </div>
-                                                        <p className="text-[11px] text-slate-600 leading-relaxed mb-1.5">{product.subName}</p>
-
-                                                        {/* Key Ingredients */}
-                                                        <div className="mb-1.5">
-                                                            <span className="text-[10px] font-bold text-emerald-700 uppercase">주요 성분:</span>
-                                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                                {product.mainIngredients?.map((ing, i) => (
-                                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 font-medium">
-                                                                        {ing}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Target Symptoms */}
-                                                        <div>
-                                                            <span className="text-[10px] font-bold text-blue-700 uppercase">목표 증상:</span>
-                                                            <ul className="text-[10px] text-slate-700 mt-0.5 grid grid-cols-2 gap-x-4">
-                                                                {product.targetSymptoms?.slice(0, 4).map((symptom, i) => (
-                                                                    <li key={i} className="flex items-start gap-1">
-                                                                        <span className="text-blue-500">•</span>
-                                                                        <span>{symptom}</span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    </div>
+                                        <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                                            <div className="w-5 h-5 bg-slate-900 text-white rounded flex items-center justify-center font-mono font-black text-[10px]">
+                                                0{index + 1}
+                                            </div>
+                                            <div className="w-12 h-12 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden p-0.5">
+                                                <img
+                                                    src={product.id === 'HL-COFFEE-001' ? '/hl_coffee_circle.png' : product.image}
+                                                    alt={product.name}
+                                                    className={`w-full h-full object-contain ${product.id === 'HL-COFFEE-001' ? 'p-0.5' : 'mix-blend-multiply'}`}
+                                                    onError={(e) => {
+                                                        e.currentTarget.style.display = 'none';
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-[7px] px-1 py-0.2 bg-slate-100 text-slate-700 rounded font-bold uppercase font-mono border border-slate-200">
+                                                {product.category}
+                                            </span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="border-b border-slate-100 pb-0.5 mb-1">
+                                                <h3 className="text-[10px] font-black text-slate-900 truncate leading-tight">{product.name}</h3>
+                                                <p className="text-[8px] text-indigo-700 font-bold truncate">{product.subName}</p>
+                                            </div>
+                                            <div className="space-y-0.5 text-[8px]">
+                                                <div>
+                                                    <strong className="text-slate-500 font-bold">주요 성분: </strong>
+                                                    <span className="text-slate-800 font-medium">{product.mainIngredients?.slice(0, 3).join(', ')}</span>
+                                                </div>
+                                                <div>
+                                                    <strong className="text-slate-500 font-bold">표적 증상: </strong>
+                                                    <span className="text-slate-700">{product.targetSymptoms?.slice(0, 2).join(', ')}</span>
+                                                </div>
+                                                <div className="bg-blue-50/80 border border-blue-200 rounded px-1.5 py-0.5 mt-1 flex justify-between items-center text-[7.5px]">
+                                                    <span className="font-bold text-blue-900">권장 복용: <strong>{product.timing || '식후 30분 1회'}</strong></span>
+                                                    <span className="text-blue-700 font-mono font-bold">1일 1회</span>
                                                 </div>
                                             </div>
-                                        ))}
+                                        </div>
                                     </div>
-                                )}
-
-                                {/* Important Notice */}
-                                <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-3 mt-4">
-                                    <h4 className="text-xs font-black text-amber-800 mb-1.5 flex items-center gap-1.5">
-                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L19.5 19h-15L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z" /></svg>
-                                        중요 안내사항
-                                    </h4>
-                                    <ul className="text-[10px] text-amber-900 space-y-0.5 leading-relaxed">
-                                        <li>• 본 처방전은 신경생리학적 데이터 분석을 기반으로 작성되었으며, 의학적 진단을 대체하지 않습니다.</li>
-                                        <li>• 기저질환이 있거나 약물 복용 중인 경우 반드시 의사와 상담 후 섭취하시기 바랍니다.</li>
-                                        <li>• 권장 복용량을 준수하며, 이상 반응 발생 시 즉시 복용을 중단하고 전문가와 상담하십시오.</li>
-                                        <li>• 영양제는 균형 잡힌 식사와 규칙적인 생활습관을 보조하는 수단이며, 이를 대체할 수 없습니다.</li>
-                                    </ul>
-                                </div>
+                                ))}
                             </div>
 
-                            {/* Footer */}
-                            <div className="mt-auto pt-3 border-t border-slate-100 flex justify-between text-[10px] text-slate-400 font-medium">
-                                <p>© 2026 NEURO-EDULAB. 본 처방전은 의료법에 따라 기밀로 취급됩니다.</p>
-                                <p className="uppercase tracking-widest">PRESCRIPTION : PAGE 02</p>
+                            {/* Important Notice */}
+                            <div className="border border-amber-300 bg-amber-50/70 rounded-lg p-2 mt-2 text-[8px]">
+                                <div className="flex items-center gap-1 text-amber-900 font-bold text-[8.5px] mb-0.5">
+                                    <span>⚠️</span>
+                                    <span>임상 복약 지도 및 안내사항 (Medical Advisory)</span>
+                                </div>
+                                <ul className="text-[8px] text-amber-900 space-y-0.5 leading-tight">
+                                    <li>• 본 처방전은 신경생리학적 데이터 분석을 기반으로 작성된 맞춤 영양 관리 프로토콜입니다.</li>
+                                    <li>• 기저질환이 있거나 전문의약품을 복용 중인 경우 주치의 또는 담당 약사와 사전 상담 후 섭취하십시오.</li>
+                                    <li>• 권장 복용량과 복용 타이밍을 준수하며 이상 반응 발생 시 즉시 복용을 중단하십시오.</li>
+                                </ul>
+                            </div>
+
+                            {/* Footer & Official Seal */}
+                            <div className="mt-auto pt-2 border-t border-slate-200 flex justify-between items-end text-[8.5px]">
+                                <div className="text-slate-500 font-mono text-[8px]">
+                                    <p>ISSUING CENTER: NBASS ADVANCED NEURO-NUTRITION CENTER</p>
+                                    <p>VALIDATION: NBASS-VERIFIED-OFFICIAL • CONFIDENTIAL</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-slate-500 font-medium mb-0.5 text-[8.5px]">처방 책임 전문위원 (Doctor in Charge)</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-black text-slate-900">{analystConfig ? getAnalystDisplayText(analystConfig) : 'Dr. Lim'}</span>
+                                        <span className="inline-block w-7 h-7 rounded-full border-2 border-red-600 text-red-600 font-black text-[8.5px] flex items-center justify-center rotate-[-12deg] shadow-sm">
+                                            (처방인)
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

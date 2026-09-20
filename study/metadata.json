@@ -1,0 +1,6 @@
+{
+  "name": "중·고등 성적 및 학습 관리 시스템",
+  "description": "중학생 및 고등학생을 위한 성적 관리, 과목별 입력, 학기별 추이 대시보드, 오답노트, 목표 설정 및 AI 학습 계획 추천, 학부모 알림톡 공유 기능",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

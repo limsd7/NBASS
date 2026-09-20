@@ -10,6 +10,9 @@ interface PortalWindowProps {
 export const PortalWindow: React.FC<PortalWindowProps> = ({ children, onClose, title = 'New Window' }) => {
     const [container, setContainer] = useState<HTMLDivElement | null>(null);
     const newWindow = useRef<Window | null>(null);
+    // [Fix] 최신 onClose 콜백을 참조하기 위한 ref (stale closure 방지)
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
     useEffect(() => {
         // Open new window
@@ -60,15 +63,22 @@ export const PortalWindow: React.FC<PortalWindowProps> = ({ children, onClose, t
 
             setContainer(div);
 
-            // Handle window close
+            // Handle window close (사용자가 직접 창을 닫았을 때만 부모 상태 갱신)
             newWindow.current.onbeforeunload = () => {
-                onClose();
+                onCloseRef.current();
                 return null;
             };
         }
 
         return () => {
             if (newWindow.current) {
+                // [Fix] 프로그래밍 방식 close() 전에 onbeforeunload 핸들러를 먼저 제거.
+                // React StrictMode(index.tsx)의 개발 모드 double-effect로 인해
+                // mount → cleanup → remount 순서로 effect가 2회 실행되는데,
+                // cleanup에서 close()를 호출하면 onbeforeunload → onClose() →
+                // 부모의 showAssessmentWindow=false → 컴포넌트 언마운트 →
+                // 두 번째로 열린 창까지 닫혀버리는 "창이 떴다가 바로 사라지는" 버그가 발생함.
+                newWindow.current.onbeforeunload = null;
                 newWindow.current.close();
                 newWindow.current = null;
             }

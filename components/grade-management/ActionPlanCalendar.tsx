@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StudentInfo } from '../../types';
 import { SimulationResult } from '../../services/gradeSimulationEngine';
-import { DatabaseService } from '../../services/database';
+import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
 
 interface ActionPlanCalendarProps {
     simulationResults: any[];
@@ -278,10 +278,10 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                                     
                                     <!-- Metric 2 -->
                                     <div class="flex flex-col items-center justify-center border-r border-slate-100">
-                                        <div class="text-xs font-bold text-slate-500 mb-4 tracking-widest uppercase">인지 밸런스 (EEG)</div>
-                                        <div class="text-4xl mb-2">📡</div>
+                                        <div class="text-xs font-bold text-slate-500 mb-4 tracking-widest uppercase">인지 밸런스 (Cognitive)</div>
+                                        <div class="text-4xl mb-2">🎯</div>
                                         <div class="text-sm font-bold text-slate-700">고도의 집중력 상태</div>
-                                        <div class="text-xs text-slate-400">(2층 검증 모드)</div>
+                                        <div class="text-xs text-slate-400">(신경인지 검증 모드)</div>
                                     </div>
 
                                     <!-- Text Summary -->

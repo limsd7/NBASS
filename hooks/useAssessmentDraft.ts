@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     StudentInfo, HRVData, ProtocolData, LearningAnalyticsData, BloodTestData, AssessmentResult
 } from '../types';
@@ -108,54 +108,78 @@ export const useAssessmentDraft = ({
     setActiveMenu
 }: UseAssessmentDraftProps) => {
 
-    // Load Draft on Mount
+    const [pendingDraft, setPendingDraft] = React.useState<AssessmentDraft | null>(null);
+
+    // Load Draft on Mount (조건부 완화: register 단계 제외 & 실제 응답 5개 이상일 때만 조용히 감지)
     useEffect(() => {
         const savedDraft = localStorage.getItem('sn1_assessment_draft');
-        if (savedDraft) {
-            try {
-                const draft: AssessmentDraft = JSON.parse(savedDraft);
-                // 24시간 유효성 검사
-                if (draft.timestamp && Date.now() - draft.timestamp < 24 * 60 * 60 * 1000) {
-                    const confirmRecover = window.confirm(
-                        `📋 미완료 검사 데이터가 있습니다.\n\n` +
-                        `학생: ${draft.student?.name || '이름없음'}\n` +
-                        `진행 단계: ${draft.step}\n` +
-                        `저장 시간: ${new Date(draft.timestamp).toLocaleString()}\n\n` +
-                        `이전 데이터를 복구하시겠습니까?`
-                    );
+        if (!savedDraft) return;
 
-                    if (confirmRecover) {
-                        if (draft.student) setStudent(draft.student);
-                        if (draft.hrv) setHrv(draft.hrv);
-                        if (draft.protocol) setProtocol(draft.protocol);
-                        if (draft.analytics) setAnalytics(draft.analytics);
-                        if (draft.bloodTest) setBloodTest(draft.bloodTest);
-                        if (draft.snsSymptomSelection) setSnsSymptomSelection(draft.snsSymptomSelection);
-                        if (draft.pnsSymptomSelection) setPnsSymptomSelection(draft.pnsSymptomSelection);
-                        if (draft.baiAnswers) setBaiAnswers(draft.baiAnswers);
-                        if (draft.isiAnswers) setIsiAnswers(draft.isiAnswers);
-                        if (draft.concentrationAnswers) setConcentrationAnswers(draft.concentrationAnswers);
-                        if (draft.adrenalAnswers) setAdrenalAnswers(draft.adrenalAnswers);
-                        if (draft.fatigueCore !== undefined) setFatigueCore(draft.fatigueCore);
-                        if (draft.fatigueSymptoms) setFatigueSymptoms(draft.fatigueSymptoms);
-                        if (draft.studyEfficiencyResults) setStudyEfficiencyResults(draft.studyEfficiencyResults);
-                        if (draft.workingMemoryResults) setWorkingMemoryResults(draft.workingMemoryResults);
-                        if (draft.cognitiveResults) setCognitiveResults(draft.cognitiveResults); // Recover cognitive results
-                        if (draft.step) setStep(draft.step);
-                        setActiveMenu('assessment');
-                    } else {
-                        localStorage.removeItem('sn1_assessment_draft');
-                    }
-                } else {
-                    // Expired
-                    localStorage.removeItem('sn1_assessment_draft');
-                }
-            } catch (e) {
-                console.error('Failed to recover draft', e);
+        try {
+            const draft: AssessmentDraft = JSON.parse(savedDraft);
+            // 24시간 유효성 검사
+            const isFresh = draft.timestamp && Date.now() - draft.timestamp < 24 * 60 * 60 * 1000;
+            if (!isFresh) {
                 localStorage.removeItem('sn1_assessment_draft');
+                return;
             }
+
+            // 1. 단순 등록(register) 단계는 복구 대상에서 제외 (새로고침 시 귀찮은 알림 방지)
+            if (!draft.step || draft.step === 'register') {
+                return;
+            }
+
+            // 2. 실제 설문 답변 개수 카운트 (최소 5개 이상 작성된 유의미한 데이터인지 확인)
+            let answeredCount = 0;
+            if (Array.isArray(draft.baiAnswers)) answeredCount += draft.baiAnswers.filter(a => a > 0).length;
+            if (Array.isArray(draft.isiAnswers)) answeredCount += draft.isiAnswers.filter(a => a > 0).length;
+            if (Array.isArray(draft.concentrationAnswers)) answeredCount += draft.concentrationAnswers.filter(a => a > 0).length;
+            if (Array.isArray(draft.adrenalAnswers)) answeredCount += draft.adrenalAnswers.filter(a => a > 0).length;
+            if (Array.isArray(draft.snsSymptomSelection)) answeredCount += draft.snsSymptomSelection.length;
+            if (Array.isArray(draft.pnsSymptomSelection)) answeredCount += draft.pnsSymptomSelection.length;
+            if (draft.studyEfficiencyResults) answeredCount += 5;
+            if (draft.cognitiveResults) answeredCount += 5;
+
+            // 5개 미만인 경우(초기 진입 후 나간 경우) 팝업/배너 없이 무시
+            if (answeredCount < 5) {
+                return;
+            }
+
+            // 유의미한 작성 데이터가 있는 경우 조용히 복구 배너용 상태로 세팅
+            setPendingDraft(draft);
+        } catch (e) {
+            console.error('Failed to parse draft', e);
+            localStorage.removeItem('sn1_assessment_draft');
         }
-    }, []); // Run once on mount
+    }, []);
+
+    const recoverDraft = () => {
+        if (!pendingDraft) return;
+        if (pendingDraft.student) setStudent(pendingDraft.student);
+        if (pendingDraft.hrv) setHrv(pendingDraft.hrv);
+        if (pendingDraft.protocol) setProtocol(pendingDraft.protocol);
+        if (pendingDraft.analytics) setAnalytics(pendingDraft.analytics);
+        if (pendingDraft.bloodTest) setBloodTest(pendingDraft.bloodTest);
+        if (pendingDraft.snsSymptomSelection) setSnsSymptomSelection(pendingDraft.snsSymptomSelection);
+        if (pendingDraft.pnsSymptomSelection) setPnsSymptomSelection(pendingDraft.pnsSymptomSelection);
+        if (pendingDraft.baiAnswers) setBaiAnswers(pendingDraft.baiAnswers);
+        if (pendingDraft.isiAnswers) setIsiAnswers(pendingDraft.isiAnswers);
+        if (pendingDraft.concentrationAnswers) setConcentrationAnswers(pendingDraft.concentrationAnswers);
+        if (pendingDraft.adrenalAnswers) setAdrenalAnswers(pendingDraft.adrenalAnswers);
+        if (pendingDraft.fatigueCore !== undefined) setFatigueCore(pendingDraft.fatigueCore);
+        if (pendingDraft.fatigueSymptoms) setFatigueSymptoms(pendingDraft.fatigueSymptoms);
+        if (pendingDraft.studyEfficiencyResults) setStudyEfficiencyResults(pendingDraft.studyEfficiencyResults);
+        if (pendingDraft.workingMemoryResults) setWorkingMemoryResults(pendingDraft.workingMemoryResults);
+        if (pendingDraft.cognitiveResults) setCognitiveResults(pendingDraft.cognitiveResults);
+        if (pendingDraft.step) setStep(pendingDraft.step);
+        setActiveMenu('assessment');
+        setPendingDraft(null);
+    };
+
+    const dismissDraft = () => {
+        localStorage.removeItem('sn1_assessment_draft');
+        setPendingDraft(null);
+    };
 
     // Auto-Save Effect
     useEffect(() => {
@@ -198,6 +222,13 @@ export const useAssessmentDraft = ({
     useEffect(() => {
         if (result) {
             localStorage.removeItem('sn1_assessment_draft');
+            setPendingDraft(null);
         }
     }, [result]);
+
+    return {
+        pendingDraft,
+        recoverDraft,
+        dismissDraft
+    };
 };

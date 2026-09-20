@@ -11,12 +11,12 @@ export const CoherenceTimelineChart: React.FC<CoherenceTimelineChartProps> = ({ 
     // Process history to extract coherence
     const data = React.useMemo(() => {
         if (!history || history.length === 0) return [];
-        
+
         // Sort history by date ascending
         const sortedHistory = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
+
         return sortedHistory.map(item => {
-            const state = evaluateBrainBodyCoherence(item.hrv, item.survey, item.careType);
+            const state = evaluateBrainBodyCoherence(item.hrv, item.survey, item.careType, item.protocol, item.cognitiveResults);
             return {
                 date: item.date,
                 coherence: state.coherence,
@@ -62,38 +62,38 @@ export const CoherenceTimelineChart: React.FC<CoherenceTimelineChartProps> = ({ 
                     <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id="colorCoherence" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                            dataKey="label" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                        <XAxis
+                            dataKey="label"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 11, fill: '#94a3b8' }}
                             dy={10}
                         />
-                        <YAxis 
-                            domain={[0, 100]} 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                        <YAxis
+                            domain={[0, 100]}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 11, fill: '#94a3b8' }}
                         />
-                        <Tooltip 
+                        <Tooltip
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
                             labelStyle={{ color: '#64748b', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}
                             formatter={(value: number) => [`${value}%`, 'Coherence']}
                         />
                         <ReferenceLine y={80} stroke="#10b981" strokeDasharray="3 3" strokeOpacity={0.5} />
                         <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
-                        
-                        <Line 
-                            type="monotone" 
-                            dataKey="coherence" 
-                            stroke="#8b5cf6" 
-                            strokeWidth={4} 
-                            dot={{ r: 6, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }} 
+
+                        <Line
+                            type="monotone"
+                            dataKey="coherence"
+                            stroke="#8b5cf6"
+                            strokeWidth={4}
+                            dot={{ r: 6, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
                             activeDot={{ r: 8, strokeWidth: 0 }}
                         />
                     </LineChart>

@@ -1,8 +1,9 @@
-import { CareType, LearningAnalyticsData, SleepPrescription } from '../types';
+import { CareType, LearningAnalyticsData, SleepPrescription, SleepRecord } from '../types';
 
 export const generateSleepPrescription = (
   careType: CareType,
-  analytics: LearningAnalyticsData
+  analytics: LearningAnalyticsData,
+  records?: SleepRecord[]
 ): SleepPrescription => {
   // Default values
   let targetSleepDuration = 7.5;
@@ -51,6 +52,15 @@ export const generateSleepPrescription = (
         "잠이 안 오면 일어나서 약한 조명 아래서 이완 활동하기"
       ];
       break;
+    case CareType.ANXIETY_TENSION:
+      targetSleepDuration = 8.0;
+      sleepStrategy = "시험 긴장으로 인한 각성 완화를 위해 취침 전 점진적 근육이완법(PMR)을 실시하세요.";
+      preSleepRoutine = [
+        "취침 30분 전 따뜻한 족욕 또는 온찜질",
+        "호흡 훈련 (4초 흡기, 7초 정지, 8초 호기)",
+        "내일 할 일 목록을 미리 적어두고 머릿속 비우기"
+      ];
+      break;
     default:
       targetSleepDuration = 7.5;
       break;
@@ -73,6 +83,36 @@ export const generateSleepPrescription = (
     chronotypeNotes = "표준적인 생체 리듬을 가지고 있습니다. 안정적인 7~8시간 수면을 유지하세요.";
   }
 
+  // 3. [NEW] 실측 수면 기록(SleepRecord) 피드백 역연동
+  let actualSleepAvg: number | undefined;
+  let actualSleepDebtHours: number | undefined;
+  let recordedDaysCount: number | undefined;
+  let feedbackFromRecords: string | undefined;
+
+  if (records && records.length > 0) {
+    recordedDaysCount = records.length;
+    const totalDuration = records.reduce((acc, r) => {
+      const bParts = r.bedtime.split(':').map(Number);
+      const wParts = r.wakeTime.split(':').map(Number);
+      let bMins = bParts[0] * 60 + (bParts[1] || 0);
+      let wMins = wParts[0] * 60 + (wParts[1] || 0);
+      if (bMins > 12 * 60 && wMins < 12 * 60) wMins += 24 * 60;
+      return acc + Math.max(0, (wMins - bMins) / 60);
+    }, 0);
+
+    actualSleepAvg = parseFloat((totalDuration / records.length).toFixed(1));
+    const debtPerDay = targetSleepDuration - actualSleepAvg;
+    actualSleepDebtHours = parseFloat((debtPerDay * Math.min(records.length, 7)).toFixed(1));
+
+    if (actualSleepDebtHours > 5) {
+      feedbackFromRecords = `🚨 최근 ${records.length}일간 실측 평균 수면시간은 ${actualSleepAvg}시간으로, 목표(${targetSleepDuration}h) 대비 주간 누적 수면부채(${actualSleepDebtHours}시간)가 심각합니다. 주말 보충 수면과 회복 모드 진입이 시급합니다.`;
+    } else if (actualSleepDebtHours > 1) {
+      feedbackFromRecords = `⚠️ 최근 ${records.length}일간 실측 평균 수면시간은 ${actualSleepAvg}시간(목표 ${targetSleepDuration}h)입니다. 오늘 밤 30분 일찍 취침하여 수면부채를 해소하세요.`;
+    } else {
+      feedbackFromRecords = `✅ 최근 ${records.length}일간 실측 평균 수면시간은 ${actualSleepAvg}시간으로 목표(${targetSleepDuration}h)를 훌륭히 달성 중입니다! 두뇌 가동 최적 상태가 유지되고 있습니다.`;
+    }
+  }
+
   return {
     recommendedBedtime,
     recommendedWakeTime,
@@ -80,6 +120,10 @@ export const generateSleepPrescription = (
     sleepStrategy,
     preSleepRoutine,
     powerNap,
-    chronotypeNotes
+    chronotypeNotes,
+    actualSleepAvg,
+    actualSleepDebtHours,
+    recordedDaysCount,
+    feedbackFromRecords
   };
 };

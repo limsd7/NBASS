@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AssessmentResult } from '../types';
 import DatabaseService, { HistoryRecord } from '../services/database';
+import { safeStorage } from '../utils/safeStorage';
 
 export type { HistoryRecord };
 
@@ -58,21 +59,21 @@ export function useHistory() {
                 const updated = await DatabaseService.getAllHistory();
                 setHistory(updated);
 
-                // localStorage에도 백업 (호환성 유지)
-                localStorage.setItem('sn1_history', JSON.stringify(updated.slice(0, 50)));
+                // localStorage에도 가벼운 백업 (최대 5건만 안전 저장)
+                safeStorage.saveJSON('sn1_history', updated.slice(0, 5));
             }
         } catch (e) {
             console.error('Failed to add to history:', e);
             setError('히스토리 저장 실패');
 
-            // Fallback: localStorage에 저장
+            // Fallback: 메모리 및 안전 로컬스토리지에 저장
             setHistory(prev => {
                 const newEntry: HistoryRecord = {
                     ...result,
                     date: new Date().toISOString()
                 };
                 const updated = [newEntry, ...prev].slice(0, 50);
-                localStorage.setItem('sn1_history', JSON.stringify(updated));
+                safeStorage.saveJSON('sn1_history', updated.slice(0, 5));
                 return updated;
             });
         }
@@ -83,7 +84,7 @@ export function useHistory() {
             await DatabaseService.deleteHistory(id);
             const updated = await DatabaseService.getAllHistory();
             setHistory(updated);
-            localStorage.setItem('sn1_history', JSON.stringify(updated.slice(0, 50)));
+            safeStorage.saveJSON('sn1_history', updated.slice(0, 5));
         } catch (e) {
             console.error('Failed to delete from history:', e);
             setError('히스토리 삭제 실패');
@@ -94,7 +95,7 @@ export function useHistory() {
         try {
             await DatabaseService.clearAllHistory();
             setHistory([]);
-            localStorage.removeItem('sn1_history');
+            safeStorage.removeItem('sn1_history');
         } catch (e) {
             console.error('Failed to clear history:', e);
             setError('히스토리 초기화 실패');
@@ -106,7 +107,7 @@ export function useHistory() {
             await DatabaseService.importHistory(data, merge);
             const updated = await DatabaseService.getAllHistory();
             setHistory(updated);
-            localStorage.setItem('sn1_history', JSON.stringify(updated.slice(0, 50)));
+            safeStorage.saveJSON('sn1_history', updated.slice(0, 5));
         } catch (e) {
             console.error('Failed to import data:', e);
             setError('데이터 가져오기 실패');
@@ -119,10 +120,10 @@ export function useHistory() {
                     new Date(b.date).getTime() - new Date(a.date).getTime()
                 ).slice(0, 50);
                 setHistory(merged);
-                localStorage.setItem('sn1_history', JSON.stringify(merged));
+                safeStorage.saveJSON('sn1_history', merged.slice(0, 5));
             } else {
                 setHistory(data);
-                localStorage.setItem('sn1_history', JSON.stringify(data));
+                safeStorage.saveJSON('sn1_history', data.slice(0, 5));
             }
         }
     }, [history]);

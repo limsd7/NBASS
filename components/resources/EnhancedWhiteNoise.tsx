@@ -12,7 +12,7 @@ export const EnhancedWhiteNoise: React.FC = () => {
     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-          <span>🎧</span> 뇌파 안정 핑크/브라운 백색소음
+          <span>🎧</span> 집중 몰입 핑크/브라운 백색소음
         </h3>
         <button
           onClick={togglePlay}

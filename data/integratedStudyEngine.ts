@@ -4,7 +4,7 @@
  * 4가지 지표를 종합하여 국어/수학/영어 최적 공부법을 선택:
  * 1. Autonomic Balance (ANS) - 자율신경 균형
  * 2. Vitality & Fatigue Index - 활력 및 피로 지수
- * 3. Brain Balance Radar - 뇌파 균형 (HRV/의학적 모드만)
+ * 3. Cognitive Balance - 인지 활성 균형
  * 4. Stress & Concentration Gauge - 스트레스 및 집중도 게이지
  * 
  * 12가지 CareType과 매칭
@@ -36,7 +36,7 @@ export interface IntegratedAssessment {
     fatigueScore: number;       // 피로 점수 (0-100, 낮을수록 좋음)
     stressScore: number;        // 스트레스 점수 (0-100, 낮을수록 좋음)
     concentrationScore: number; // 집중도 점수 (0-100, 높을수록 좋음)
-    eegType?: DominantEEGType;  // 뇌파 패턴 (EEG 모드만)
+    eegType?: DominantEEGType;  // 인지 집중 패턴
 
     // 과목별 추천 모드
     koreanRecommendation: SubjectRecommendation;
@@ -122,7 +122,7 @@ export const analyzePhysicalState = (
 };
 
 /**
- * Step 2: 정신 각성도 체크 (뇌파 및 집중도 필터)
+ * Step 2: 정신 각성도 체크 (신경인지 및 집중도 필터)
  */
 export const analyzeMentalArousal = (
     hrv: HRVData,
@@ -159,8 +159,9 @@ export const analyzeMentalArousal = (
             score: vitality
         };
     } else {
-        // HRV/의학적 모드: 뇌파와 집중도로 판단
-        const concentrationLevel = hrv.concentrationLevel || 50;
+        // 표준 모드: 신경인지 및 집중도로 판단 (1~10 척도 및 0~100 척도 자동 변환)
+        const rawConc = hrv.concentrationLevel || 50;
+        const concentrationLevel = rawConc <= 10 ? rawConc * 10 : rawConc;
         const brainScore = hrv.brainScore || 50;
         const dominantEEG = hrv.dominantEEG || [];
 
@@ -229,7 +230,7 @@ export const determineSubjectStrategy = (
             title: '수학 딥워크 (Deep Work)',
             mode: 'deep_work',
             method: '외부 자극을 100% 차단하고 한 문제에 30분 이상 몰입합니다.',
-            reason: '수학은 논리적 인과관계가 끊기면 안 되므로, 뇌파가 가장 안정적이고 강력할 때 해야 합니다.',
+            reason: '수학은 논리적 인과관계가 끊기면 안 되므로, 인지 집중력이 가장 안정적이고 강력할 때 해야 합니다.',
             tips: [
                 '킬러 문항/4점짜리 고난도 문제 정면 돌파',
                 '새로운 유형에 도전하여 뇌에 강한 자극',
@@ -557,14 +558,18 @@ ${recommendation.tips.map(tip => `• ${tip}`).join('\n')}`;
  * 통합 공부법 선택 매트릭스 생성
  */
 export const generateStudyMatrix = (): string => {
-    return `## 📊 통합 공부법 선택 매트릭스
+    return `## 📊 통합 공부법 선택 매트릭스 (Study Optimization Matrix)
+
+> 💡 **이 표는 무엇을 의미하나요? (매트릭스 활용 가이드)**
+> 수험생의 공부 효율은 단순한 의지가 아니라, **'몸의 에너지(자율신경 긴장/나른)'**와 **'뇌의 각성도(집중/피로)'**의 결합 상태에 따라 결정됩니다.
+> 아래 매트릭스는 현재 나의 생체 컨디션 4분면에 맞춰 **가장 뇌 피로를 아끼면서 학습 효율을 극대화할 수 있는 최적의 과목과 공부 방식**을 안내합니다.
 
 | 신체 에너지 | 정신 각성도 | 추천 과목 | 추천 공부법 |
-|------------|-----------|----------|------------|
-| High (교감) | High | 수학 킬러 / 과학 | 50분 딥 워크 (논리 정면 돌파) |
-| High (긴장) | Medium | 국어 비문학 / 영어 | 25분 뽀모도로 (구조 분석) |
-| Low (나른) | High | 국어 문학 / 탐구 암기 | 시각화 및 백지 복습 (이미지화) |
-| Low (지침) | Low | 단순 연산 / 필사 | 서서 하기 또는 15분 낮잠 후 재진단 |`;
+| :--- | :--- | :--- | :--- |
+| High (교감 우세) | High (고도 집중) | 수학 킬러 / 과학 고난도 | 50~90분 딥 워크 (논리 정면 돌파) |
+| High (긴장/산만) | Medium (중간 각성) | 국어 비문학 / 영어 독해 | 25분 뽀모도로 타임어택 (스피드 구조화) |
+| Low (나른/이완) | High (상상/인출) | 국어 문학 / 탐구 개념 암기 | 시각화 암기 및 백지 복습 (액티브 리콜) |
+| Low (지침/방전) | Low (피로/저각성) | 단순 연산 / 오답 필사 | 15분 파워냅 후 가벼운 확인 |`;
 };
 
 /**

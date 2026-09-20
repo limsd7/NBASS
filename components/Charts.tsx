@@ -161,19 +161,52 @@ export const TrendChart: React.FC<{ history: any[] }> = memo(({ history }) => {
 TrendChart.displayName = 'TrendChart';
 
 // NEW: Stress Gauge Chart (Simple Bar)
-export const StressGaugeChart: React.FC<{ stress: number, label: string, color: string }> = memo(({ stress, label, color }) => {
+export const StressGaugeChart: React.FC<{
+  stress: number;
+  label: string;
+  color: string;
+  badge?: string;
+  description?: string;
+}> = memo(({ stress, label, color, badge, description }) => {
+  const rawVal = Number(stress) || 0;
+  const normalizedVal = rawVal > 10 ? Math.round(rawVal / 10) : rawVal;
+  const clampedVal = Math.min(10, Math.max(0, normalizedVal));
+  const percentage = Math.min(100, Math.max(0, clampedVal * 10));
+
+  // Determine solid background color class
+  const getBgClass = (c: string) => {
+    if (c.includes('red') || c.includes('rose')) return 'bg-rose-500';
+    if (c.includes('emerald') || c.includes('green')) return 'bg-emerald-500';
+    if (c.includes('blue') || c.includes('indigo')) return 'bg-blue-500';
+    if (c.includes('amber') || c.includes('yellow')) return 'bg-amber-500';
+    if (c.includes('violet') || c.includes('purple')) return 'bg-violet-500';
+    return 'bg-indigo-500';
+  };
+
+  const bgClass = getBgClass(color);
+
   return (
-    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-      <div className="flex justify-between mb-2">
-        <span className="text-xs font-bold text-slate-500 uppercase">{label}</span>
-        <span className={`text-sm font-black ${color}`}>{stress}/10</span>
+    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">{label}</span>
+          {badge && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+              {badge}
+            </span>
+          )}
+        </div>
+        <span className={`text-sm font-black ${color}`}>{clampedVal}/10</span>
       </div>
-      <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+      <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-1000 ease-out"
-          style={{ width: `${stress * 10}%`, backgroundColor: color.replace('text-', 'bg-').split(' ')[0].replace('600', '500') }} // Simple color mapping hack or pass hex
+          className={`h-full rounded-full transition-all duration-1000 ease-out ${bgClass}`}
+          style={{ width: `${percentage}%` }}
         ></div>
       </div>
+      {description && (
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 leading-tight">{description}</p>
+      )}
     </div>
   );
 });

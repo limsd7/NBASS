@@ -75,7 +75,7 @@ export const ManualModal: React.FC<ManualModalProps> = ({ isOpen, onClose }) => 
                                         <h4 className="font-bold text-lg">Assessment (분석 및 처방)</h4>
                                     </div>
                                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                                        핵심 작업 공간입니다. 학생의 생체 데이터(자율신경/뇌파)와 설문 결과를 입력하면, AI가 이를 종합하여 현재 뇌-신체 상태(Care Type)를 도출하고 최적의 학습 및 멘탈 관리 솔루션을 제공합니다.
+                                        핵심 작업 공간입니다. 학생의 생체 데이터(자율신경)와 설문 결과를 입력하면, AI가 이를 종합하여 현재 뇌-신체 상태(Care Type)를 도출하고 최적의 학습 및 멘탈 관리 솔루션을 제공합니다.
                                     </p>
                                 </div>
                                 
@@ -157,7 +157,7 @@ export const ManualModal: React.FC<ManualModalProps> = ({ isOpen, onClose }) => 
                                     </p>
                                     <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 space-y-1 ml-2">
                                         <li>학생의 이름과 나이를 입력합니다.</li>
-                                        <li>원내에 구비된 장비 환경에 따라 <b>BrainBody</b>(뇌파+자율신경) 모드인지 <b>Portable</b>(맥파 전용) 모드인지 선택하세요.</li>
+                                        <li>진단 환경에 맞추어 검사 프로토콜 모드를 선택하세요.</li>
                                     </ul>
                                 </div>
 
@@ -171,7 +171,7 @@ export const ManualModal: React.FC<ManualModalProps> = ({ isOpen, onClose }) => 
                                         기기를 통해 측정된 결과를 화면의 폼에 기입합니다. 최근 업데이트로 더 강력한 다각도 지표 입력이 가능해졌습니다.
                                     </p>
                                     <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-400 space-y-1 ml-2">
-                                        <li><b>HRV & EEG:</b> 교감/부교감 신경 수치, 스트레스 및 뇌파 집중도 수치를 입력합니다.</li>
+                                        <li><b>자율신경 &amp; 신경인지:</b> 교감/부교감 신경 밸런스, 스트레스 및 두뇌 집중도 수치를 확인합니다.</li>
                                         <li><b>혈액검사 (Medical Mode):</b> 헤모글로빈, 비타민D, 백혈구 등 기능의학 지표를 병행 입력하여 신체 컨디션을 분석합니다.</li>
                                         <li><b>인지수행검사 (Cognitive):</b> 작업기억력, 처리속도 등의 객관적 인지 역량 평가를 추가할 수 있습니다.</li>
                                     </ul>
@@ -257,7 +257,7 @@ export const ManualModal: React.FC<ManualModalProps> = ({ isOpen, onClose }) => 
                                         <span className="text-xl">🩸</span> 기능의학 지표 (혈액검사) 병합 분석 기능
                                     </h4>
                                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                                        뇌파와 자율신경 검사 외에 새롭게 <b>Medical 모드</b>가 추가되었습니다. 협력 병원 또는 외부 혈액검사 결과(비타민D, 헤모글로빈, 백혈구 수치 등)를 NBASS 시스템에 입력하면, 기존의 뇌신경 지표와 교차 분석하여 훨씬 더 과학적이고 의학적 근거를 갖춘 <b>정밀 영양 및 라이프스타일 처방전</b>을 도출합니다.
+                                        자율신경 및 신경인지 검사 외에 새롭게 <b>Medical 모드</b>가 추가되었습니다. 협력 병원 또는 외부 혈액검사 결과(비타민D, 헤모글로빈, 백혈구 수치 등)를 NBASS 시스템에 입력하면, 기존의 뇌신경 지표와 교차 분석하여 훨씬 더 과학적이고 의학적 근거를 갖춘 <b>정밀 영양 및 라이프스타일 처방전</b>을 도출합니다.
                                     </p>
                                 </div>
 

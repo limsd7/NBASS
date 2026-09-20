@@ -4,6 +4,9 @@ import { PortalWindow } from '../../common/PortalWindow';
 import { PsychologicalAssessment } from '../../PsychologicalAssessment';
 import { useState } from 'react';
 import { PromptModal } from '../../modals/PromptModal';
+import { DataConfidenceBadge } from '../../common/DataConfidenceBadge';
+import { computeAdherence } from '../../../services/treatmentAdherence';
+import { FreeTrialPaywallBanner } from '../../common/FreeTrialPaywallBanner';
 
 interface ResultsHeaderProps {
   result: AssessmentResult;
@@ -41,6 +44,9 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
   const [showAssessmentWindow, setShowAssessmentWindow] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
 
+  // [P1-1] 처방 이행률 요약 (처방 대비 완료 체크 비율)
+  const adherence = computeAdherence(result);
+
   // Print style extraction for new window
   const printStyle = typeof document !== 'undefined'
     ? Array.from(document.styleSheets)
@@ -66,22 +72,45 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
             <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
             Neuro-Bio Academic Strategy System <span className="text-indigo-600 font-bold">[NBASS]</span>
           </h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 ml-4">뉴로바이오 학습전략시스템</p>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 ml-4">NBASS 정밀 진단 보고서 : 등급표시</p>
         </div>
         <div className="text-right">
-          <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Official Diagnostic Report</p>
+          <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Official Diagnostic & Neuro-Insight Comprehensive Report</p>
           <div className="flex flex-col items-end gap-0.5 mt-1">
             <p className="text-[10px] text-slate-500 font-mono">Date: {result.student.testDate}</p>
             {config.currentExaminerId && (
               <p className="text-[10px] text-slate-500 font-mono">
                 Examiner ID: {(() => {
-                    const ex = config.examiners?.find(e => e.id === config.currentExaminerId);
-                    return ex ? `${ex.id}${ex.position ? ` (${ex.position})` : ''}` : config.currentExaminerId;
+                  const ex = config.examiners?.find(e => e.id === config.currentExaminerId);
+                  return ex ? `${ex.id}${ex.position ? ` (${ex.position})` : ''}` : config.currentExaminerId;
                 })()}
               </p>
             )}
           </div>
         </div>
+      </div>
+
+      {/* [P0-3 / P1-1] 데이터 신뢰도 + 처방 이행률 표기 — 기존 리포트 내용은 그대로 두고 배지만 추가 */}
+      <div className="px-4 py-2 bg-white border-b border-slate-100 flex flex-wrap items-center gap-2">
+        <DataConfidenceBadge confidence={result.dataConfidence} />
+        {adherence.prescribedCount > 0 && (
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${adherence.rate >= 60
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : adherence.rate >= 30
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}
+            title={adherence.label}
+          >
+            처방 이행률: {adherence.rate}% ({adherence.completedCount}/{adherence.prescribedCount})
+          </span>
+        )}
+      </div>
+
+      {/* [소프트 게이트] 무료 진단 1회 사용 후 업그레이드 유도 (사용 전에는 미표시) */}
+      <div className="px-4 pt-2">
+        <FreeTrialPaywallBanner />
       </div>
 
       {/* Button Controls */}
@@ -100,11 +129,11 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
             onClick={() => {
               if (reportMode === 'expert') return;
               if (isAdminUnlocked) {
-                  setReportMode('expert');
+                setReportMode('expert');
               } else if (config.expertModePassword) {
-                  setShowPasswordPrompt(true);
+                setShowPasswordPrompt(true);
               } else {
-                  setReportMode('expert');
+                setReportMode('expert');
               }
             }}
             className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${reportMode === 'expert'
@@ -170,12 +199,12 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
         title="전문가용 진입 암호를 입력하세요"
         isPassword={true}
         onConfirm={(pwd) => {
-            if (pwd === config.expertModePassword) {
-                setReportMode('expert');
-                setShowPasswordPrompt(false);
-            } else {
-                alert("암호가 일치하지 않습니다.");
-            }
+          if (pwd === config.expertModePassword) {
+            setReportMode('expert');
+            setShowPasswordPrompt(false);
+          } else {
+            alert("암호가 일치하지 않습니다.");
+          }
         }}
         onCancel={() => setShowPasswordPrompt(false)}
       />

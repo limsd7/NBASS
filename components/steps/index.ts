@@ -1,10 +1,6 @@
-export { RegisterStep } from './RegisterStep';
-export { LoadingStep } from './LoadingStep';
 export { SurveysStep } from './SurveysStep';
 export { ProtocolStep } from './ProtocolStep';
 export { AnalyticsStep } from './AnalyticsStep';
 export { StudyEfficiencyStep } from './StudyEfficiencyStep';
 export { CognitivePerformanceStep } from './CognitivePerformanceStep';
-export { HRVStep } from './HRVStep';
-export { EEGStep } from './EEGStep';
 export { ResultsStep } from './results';

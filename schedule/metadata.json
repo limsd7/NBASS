@@ -1,0 +1,6 @@
+{
+  "name": "중고등학생 스마트 케어 스케줄러",
+  "description": "중고등학생 맞춤형 케어 타입 연계 학습 시간관리 시스템 및 자동 스케줄러",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

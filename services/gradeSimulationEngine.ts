@@ -1,5 +1,6 @@
 import { GradeRecord, GradeGoal, AssessmentResult, SubjectGrade, StudentInfo, CareType } from '../types';
 import { SUNEUNG_SUBJECTS } from '../data/suneungSubjects';
+import { getCareTypeDetail } from '../data/careTypesData';
 
 export interface SimulationResult {
     months: string[]; // ["1개월 후", "2개월 후", "3개월 후", "6개월 후", "수능"]
@@ -104,34 +105,44 @@ export class GradeSimulationEngine {
 
             const gradeGap = currentGrade - targetGrade;
             
-            // Focus subjects get a 20% boost in improvement speed
+            // 1. Focus subjects multiplier
             const isFocused = focusSubjects.includes(subjectId);
             const focusMultiplier = isFocused ? 1.2 : 1.0;
 
-            // Difficulty multiplier (e.g. math is harder to improve)
+            // 2. Subject category difficulty multiplier
             let difficultyMultiplier = 1.0;
             if (subjectInfo.category === 'common' && subjectId === 'math') difficultyMultiplier = 0.7;
             if (subjectInfo.category === 'common' && subjectId === 'korean') difficultyMultiplier = 0.8;
             if (subjectInfo.category === 'social' || subjectInfo.category === 'science') difficultyMultiplier = 1.1;
 
-            const improvementRate = overallMultiplier * focusMultiplier * difficultyMultiplier;
+            // 3. Grade band scaling (1~2등급 킬러 vs 7~9등급 기초)
+            let gradeBandMultiplier = 1.0;
+            if (currentGrade <= 2) gradeBandMultiplier = 0.65;
+            else if (currentGrade <= 4) gradeBandMultiplier = 0.9;
+            else if (currentGrade <= 6) gradeBandMultiplier = 1.15;
+            else gradeBandMultiplier = 1.35;
+
+            // 4. Exam type weighting
+            let examTypeMultiplier = 1.0;
+            if (latestRecord.examType === 'suneung') examTypeMultiplier = 0.85;
+            else if (latestRecord.examType === 'midterm' || latestRecord.examType === 'final') examTypeMultiplier = 1.15;
+
+            const improvementRate = overallMultiplier * focusMultiplier * difficultyMultiplier * gradeBandMultiplier * examTypeMultiplier;
 
             // Calculate trajectory
-            // We want to simulate a curve where grade drops (improves) over time
             const trajectory = [currentGrade];
             let currentTempGrade = currentGrade;
 
-            // Simple decay model towards target
+            // Decay model towards target
             const timeSteps = [1, 1, 1, 3, 4]; // months per step
             
             for (const step of timeSteps) {
                 const improvement = (currentTempGrade - targetGrade) * 0.15 * improvementRate * step;
                 currentTempGrade = Math.max(targetGrade, currentTempGrade - improvement);
-                // Round to 1 decimal place for visual smoothness in chart, though grades are discrete
                 trajectory.push(Number(currentTempGrade.toFixed(1)));
             }
 
-            // Calculate trend from last 3 records
+            // Calculate trend from last records
             const pastGrades = sortedRecords
                 .map(r => r.subjects.find(s => s.subjectId === subjectId)?.grade)
                 .filter(g => g !== undefined) as number[];
@@ -140,7 +151,6 @@ export class GradeSimulationEngine {
             let trendSlope = 0;
             if (recentGrades.length >= 2) {
                 let totalSlope = 0;
-                // Weighted average: more recent slopes have higher weight
                 let weightSum = 0;
                 for (let i = 0; i < recentGrades.length - 1; i++) {
                     const weight = recentGrades.length - 1 - i;
@@ -150,16 +160,17 @@ export class GradeSimulationEngine {
                 trendSlope = totalSlope / weightSum;
             }
 
-            // Calculate probability based on gap, time, and efficiency
+            // Calculate probability based on gap, time, efficiency, and grade band
             let probability = 50;
             if (improvementRate > 1.2) probability += 20;
             if (improvementRate < 0.8) probability -= 20;
-            if (gradeGap >= 4) probability -= 30; // Too big of a gap
+            if (gradeGap >= 4) probability -= 30;
             if (gradeGap <= 1) probability += 20;
+            if (currentGrade <= 2) probability -= 10; // 1~2등급 도달 난이도 보정
             
             // Adjust probability based on trend
-            if (trendSlope < -0.5) probability += 15; // Improving
-            else if (trendSlope > 0.5) probability -= 15; // Declining
+            if (trendSlope < -0.5) probability += 15;
+            else if (trendSlope > 0.5) probability -= 15;
             
             probability = Math.max(10, Math.min(95, Math.round(probability)));
 
@@ -168,6 +179,7 @@ export class GradeSimulationEngine {
             if (gradeGap >= 3) bottlenecks.push("현재 등급과 목표 등급 간의 격차가 커서 학습량 부담이 높습니다.");
             if (improvementRate < 0.9) bottlenecks.push("학습 효율성 저하로 성적 향상 속도가 더딜 수 있습니다.");
             if (student.weakSubject === subjectInfo.id) bottlenecks.push("취약 과목으로 지정되어 있어 개념 보완에 더 많은 시간이 필요합니다.");
+            if (currentGrade <= 2) bottlenecks.push("상위 1~2등급 진입을 위해선 단순 암기를 넘어선 '고난도 킬러 문항 조건 분석력'이 결정적입니다.");
             
             if (trendSlope > 0.5) bottlenecks.push("최근 성적 하락 추세가 감지되었습니다. 학습 방법 점검이 필요합니다.");
             else if (trendSlope < -0.5) bottlenecks.push("최근 성적이 상승 추세입니다! 현재 학습 페이스를 유지하세요.");
@@ -178,26 +190,25 @@ export class GradeSimulationEngine {
                     .map(([name]) => name);
                 if (weakUnits.length > 0) {
                     bottlenecks.push(`세부 단원 분석: [${weakUnits.join(', ')}] 파트의 오답률이 높아 이 부분만 보완해도 점수 향상 확률이 크게 올라갑니다.`);
-                    probability += 10; // 알고 있는 약점이 있으므로 보완시 확률 상승
+                    probability += 10;
                 }
             }
 
             if (bottlenecks.length === 0) bottlenecks.push("특별한 병목 요인 없이 안정적인 성적 향상이 기대됩니다.");
 
-            // 통합: 신체/자율신경계 기반 CareType 추출
-            const careType = assessment?.careType;
+            // 통합: 12대 CareType 주분류 + 부분류(Secondary) 복합 매트릭스 추출
+            const primaryCare = getCareTypeDetail(assessment?.careType);
+            const secondaryCareTypes = assessment?.classificationResult?.secondary || [];
             let careTypePrefix = "";
 
-            if (careType === CareType.BURNOUT) {
-                careTypePrefix = "현재 번아웃(Burnout) 상태이므로 과도한 목표보다는 기존 목표량의 50% 수준으로 조정하고, ";
-            } else if (careType === CareType.BRAIN_FATIGUE) {
-                careTypePrefix = "뇌 피로(Brain Fatigue)가 높은 상태이므로 태블릿, 스마트폰 등 디지털 기기 사용을 최소화하고 종이 교재 위주로 ";
-            } else if (careType === CareType.ADRENAL) {
-                careTypePrefix = "부신 피로로 인해 에너지 변동이 심하므로 무리한 계획보다는 컨디션이 좋은 시간에 집중하여, ";
-            } else if (careType === CareType.SLEEP) {
-                careTypePrefix = "수면 부족으로 장기 기억 전환에 불리합니다. 무조건 학습 시간을 늘리기보다 충분한 수면을 우선 확보하면서 ";
-            } else if (careType === CareType.ANXIETY_TENSION) {
-                careTypePrefix = "긴장과 불안도가 높으므로 결과에 대한 압박감을 내려놓고, '5분만 해보자'는 전략으로 부담 없이 시작하여, ";
+            if (assessment?.careType && primaryCare.code !== 'HEALTHY') {
+                careTypePrefix = `[${primaryCare.title} 케어] ${primaryCare.prescription} `;
+                if (secondaryCareTypes.length > 0) {
+                    const secCare = getCareTypeDetail(secondaryCareTypes[0]);
+                    if (secCare.code !== primaryCare.code && secCare.code !== 'HEALTHY') {
+                        careTypePrefix += `또한 [${secCare.title} 복합] ${secCare.prescription} `;
+                    }
+                }
             }
 
             const recommendations = [];

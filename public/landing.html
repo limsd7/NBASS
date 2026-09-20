@@ -1,0 +1,5191 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBASS — 뇌-신체 과학 기반 학습 최적화 시스템</title>
+  <meta name="description"
+    content="신경인지 성향·자율신경(ANS)·학습 심리검사로 나에게 딱 맞는 학습 전략을 제공하는 과학적 학습 최적화 플랫폼 NBASS. 수험생, 대학생, 직장인을 위한 맞춤형 솔루션." />
+  <meta name="keywords" content="NBASS, 인지검사, 자율신경, 학습전략, 수험생, 집중력, 뇌과학, 학습최적화, 작업기억" />
+  <meta property="og:title" content="NBASS — 뇌-신체 과학 기반 학습 최적화" />
+  <meta property="og:description" content="신경인지 집중력 및 자율신경(교감·부교감) 분석으로 나만의 최적 학습 전략을 찾아드립니다." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <style>
+    /* =============================================
+       DESIGN SYSTEM — CSS VARIABLES
+    ============================================= */
+    :root {
+      --c-bg: #07090f;
+      --c-surface: #0e1118;
+      --c-surface2: #141824;
+      --c-border: rgba(255, 255, 255, 0.08);
+      --c-border2: rgba(255, 255, 255, 0.12);
+      --c-text: #e8ecf4;
+      --c-muted: #7b87a0;
+      --c-muted2: #505a70;
+
+      --c-blue: #3b82f6;
+      --c-blue-light: #60a5fa;
+      --c-blue-dark: #1d4ed8;
+      --c-indigo: #6366f1;
+      --c-emerald: #10b981;
+      --c-purple: #a855f7;
+      --c-amber: #f59e0b;
+      --c-rose: #f43f5e;
+
+      --c-grad1: linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #0f172a 100%);
+      --c-grad-blue: linear-gradient(135deg, var(--c-blue-dark), var(--c-indigo));
+      --c-grad-text: linear-gradient(135deg, #93c5fd, #a5b4fc, #c4b5fd);
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --radius-full: 9999px;
+
+      --shadow-blue: 0 8px 32px rgba(59, 130, 246, 0.25);
+      --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+      --shadow-glow: 0 0 60px rgba(59, 130, 246, 0.15);
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* =============================================
+       RESET & BASE
+    ============================================= */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--c-bg);
+      color: var(--c-text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    ::selection {
+      background: var(--c-blue);
+      color: #fff;
+    }
+
+    /* =============================================
+       SCROLLBAR
+    ============================================= */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--c-bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--c-muted2);
+      border-radius: 3px;
+    }
+
+    /* =============================================
+       UTILITY CLASSES
+    ============================================= */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .section {
+      padding: 96px 0;
+    }
+
+    .section-sm {
+      padding: 72px 0;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .flex {
+      display: flex;
+    }
+
+    .items-center {
+      align-items: center;
+    }
+
+    .justify-between {
+      justify-content: space-between;
+    }
+
+    .gap-2 {
+      gap: 8px;
+    }
+
+    .gap-4 {
+      gap: 16px;
+    }
+
+    .gap-6 {
+      gap: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* BADGE */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .badge-blue {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--c-blue-light);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+
+    .badge-amber {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .badge-emerald {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .badge-indigo {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .badge-purple {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.25);
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: var(--radius-full);
+      font-size: 14px;
+      font-weight: 700;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: var(--c-grad-blue);
+      color: #fff;
+      box-shadow: var(--shadow-blue);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 12px 40px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--c-text);
+      border: 1px solid var(--c-border2);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-sm {
+      padding: 9px 20px;
+      font-size: 13px;
+    }
+
+    /* GRADIENT TEXT */
+    .grad-text {
+      background: var(--c-grad-text);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* SECTION LABEL */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-blue-light);
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      font-size: 16px;
+      color: var(--c-muted);
+      max-width: 600px;
+    }
+
+    /* GLASS CARD */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(12px);
+      transition: all var(--transition);
+    }
+
+    .glass-card:hover {
+      border-color: var(--c-border2);
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: var(--shadow-card);
+    }
+
+    /* DIVIDER */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--c-border);
+    }
+
+    /* =============================================
+       ANIMATED BACKGROUND
+    ============================================= */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.12;
+      animation: orbFloat 12s ease-in-out infinite;
+    }
+
+    .bg-orb:nth-child(1) {
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, #3b82f6, transparent);
+      top: -200px;
+      left: -100px;
+      animation-delay: 0s;
+    }
+
+    .bg-orb:nth-child(2) {
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, #6366f1, transparent);
+      top: 30%;
+      right: -150px;
+      animation-delay: -4s;
+    }
+
+    .bg-orb:nth-child(3) {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, #0ea5e9, transparent);
+      bottom: -100px;
+      left: 30%;
+      animation-delay: -8s;
+    }
+
+    @keyframes orbFloat {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      33% {
+        transform: translate(30px, -40px) scale(1.05);
+      }
+
+      66% {
+        transform: translate(-20px, 20px) scale(0.95);
+      }
+    }
+
+    /* =============================================
+       NAVBAR
+    ============================================= */
+    #navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid transparent;
+      transition: all var(--transition);
+    }
+
+    #navbar.scrolled {
+      background: rgba(7, 9, 15, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom-color: var(--c-border);
+    }
+
+    #navbar .container {
+      max-width: 1400px;
+      padding: 0 20px;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+      gap: 16px;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .nav-logo-icon {
+      width: 38px;
+      height: 38px;
+      background: var(--c-grad-blue);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .nav-logo-icon svg {
+      width: 20px;
+      height: 20px;
+      color: #fff;
+    }
+
+    .nav-logo-name {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      list-style: none;
+      white-space: nowrap;
+      flex-shrink: 1;
+    }
+
+    .nav-links a {
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--c-muted);
+      transition: all var(--transition);
+      white-space: nowrap;
+      display: inline-block;
+    }
+
+    .nav-links a:hover {
+      color: var(--c-text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .nav-login-btn {
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--c-muted);
+      border: 1px solid var(--c-border);
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .nav-login-btn:hover {
+      color: var(--c-text);
+      border-color: var(--c-border2);
+    }
+
+    .nav-cta {
+      padding: 9px 18px;
+      background: var(--c-grad-blue);
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: var(--shadow-blue);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all var(--transition);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .nav-cta:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      padding: 8px;
+      color: var(--c-muted);
+      border-radius: var(--radius-sm);
+      transition: all var(--transition);
+    }
+
+    .mobile-menu-btn:hover {
+      color: var(--c-text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    #mobile-menu {
+      display: none;
+      padding: 16px 0 24px;
+      border-top: 1px solid var(--c-border);
+      background: rgba(7, 9, 15, 0.95);
+      backdrop-filter: blur(20px);
+    }
+
+    #mobile-menu.open {
+      display: block;
+    }
+
+    .mobile-menu-links {
+      list-style: none;
+    }
+
+    .mobile-menu-links a {
+      display: block;
+      padding: 12px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--c-muted);
+      border-bottom: 1px solid var(--c-border);
+      transition: color var(--transition);
+    }
+
+    .mobile-menu-links a:hover {
+      color: var(--c-text);
+    }
+
+    .mobile-menu-actions {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* =============================================
+       HERO
+    ============================================= */
+    #hero {
+      padding: 100px 0 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--c-blue-light);
+      letter-spacing: 0.06em;
+      margin-bottom: 24px;
+    }
+
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--c-blue);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+      }
+    }
+
+    .hero-title {
+      font-size: clamp(32px, 4.5vw, 56px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+
+    .hero-desc {
+      font-size: 17px;
+      color: var(--c-muted);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+
+    .hero-desc strong {
+      color: var(--c-blue-light);
+      font-weight: 600;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+    }
+
+    .hero-stat-num {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--c-text);
+    }
+
+    .hero-stat-label {
+      font-size: 12px;
+      color: var(--c-muted);
+      margin-top: 2px;
+    }
+
+    /* Hero Right - Feature Cards */
+    .hero-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .hero-card {
+      padding: 20px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--c-border);
+      transition: all var(--transition);
+    }
+
+    .hero-card:hover {
+      border-color: var(--c-border2);
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .hero-card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .hero-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .hero-card-desc {
+      font-size: 12px;
+      color: var(--c-muted);
+      line-height: 1.5;
+    }
+
+    .hero-package {
+      grid-column: 1 / -1;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.6), rgba(49, 46, 129, 0.6));
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .hero-package:hover {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.8), rgba(49, 46, 129, 0.8));
+    }
+
+    .hero-package-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #93c5fd;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .hero-package-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .hero-package-price {
+      font-size: 24px;
+      font-weight: 900;
+      color: #fff;
+      text-align: right;
+    }
+
+    .hero-package-note {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 2px;
+    }
+
+    /* =============================================
+       FEATURES
+    ============================================= */
+    #features {
+      background: var(--c-surface);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--c-border);
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), transparent);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(59, 130, 246, 0.25);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(59, 130, 246, 0.12);
+    }
+
+    .feature-premium-badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      padding: 5px 14px;
+      background: linear-gradient(135deg, var(--c-amber), #d97706);
+      border-radius: 0 var(--radius-xl) 0 var(--radius-lg);
+      font-size: 10px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .feature-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+      border: 1px solid var(--c-border);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .feature-title {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+
+    .feature-desc {
+      font-size: 13px;
+      color: var(--c-muted);
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .feature-arrow {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--c-blue-light);
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--c-border);
+      transition: gap var(--transition);
+    }
+
+    .feature-card:hover .feature-arrow {
+      gap: 10px;
+    }
+
+    /* Feature Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border2);
+      border-radius: var(--radius-xl);
+      max-width: 680px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 32px;
+      animation: modalIn 0.2s ease;
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .modal-title {
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--c-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      flex-shrink: 0;
+    }
+
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--c-text);
+    }
+
+    .modal-section {
+      margin-bottom: 20px;
+    }
+
+    .modal-section-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--c-blue-light);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .modal-content {
+      font-size: 13px;
+      color: var(--c-muted);
+      line-height: 1.8;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      white-space: pre-line;
+    }
+
+    .modal-benefits {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .modal-benefit {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--c-muted);
+    }
+
+    .modal-benefit::before {
+      content: '✦';
+      color: var(--c-emerald);
+      font-size: 10px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .modal-action {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.15);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #6ee7b7;
+      line-height: 1.6;
+    }
+
+    /* =============================================
+       ASSESSMENT TYPES
+    ============================================= */
+    #tests {}
+
+    .tests-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .test-card {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--c-border);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    .test-card:hover {
+      border-color: var(--c-border2);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-card);
+    }
+
+    .test-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .test-duration {
+      font-size: 12px;
+      color: var(--c-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .test-title {
+      font-size: 18px;
+      font-weight: 900;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .test-target {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--c-blue-light);
+      margin-bottom: 12px;
+    }
+
+    .test-desc {
+      font-size: 13px;
+      color: var(--c-muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+      flex: 1;
+    }
+
+    .test-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .test-feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--c-muted);
+    }
+
+    .test-feature-check {
+      color: var(--c-emerald);
+      font-size: 14px;
+    }
+
+    .test-footer {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--c-muted);
+    }
+
+    /* =============================================
+       TESTIMONIALS
+    ============================================= */
+    #reviews {
+      background: var(--c-surface);
+    }
+
+    .filter-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 24px 0 48px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tab {
+      padding: 8px 20px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--c-border);
+      color: var(--c-muted);
+      transition: all var(--transition);
+    }
+
+    .filter-tab.active,
+    .filter-tab:hover {
+      background: var(--c-blue);
+      border-color: var(--c-blue);
+      color: #fff;
+    }
+
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .review-card {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--c-border);
+      position: relative;
+      transition: all var(--transition);
+    }
+
+    .review-card:hover {
+      border-color: var(--c-border2);
+    }
+
+    .review-quote {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      font-size: 48px;
+      color: var(--c-blue);
+      opacity: 0.1;
+      font-family: Georgia, serif;
+      line-height: 1;
+    }
+
+    .review-stars {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 12px;
+    }
+
+    .star {
+      color: var(--c-amber);
+      font-size: 14px;
+    }
+
+    .review-text {
+      font-size: 14px;
+      color: var(--c-muted);
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    .review-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 16px;
+      border-top: 1px solid var(--c-border);
+    }
+
+    .review-author {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--c-text);
+    }
+
+    .review-role {
+      font-size: 12px;
+      color: var(--c-muted);
+    }
+
+    .review-badge {
+      padding: 4px 12px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--c-blue-light);
+    }
+
+    /* =============================================
+       PRICING
+    ============================================= */
+    #pricing {}
+
+    .container-pricing {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      width: 100%;
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      padding: 22px 14px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--c-border);
+      background: rgba(20, 24, 38, 0.85);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      transition: all 0.3s ease;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+
+    .pricing-card.popular {
+      background: linear-gradient(180deg, rgba(30, 58, 138, 0.4) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 2px solid rgba(99, 102, 241, 0.6);
+      box-shadow: 0 12px 36px rgba(99, 102, 241, 0.25);
+    }
+
+    .pricing-card.popular:hover {
+      transform: translateY(-14px);
+    }
+
+    .pricing-card.vip {
+      background: linear-gradient(135deg, rgba(120, 53, 15, 0.25), rgba(146, 64, 14, 0.15));
+      border-color: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 40px rgba(245, 158, 11, 0.1);
+    }
+
+    .pricing-popular-label {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 5px 16px;
+      background: var(--c-grad-blue);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+      font-size: 10px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .pricing-vip-label {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 5px 16px;
+      background: linear-gradient(135deg, #d97706, #b45309);
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+      font-size: 10px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .pricing-plan-name {
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .pricing-plan-desc {
+      font-size: 12px;
+      color: var(--c-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .pricing-price {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      margin-bottom: 4px;
+    }
+
+    .pricing-price-main {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .pricing-price-period {
+      font-size: 12px;
+      color: var(--c-muted);
+    }
+
+    .pricing-price-note {
+      font-size: 11px;
+      color: var(--c-muted);
+      margin-bottom: 20px;
+    }
+
+    .pricing-divider {
+      border: none;
+      border-top: 1px solid var(--c-border);
+      margin-bottom: 16px;
+    }
+
+    .pricing-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex: 1;
+      margin-bottom: 24px;
+    }
+
+    .pricing-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--c-muted);
+    }
+
+    .pricing-feature-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .pricing-feature-icon.yes {
+      color: var(--c-emerald);
+    }
+
+    .pricing-feature-icon.no {
+      color: var(--c-muted2);
+    }
+
+    .pricing-cta {
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 800;
+      transition: all var(--transition);
+    }
+
+    .pricing-cta.primary {
+      background: var(--c-grad-blue);
+      color: #fff;
+      box-shadow: var(--shadow-blue);
+    }
+
+    .pricing-cta.primary:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
+    }
+
+    .pricing-cta.gold {
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(217, 119, 6, 0.35);
+    }
+
+    .pricing-cta.gold:hover {
+      filter: brightness(1.1);
+    }
+
+    .pricing-cta.outline {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--c-text);
+      border: 1px solid var(--c-border2);
+    }
+
+    .pricing-cta.outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Plan tier labels */
+    .tier-free {
+      color: var(--c-emerald);
+    }
+
+    .tier-basic {
+      color: #67e8f9;
+    }
+
+    .tier-premium {
+      color: #a5b4fc;
+    }
+
+    .tier-vip {
+      color: #fcd34d;
+    }
+
+    @media (max-width: 1024px) {
+      .pricing-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .pricing-card.popular {
+        transform: none;
+      }
+
+      .pricing-card.popular:hover {
+        transform: translateY(-4px);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* =============================================
+       FAQ
+    ============================================= */
+    #faq {
+      background: var(--c-surface);
+    }
+
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .faq-item {
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--c-border);
+      background: rgba(255, 255, 255, 0.02);
+      overflow: hidden;
+      transition: border-color var(--transition);
+    }
+
+    .faq-item.open {
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    .faq-question {
+      width: 100%;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--c-text);
+      text-align: left;
+      transition: all var(--transition);
+    }
+
+    .faq-question:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .faq-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      color: var(--c-muted);
+      transition: transform var(--transition), color var(--transition);
+    }
+
+    .faq-item.open .faq-icon {
+      transform: rotate(180deg);
+      color: var(--c-blue-light);
+    }
+
+    .faq-answer {
+      display: none;
+      padding: 0 24px 20px;
+      font-size: 14px;
+      color: var(--c-muted);
+      line-height: 1.8;
+      border-top: 1px solid var(--c-border);
+      padding-top: 16px;
+    }
+
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+
+    /* =============================================
+       FOOTER
+    ============================================= */
+    #footer {
+      background: var(--c-surface2);
+      border-top: 1px solid var(--c-border);
+      padding: 64px 0 32px;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1.2fr;
+      gap: 40px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .footer-brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--c-grad-blue);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .footer-brand-name {
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .footer-brand-desc {
+      font-size: 13px;
+      color: var(--c-muted);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: var(--c-muted2);
+    }
+
+    .footer-col-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--c-text);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+
+    .footer-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--c-muted);
+      transition: color var(--transition);
+    }
+
+    .footer-links a:hover {
+      color: var(--c-text);
+    }
+
+    .footer-contact {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-contact-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--c-muted);
+    }
+
+    .footer-contact-item svg {
+      color: var(--c-blue-light);
+      flex-shrink: 0;
+    }
+
+    .footer-bottom {
+      border-top: 1px solid var(--c-border);
+      padding-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-bottom-left {
+      font-size: 12px;
+      color: var(--c-muted2);
+    }
+
+    .footer-secure {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--c-muted2);
+    }
+
+    .footer-secure-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--c-emerald);
+    }
+
+    /* =============================================
+       AUTH MODAL
+    ============================================= */
+    #auth-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(16px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #auth-modal.open {
+      display: flex;
+    }
+
+    .auth-box {
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border2);
+      border-radius: var(--radius-xl);
+      max-width: 440px;
+      width: 100%;
+      overflow: hidden;
+      animation: modalIn 0.25s ease;
+    }
+
+    .auth-header {
+      background: var(--c-grad1);
+      padding: 28px 28px 24px;
+      position: relative;
+    }
+
+    .auth-header-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .auth-header-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .auth-header-sub {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 4px;
+    }
+
+    .auth-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+    }
+
+    .auth-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .auth-body {
+      padding: 28px;
+    }
+
+    .auth-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--c-border);
+      margin-bottom: 24px;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--c-muted);
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition);
+    }
+
+    .auth-tab.active {
+      color: var(--c-blue-light);
+      border-bottom-color: var(--c-blue);
+    }
+
+    .auth-field {
+      margin-bottom: 16px;
+    }
+
+    .auth-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--c-muted);
+      margin-bottom: 6px;
+    }
+
+    .auth-input {
+      width: 100%;
+      padding: 11px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--c-text);
+      transition: border-color var(--transition);
+      outline: none;
+    }
+
+    .auth-input:focus {
+      border-color: var(--c-blue);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .auth-input::placeholder {
+      color: var(--c-muted2);
+    }
+
+    select.auth-input {
+      background-color: #0f172a !important;
+      color: #ffffff !important;
+      cursor: pointer;
+    }
+
+    select.auth-input option {
+      background-color: #0f172a !important;
+      color: #ffffff !important;
+      font-size: 14px;
+      padding: 8px 12px;
+    }
+
+    select.auth-input option:checked,
+    select.auth-input option:hover {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+    }
+
+    .auth-groups {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .auth-group-btn {
+      padding: 9px 6px;
+      text-align: center;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--c-border);
+      color: var(--c-muted);
+      background: rgba(255, 255, 255, 0.02);
+      transition: all var(--transition);
+    }
+
+    .auth-group-btn.selected {
+      background: var(--c-blue);
+      border-color: var(--c-blue);
+      color: #fff;
+    }
+
+    .auth-submit {
+      width: 100%;
+      padding: 14px;
+      background: var(--c-grad-blue);
+      border-radius: var(--radius-full);
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: var(--shadow-blue);
+      margin-top: 8px;
+      transition: all var(--transition);
+    }
+
+    .auth-submit:hover {
+      filter: brightness(1.1);
+    }
+
+    .auth-submit:active {
+      transform: scale(0.98);
+    }
+
+    .auth-switch {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--c-muted);
+    }
+
+    .auth-switch-btn {
+      color: var(--c-blue-light);
+      font-weight: 700;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .auth-switch-btn:hover {
+      text-decoration: underline;
+    }
+
+    .auth-error {
+      padding: 10px 14px;
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.2);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      color: #fb7185;
+      margin-bottom: 16px;
+    }
+
+    /* ROLE SELECTOR */
+    .auth-role-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .auth-role-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .auth-role-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .auth-role-card.active {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(99, 102, 241, 0.28));
+      border-color: #6366f1;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+    }
+
+    .auth-role-icon {
+      font-size: 24px;
+      margin-bottom: 2px;
+    }
+
+    .auth-role-name {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .auth-role-desc {
+      font-size: 11px;
+      color: var(--c-muted);
+      line-height: 1.3;
+    }
+
+    .auth-role-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(52, 211, 153, 0.15);
+      color: #34d399;
+      margin-top: 4px;
+    }
+
+    .auth-role-card.parent .auth-role-badge {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+
+    /* STUDENT REGISTRATION EMBEDDED STYLES */
+    .reg-section {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 18px 16px;
+      margin-bottom: 16px;
+    }
+
+    .reg-section-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 14px;
+      letter-spacing: 0.02em;
+    }
+
+    .reg-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .reg-grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .reg-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    @media (max-width: 600px) {
+
+      .reg-grid-2,
+      .reg-grid-3,
+      .reg-grid-4 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .subject-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-md);
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #cbd5e1;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .subject-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .subject-chip.selected {
+      background: rgba(59, 130, 246, 0.25);
+      border-color: #3b82f6;
+      color: #60a5fa;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .subject-chip.locked {
+      opacity: 0.45;
+      cursor: not-allowed;
+      border-style: dashed;
+    }
+
+    .subject-focus-btn {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #f43f5e;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(244, 63, 94, 0.5);
+      border: none;
+      cursor: pointer;
+    }
+
+    .act-level-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      padding: 8px 4px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .act-level-btn.selected {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(59, 130, 246, 0.25));
+      border-color: #818cf8;
+      color: #fff;
+    }
+
+    /* =============================================
+       SCROLL ANIMATIONS
+    ============================================= */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* =============================================
+       RESPONSIVE
+    ============================================= */
+    @media (max-width: 1024px) {
+      .grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .tests-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pricing-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .pricing-card.popular {
+        transform: none;
+      }
+
+      .pricing-card.popular:hover {
+        transform: translateY(-4px);
+      }
+
+      .footer-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .hero-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .nav-links,
+      .nav-actions {
+        display: none;
+      }
+
+      .mobile-menu-btn {
+        display: flex;
+      }
+
+      .section {
+        padding: 64px 0;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .reviews-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-stats {
+        gap: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-package {
+        flex-direction: column;
+        gap: 8px;
+      }
+    }
+
+    /* =============================================
+       STRATEGY & FLYWHEEL SECTION STYLES
+    ============================================= */
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      margin-top: 48px;
+      align-items: stretch;
+    }
+
+    .strategy-card {
+      background: linear-gradient(180deg, rgba(20, 24, 36, 0.85) 0%, rgba(10, 13, 20, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      padding: 36px 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(16px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .strategy-card:hover {
+      border-color: rgba(99, 102, 241, 0.5);
+      transform: translateY(-6px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.2);
+    }
+
+    .strategy-pill {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+      width: fit-content;
+      border: 1px solid transparent;
+    }
+
+    .badge-emerald {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    .badge-indigo {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+
+    .badge-amber {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .strategy-card-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.4;
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .strategy-card-desc {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .strategy-points {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13.5px;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .strategy-point-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .strategy-point-icon {
+      color: #38bdf8;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+
+
+
+    /* KAKAO ALERT MOCKUP */
+    .kakao-mockup {
+      background: #FEE500;
+      color: #191919;
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+      max-width: 380px;
+      margin: 0 auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+    }
+
+    .kakao-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .kakao-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #371D1E;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kakao-body {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #222;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    /* =============================================
+       TIER COMPARISON TABLE STYLES
+    ============================================= */
+    .tier-compare {
+      margin-top: 48px;
+      background: linear-gradient(180deg, rgba(20, 24, 38, 0.8) 0%, rgba(10, 13, 20, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-xl);
+      padding: 36px 32px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(16px);
+      overflow-x: auto;
+    }
+
+    .tier-compare-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tier-compare-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      min-width: 680px;
+    }
+
+    .tier-compare-head {
+      background: rgba(14, 18, 28, 0.95);
+      padding: 16px 14px;
+      font-size: 13px;
+      font-weight: 900;
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+
+    .tier-compare-head.tier-free {
+      color: #34d399;
+    }
+
+    .tier-compare-head.tier-basic {
+      color: #60a5fa;
+    }
+
+    .tier-compare-head.tier-premium {
+      color: #a78bfa;
+    }
+
+    .tier-compare-head.tier-vip {
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .tier-compare-row-label {
+      background: rgba(18, 22, 34, 0.85);
+      padding: 14px 18px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+    }
+
+    .tc-cell {
+      background: rgba(14, 17, 26, 0.85);
+      padding: 14px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tc-cell.yes {
+      color: #38bdf8;
+    }
+
+    .tc-cell.no {
+      color: #475569;
+    }
+
+    @media (max-width: 900px) {
+      .strategy-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Animated background -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="bg-orb"></div>
+    <div class="bg-orb"></div>
+    <div class="bg-orb"></div>
+  </div>
+
+  <!-- ===================================================
+  NAVBAR
+=================================================== -->
+  <header id="navbar">
+    <div class="container">
+      <nav class="nav-inner">
+        <!-- Logo -->
+        <div class="nav-logo" onclick="scrollToTop()" role="button" tabindex="0" aria-label="NBASS 홈으로">
+          <div class="nav-logo-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+          </div>
+          <span class="nav-logo-name">NBASS</span>
+        </div>
+
+        <!-- Desktop nav links -->
+        <ul class="nav-links" id="nav-links-desktop">
+          <li><a href="#hero" onclick="smoothScroll(event,'hero')">소개</a></li>
+          <li><a href="#strategy-value" onclick="smoothScroll(event,'strategy-value')">차별성 &amp; 가치</a></li>
+          <li><a href="#features" onclick="smoothScroll(event,'features')">주요 기능</a></li>
+          <li><a href="#tests" onclick="smoothScroll(event,'tests')">검사 종류</a></li>
+          <li><a href="#periodic-assessment" onclick="smoothScroll(event,'periodic-assessment')">2~4주 정기 진단</a></li>
+          <li><a href="#parent-care" onclick="smoothScroll(event,'parent-care')">학부모 케어</a></li>
+          <li><a href="#reviews" onclick="smoothScroll(event,'reviews')">이용 후기</a></li>
+          <li><a href="#pricing" onclick="smoothScroll(event,'pricing')">가격</a></li>
+          <li><a href="#faq" onclick="smoothScroll(event,'faq')">FAQ</a></li>
+        </ul>
+
+        <!-- Desktop actions -->
+        <div class="nav-actions" id="nav-auth-container">
+          <button class="nav-admin-btn" onclick="openAdminModal()"
+            style="padding:8px 12px;border-radius:var(--radius-full);font-size:12px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#cbd5e1;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all 0.2s;white-space:nowrap;flex-shrink:0;"
+            title="관리자 포털 (비밀번호 인증)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span>🔒 관리자 모드</span>
+          </button>
+          <button class="nav-login-btn" onclick="openAuth()" id="nav-login-btn">로그인 / 가입</button>
+          <button class="nav-cta" onclick="openAuth('student')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+            </svg>
+            3분 무료 진단
+          </button>
+        </div>
+
+        <!-- Mobile menu button -->
+        <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="메뉴 열기">
+          <svg id="menu-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+          <svg id="close-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
+            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Mobile menu -->
+    <div id="mobile-menu">
+      <div class="container">
+        <ul class="mobile-menu-links">
+          <li><a href="#hero" onclick="smoothScroll(event,'hero');closeMobileMenu()">소개</a></li>
+          <li><a href="#strategy-value" onclick="smoothScroll(event,'strategy-value');closeMobileMenu()">차별성 &amp;
+              가치</a></li>
+          <li><a href="#features" onclick="smoothScroll(event,'features');closeMobileMenu()">주요 기능</a></li>
+          <li><a href="#tests" onclick="smoothScroll(event,'tests');closeMobileMenu()">검사 종류</a></li>
+          <li><a href="#periodic-assessment" onclick="smoothScroll(event,'periodic-assessment');closeMobileMenu()">2~4주
+              정기 진단</a></li>
+          <li><a href="#parent-care" onclick="smoothScroll(event,'parent-care');closeMobileMenu()">학부모 케어</a></li>
+          <li><a href="#reviews" onclick="smoothScroll(event,'reviews');closeMobileMenu()">이용 후기</a></li>
+          <li><a href="#pricing" onclick="smoothScroll(event,'pricing');closeMobileMenu()">가격</a></li>
+          <li><a href="#faq" onclick="smoothScroll(event,'faq');closeMobileMenu()">FAQ</a></li>
+        </ul>
+        <div class="mobile-menu-actions" id="mobile-auth-container">
+          <button class="btn btn-outline" onclick="openAdminModal();closeMobileMenu()"
+            style="width:100%;justify-content:center;background:rgba(255,255,255,0.06);margin-bottom:8px;">🔒 관리자 모드
+            (비밀번호 인증)</button>
+          <button class="btn btn-outline" onclick="openAuth();closeMobileMenu()"
+            style="width:100%;justify-content:center;">로그인 / 회원가입</button>
+          <button class="btn btn-primary" onclick="openAuth('student');closeMobileMenu()"
+            style="width:100%;justify-content:center;">3분 무료 진단 시작</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================
+  HERO
+=================================================== -->
+  <section id="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <!-- Left content -->
+        <div class="fade-in">
+          <div class="hero-badge">
+            <span class="dot"></span>
+            Neuro-Bio Academic Strategy System
+          </div>
+          <h1 class="hero-title">
+            나의 뇌·신체 데이터로<br>
+            <span class="grad-text">가장 효과적인 학습</span>을<br>
+            설계합니다
+          </h1>
+          <p class="hero-desc">
+            심리 성향을 정밀 분석하여 나에게 딱 맞는 최적의 학습 전략을 제공합니다.<br>
+            <strong>(신경인지 6단계 맞춤 학습 &amp; 취약 분석 리포트 제공)</strong>
+          </p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="openAuth('student')">
+              검사 시작하기
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </button>
+            <button class="btn btn-outline" onclick="smoothScroll(event,'features')">
+              주요 기능 보기
+            </button>
+          </div>
+          <div class="hero-stats">
+            <div>
+              <div class="hero-stat-num">12,400+</div>
+              <div class="hero-stat-label">누적 사용자</div>
+            </div>
+            <div>
+              <div class="hero-stat-num">98.2%</div>
+              <div class="hero-stat-label">학습 개선율</div>
+            </div>
+            <div>
+              <div class="hero-stat-num">4.9★</div>
+              <div class="hero-stat-label">평균 평점</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right feature cards -->
+        <div class="hero-cards fade-in" style="transition-delay: 0.1s;">
+          <div class="hero-card">
+            <div class="hero-card-icon" style="background: rgba(59,130,246,0.12);">📊</div>
+            <div class="hero-card-title">집중력 정밀 진단</div>
+            <div class="hero-card-desc">작업기억 &amp; 인지 집중도 테스트로 학습 부하를 정밀 측정</div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-icon" style="background: rgba(16,185,129,0.12);">🌱</div>
+            <div class="hero-card-title">바이오 최적화 처방</div>
+            <div class="hero-card-desc">BMI·수면 패턴 기반 개인별 맞춤 영양·운동 가이드</div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-icon" style="background: rgba(168,85,247,0.12);">🧠</div>
+            <div class="hero-card-title">학습 전략 매칭</div>
+            <div class="hero-card-desc">인지 성향과 생체 지표 결합, 최적 학습법 제안</div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-icon" style="background: rgba(245,158,11,0.12);">📉</div>
+            <div class="hero-card-title">스트레스 리포트</div>
+            <div class="hero-card-desc">자율신경 밸런스로 번아웃 위험도 체크 및 멘탈 케어</div>
+          </div>
+
+          <!-- Package banner -->
+          <div class="hero-package" onclick="smoothScroll(event,'pricing')">
+            <div>
+              <div class="hero-package-label">✦ PREMIUM PLUS 플랜</div>
+              <div class="hero-package-name">1:1 실시간 AI 클리닉 &amp; 14P 심층 리포트북</div>
+            </div>
+            <div>
+              <div class="hero-package-price">₩19,900</div>
+              <div class="hero-package-note">월정액 · 1:1 AI 컨설팅</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  STRATEGY & COMMERCIAL VALUE (FLYWHEEL)
+=================================================== -->
+  <section id="strategy-value" class="section"
+    style="background: rgba(14, 17, 24, 0.6); border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border);">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 56px;">
+        <div class="section-label">Why NBASS · Market Innovation</div>
+        <h2 class="section-title">포화된 인강·문제풀이를 넘어선<br><span class="grad-text">K-입시 '뇌-신체 최적화' 3대 혁신</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">"왜 열심히 앉아있는데 점수가 안 나올까?" 의지 문제가 아닌 인지 부하와 학습 컨디션의 문제입니다. NBASS는
+          수험생과 학부모를 위한 독보적인 신경인지 기반 맞춤 학습 솔루션을 제공합니다.</p>
+      </div>
+
+      <div class="strategy-grid fade-in">
+        <!-- Card 1 -->
+        <div class="strategy-card"
+          style="border: 1px solid rgba(16, 185, 129, 0.3); background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(10, 14, 23, 0.95) 100%);">
+          <div>
+            <div class="strategy-pill badge-emerald">
+              <span>🌱</span> 3분 무료 진단 (B2C Fast Check)
+            </div>
+            <h3 class="strategy-card-title">의지 부족이 아닌<br><span style="color:#34d399;">'인지 과부하'</span> 3분 무료 진단</h3>
+            <p class="strategy-card-desc">간단한 3분 테스트로 4대 케어타입(정서불안/몰입저하/뇌피로/집중분산)을 즉시 판별하고, 학생의 집중 골든타임과 취약 과목 병목을 정확히
+              짚어냅니다.</p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon">✓</span> 3분 뇌-신체 학습 성향 무료 진단</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon">✓</span> 시험불안·자율신경 긴장도 즉시 분석</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon">✓</span> 학부모 맞춤형 1줄 핵심 솔루션 처방</li>
+            </ul>
+          </div>
+          <div style="margin-top: 32px;">
+            <button class="btn btn-outline btn-sm" onclick="openAuth('student')"
+              style="width:100%; border-color: rgba(16, 185, 129, 0.4); color: #34d399;">3분 무료 진단 체험하기 →</button>
+          </div>
+        </div>
+
+        <!-- Card 2 (Featured) -->
+        <div class="strategy-card"
+          style="border: 2px solid rgba(99, 102, 241, 0.6); background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, rgba(12, 15, 29, 0.98) 100%); box-shadow: 0 12px 36px rgba(99, 102, 241, 0.25);">
+          <div>
+            <div class="strategy-pill badge-indigo">
+              <span>🎯</span> 신경인지 학습 사다리 (Neuro-Study Ladder)
+            </div>
+            <h3 class="strategy-card-title">취약 과목 완벽 정복<br><span style="color:#818cf8;">6단계 신경인지 사다리 훈련</span></h3>
+            <p class="strategy-card-desc">양치기 문제풀이가 아닌 뇌과학적 6단계 난이도 사다리로, 개념 인출부터 실전 킬러 문항까지 두뇌 부하를 조절하며 시험 당일 뇌의
+              정지(Freezing)를 완벽히 방어합니다.</p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#818cf8;">✓</span> 취약 단원 개념
+                메타인지 3단계 즉각 인출 점검</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#818cf8;">✓</span> 두뇌 부하를
+                단계적으로 조절하는 A~F 적응형 사다리</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#818cf8;">✓</span> 오답 원인
+                신경인지 분석 &amp; 취약 고리 맞춤 피드백</li>
+            </ul>
+          </div>
+          <div style="margin-top: 32px;">
+            <button class="btn btn-primary btn-sm" onclick="openAuth('student')"
+              style="width:100%; background: linear-gradient(135deg, #4f46e5, #7c3aed); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);">사다리
+              훈련 체험하기 →</button>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="strategy-card"
+          style="border: 1px solid rgba(245, 158, 11, 0.3); background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, rgba(10, 14, 23, 0.95) 100%);">
+          <div>
+            <div class="strategy-pill badge-amber">
+              <span>🧠</span> 학습과학·신경인지 기반 (Cognitive Science)
+            </div>
+            <h3 class="strategy-card-title">학습과학·신경인지 기반<br><span style="color:#fbbf24;">1:1 정밀 분석 리포트</span></h3>
+            <p class="strategy-card-desc">표준 심리 척도(BAI·ISI)와 신경인지 검사, 학습 패턴 빅데이터를 종합 분석하여 학생의 두뇌 피로와 학습 병목을 해결하는 과학적 맞춤
+              전략 리포트를 제공합니다.</p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#fbbf24;">✓</span> 표준 심리 척도
+                기반 시험불안·수면장애 정밀 스크리닝</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#fbbf24;">✓</span> 취약 과목 병목
+                돌파를 위한 1:1 맞춤 학습 전략 PDF 발급</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#fbbf24;">✓</span> 수능·내신 당일
+                최상의 컨디션을 위한 수면 &amp; 멘탈 케어 가이드</li>
+            </ul>
+          </div>
+          <div style="margin-top: 32px;">
+            <button class="btn btn-outline btn-sm" onclick="openAuth('student')"
+              style="width:100%; border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">1:1 정밀 리포트 시작하기 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  PARENTAL CARE & KAKAO TALK ALERT SECTION
+=================================================== -->
+  <section id="parent-care" class="section" style="background: rgba(14, 17, 24, 0.4);">
+    <div class="container">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center;" class="fade-in">
+        <div>
+          <div class="section-label">Parental Care System</div>
+          <h2 class="section-title">
+            자녀를 향한 잔소리 대신,<br>
+            <span class="grad-text">과학적 데이터로 응원하세요</span>
+          </h2>
+          <p class="section-desc" style="margin-bottom: 24px;">
+            "공부 좀 해라"라는 말은 수험생의 교감신경을 과항진시켜 오히려 기억력을 저하시킵니다.<br>
+            NBASS 학부모 케어는 매주 일요일 저녁, 자녀의 <strong>집중 골든타임, 번아웃 지수, 수면 리듬, 시험 불안 변화</strong>를 카카오톡 알림톡으로 투명하게 전달합니다.
+          </p>
+
+          <div style="margin-bottom: 32px;">
+            <div style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px;">
+              <span
+                style="background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 6px; border-radius: 8px; font-size: 14px;">🔔</span>
+              <div>
+                <strong style="color: #fff; font-size: 15px;">주간 뇌-신체 컨디션 알림톡 자동 발송</strong>
+                <p style="font-size: 13px; color: var(--c-muted); margin-top: 2px;">자녀가 검사를 완료하면 학부모 휴대폰으로 즉시 핵심 요약 리포트가
+                  전송됩니다.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px;">
+              <span
+                style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 6px; border-radius: 8px; font-size: 14px;">🎯</span>
+              <div>
+                <strong style="color: #fff; font-size: 15px;">과목별 최적 집중 골든타임 스케줄러</strong>
+                <p style="font-size: 13px; color: var(--c-muted); margin-top: 2px;">수학, 국어, 영어 등 고난도 과목을 어느 시간대에 공부해야 두뇌
+                  효율이 최고인지 확인합니다.</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: flex-start;">
+              <span
+                style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; padding: 6px; border-radius: 8px; font-size: 14px;">🥗</span>
+              <div>
+                <strong style="color: #fff; font-size: 15px;">뉴로-뉴트리션 수험생 밥상 가이드</strong>
+                <p style="font-size: 13px; color: var(--c-muted); margin-top: 2px;">혈당 스파이크와 브레인 포그를 막고 도파민을 충전하는 식단과
+                  영양제를 추천합니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="openAuth('parent')">
+            학부모 안심 케어 (월정액 연동) 시작하기 →
+          </button>
+        </div>
+
+        <!-- Kakao Talk Mockup -->
+        <div>
+          <div class="kakao-mockup">
+            <div class="kakao-header">
+              <div class="kakao-title">
+                <span>💬</span> NBASS 학부모 알림톡
+              </div>
+              <span
+                style="font-size: 10px; font-weight: 700; color: #555; background: rgba(0,0,0,0.06); padding: 2px 8px; border-radius: 10px;">안심
+                케어 연동</span>
+            </div>
+            <div class="kakao-body">
+              <div style="font-size: 14px; font-weight: 900; color: #1e1b4b; margin-bottom: 8px;">
+                [NBASS] 📊 김민준 학생의 주간 학습 리포트
+              </div>
+              <p style="font-size: 12px; color: #475569; margin-bottom: 12px; line-height: 1.5;">
+                어머님, 이번 주 민준 학생의 뇌-신체 생체 데이터 분석 결과가 도착했습니다.
+              </p>
+              <div
+                style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 12px; font-size: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="color: #64748b;">• 뇌 인지 유형:</span>
+                  <strong style="color: #3b82f6;">몰입 집중형 (Type A)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="color: #64748b;">• 집중 골든타임:</span>
+                  <strong style="color: #059669;">오전 10:00 ~ 12:00</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="color: #64748b;">• 시험 불안(SNS):</span>
+                  <strong style="color: #d97706;">74% → 52% (안정화)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="color: #64748b;">• 권장 취침 시간:</span>
+                  <strong style="color: #7c3aed;">23:45 (90분 주기)</strong>
+                </div>
+              </div>
+              <p style="font-size: 11px; color: #64748b; line-height: 1.4; margin-bottom: 12px;">
+                💡 <strong>전문가 소견:</strong> "오후 2시 슬럼프 구간에 5분 브레인 스트레칭과 저GI 간식을 섭취하도록 격려해 주세요."
+              </p>
+              <button onclick="goToApp()"
+                style="width: 100%; background: #371D1E; color: #FEE500; font-weight: 800; font-size: 12px; padding: 10px; border-radius: 8px; cursor: pointer; border: none;">
+                자녀 정밀 리포트 전체 보기 &gt;
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  FEATURES
+=================================================== -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 56px;">
+        <div class="section-label">Core Features</div>
+        <h2 class="section-title">성공적인 학습을 위한<br><span class="grad-text">6대 핵심 솔루션</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">단순히 오래 앉아 있는 공부에서 벗어나, 뇌과학과 생체 데이터에 기반한 스마트한 학습 생태계를 경험하세요. 각
+          카드를 클릭하면 상세 설명을 확인할 수 있습니다.</p>
+      </div>
+
+      <div class="features-grid" id="features-grid">
+        <!-- Cards injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature detail modal -->
+  <div class="modal-overlay" id="feature-modal" onclick="closeFeatureModal(event)">
+    <div class="modal-box" id="feature-modal-box">
+      <div class="modal-header">
+        <div>
+          <div id="modal-badge" style="margin-bottom:8px;"></div>
+          <div class="modal-title" id="modal-title"></div>
+        </div>
+        <button class="modal-close" onclick="closeFeatureModalDirect()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">개요</div>
+        <div class="modal-content" id="modal-desc"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">과학적 원리 및 메커니즘</div>
+        <div class="modal-content" id="modal-science" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">주요 기대 효과</div>
+        <ul class="modal-benefits" id="modal-benefits"></ul>
+      </div>
+      <div class="modal-section">
+        <div class="modal-section-title">추천 활용 가이드</div>
+        <div class="modal-action" id="modal-action"></div>
+      </div>
+      <div style="text-align:right;margin-top:16px;">
+        <button class="btn btn-primary btn-sm" onclick="closeFeatureModalDirect()">확인 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================
+  ASSESSMENT TYPES
+=================================================== -->
+  <section id="tests" class="section">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 56px;">
+        <div class="section-label">Diagnostic Suite</div>
+        <h2 class="section-title">과학적 데이터 수집을 위한<br><span class="grad-text">3대 정밀 검사</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">비대면 웹 환경에서도 간편하게 진행할 수 있는 신경인지 과제 검사 및 심리·수면 문진 시스템입니다.</p>
+      </div>
+
+      <div class="tests-grid fade-in">
+        <div class="test-card">
+          <div class="test-card-header">
+            <span class="badge badge-blue">Cognitive Performance</span>
+            <span class="test-duration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+              </svg>
+              약 5분 소요
+            </span>
+          </div>
+          <div class="test-title">신경인지 집중력 &amp; 작업기억 테스트</div>
+          <div class="test-target">수험생·고시생·중고생 추천</div>
+          <p class="test-desc">작업기억(N-Back), 인지 간섭 억제(Stroop), 주의집중 유지력을 인지 과제 테스트를 통해 객관적으로 평가합니다.</p>
+          <ul class="test-features">
+            <li class="test-feature"><span class="test-feature-check">✓</span>작업기억 용량(N-Back/숫자폭) 측정</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>인지 간섭 억제 및 반응 속도 분석</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>집중 유지력 &amp; 뇌 피로도 진단</li>
+          </ul>
+          <div class="test-footer">검사 완료 시 즉시 맞춤 리포트 발급</div>
+        </div>
+
+        <div class="test-card">
+          <div class="test-card-header">
+            <span class="badge badge-purple">ANS Autonomic</span>
+            <span class="test-duration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+              </svg>
+              약 3분 소요
+            </span>
+          </div>
+          <div class="test-title">자율신경계 밸런스 &amp; 스트레스 진단</div>
+          <div class="test-target">직장인·대학생 추천</div>
+          <p class="test-desc">심층 설문을 통해 교감·부교감 신경의 균형 상태와 누적 스트레스 지수를 정밀 분석합니다.</p>
+          <ul class="test-features">
+            <li class="test-feature"><span class="test-feature-check">✓</span>자율신경 균형도 평가</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>번아웃 위험군 선별</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>스트레스 저항 지수 계산</li>
+          </ul>
+          <div class="test-footer">검사 완료 시 즉시 맞춤 리포트 발급</div>
+        </div>
+
+        <div class="test-card">
+          <div class="test-card-header">
+            <span class="badge badge-emerald">Cognitive &amp; Sleep</span>
+            <span class="test-duration">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+              </svg>
+              약 7분 소요
+            </span>
+          </div>
+          <div class="test-title">인지 성향 및 수면 리듬 진단</div>
+          <div class="test-target">전체 회원 대상 (무료 포함)</div>
+          <p class="test-desc">학습 성향(시각/청각/체감각형)과 수면의 질(렘 수면 사이클)을 진단하여 최적의 공부 환경을 제안합니다.</p>
+          <ul class="test-features">
+            <li class="test-feature"><span class="test-feature-check">✓</span>개인별 학습 스타일 분류</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>수면 효율 리포트</li>
+            <li class="test-feature"><span class="test-feature-check">✓</span>생체 시계 맞춤형 스케줄</li>
+          </ul>
+          <div class="test-footer">검사 완료 시 즉시 맞춤 리포트 발급</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  PERIODIC ASSESSMENT VALUE (2~4주 주기적 재검사 시스템)
+=================================================== -->
+  <section id="periodic-assessment" class="section"
+    style="background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08) 0%, rgba(14, 17, 24, 0.8) 100%); border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border);">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 52px;">
+        <div class="badge badge-blue" style="margin-bottom: 14px;">
+          <span
+            style="width: 6px; height: 6px; border-radius: 50%; background: var(--c-blue-light); display: inline-block;"></span>
+          Continuous Growth System
+        </div>
+        <h2 class="section-title">
+          "진단은 한 번으로 끝나지 않습니다"<br>
+          <span class="grad-text">2~4주 주기적 재검사가 필수적인 이유</span>
+        </h2>
+        <p class="section-desc" style="max-width: 760px; margin: 0 auto;">
+          NBASS의 솔루션(호흡 루틴, 수면 리듬 재설정, 인지 훈련)을 실천하면 수험생의 신경인지 집중력과 자율신경 스트레스 밸런스는 실시간으로 개선됩니다.<br>
+          <strong>2~4주 간격의 추적 진단</strong>을 통해 변화된 생체 지표를 객관적으로 확인하고 최적의 처방을 지속적으로 갱신해야 합니다.
+        </p>
+      </div>
+
+      <!-- 3 Core Reasons Cards -->
+      <div class="grid-3 fade-in" style="margin-bottom: 48px;">
+        <div
+          style="background: rgba(20, 24, 36, 0.8); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-xl); padding: 32px; position: relative; overflow: hidden;">
+          <div style="font-size: 36px; margin-bottom: 16px;">📈</div>
+          <div style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 10px;">1. 솔루션 실천 효과의 객관적 입증</div>
+          <p style="color: var(--c-muted); font-size: 14px; line-height: 1.65; margin: 0;">
+            불안감 완화와 수면 개선 루틴을 실천한 후, <strong>2~4주 뒤 신체 활력도 및 자율신경 스트레스 저항 지수가 실제로 상승했는지</strong> 수치와 그래프로 즉각 검증합니다.
+          </p>
+        </div>
+
+        <div
+          style="background: rgba(20, 24, 36, 0.8); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-xl); padding: 32px; position: relative; overflow: hidden;">
+          <div style="font-size: 36px; margin-bottom: 16px;">🎯</div>
+          <div style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 10px;">2. 생체 피로도 변화에 맞춘 난이도 조절
+          </div>
+          <p style="color: var(--c-muted); font-size: 14px; line-height: 1.65; margin: 0;">
+            수험생의 뇌 피로도와 체력은 시험 시기(D-100, 모의고사 전후)마다 급변합니다. <strong>주기적 재진단으로 번아웃 징후를 사전에 포착</strong>하고 학습 강도를 동적으로
+            리밸런싱합니다.
+          </p>
+        </div>
+
+        <div
+          style="background: rgba(20, 24, 36, 0.8); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: var(--radius-xl); padding: 32px; position: relative; overflow: hidden;">
+          <div style="font-size: 36px; margin-bottom: 16px;">🔥</div>
+          <div style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 10px;">3. 강력한 동기부여와 자기효능감</div>
+          <p style="color: var(--c-muted); font-size: 14px; line-height: 1.65; margin: 0;">
+            "지난달 대비 집중 유지 시간 32분 증가", "불안 점수 45% 감소"와 같은 <strong>시계열 성장 리포트</strong>를 통해 학생 본인과 학부모 모두에게 확실한 확신과 지속력을
+            제공합니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- 2-4 Week Smart Cycle Flow Banner -->
+      <div class="fade-in"
+        style="background: linear-gradient(135deg, rgba(30, 58, 138, 0.35), rgba(15, 23, 42, 0.7)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-xl); padding: 36px; text-align: center;">
+        <div
+          style="font-size: 12px; font-weight: 800; color: #818cf8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">
+          Recommended Cycle Protocol</div>
+        <h3 style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 24px;">🏆 NBASS 권장: 「하이브리드 2~4주 스마트
+          트래킹 사이클」</h3>
+
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 28px; text-align: left;">
+          <div
+            style="background: rgba(0,0,0,0.35); padding: 20px; border-radius: var(--radius-lg); border-left: 4px solid #3b82f6;">
+            <div style="font-size: 13px; font-weight: 800; color: #60a5fa; margin-bottom: 4px;">Day 0 : 베이스라인 종합 진단
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">신경인지·학습성향·수면·스트레스 전 영역 정밀 분석 및 1차 개인 맞춤형
+              프로토콜
+              처방</div>
+          </div>
+          <div
+            style="background: rgba(0,0,0,0.35); padding: 20px; border-radius: var(--radius-lg); border-left: 4px solid #10b981;">
+            <div style="font-size: 13px; font-weight: 800; color: #34d399; margin-bottom: 4px;">Day 14 : 2주차 3분 퀵 체크
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">부담 없는 3분 미니 점검(불안도/수면/스트레스)으로 솔루션 실천 효과 조기
+              피드백</div>
+          </div>
+          <div
+            style="background: rgba(0,0,0,0.35); padding: 20px; border-radius: var(--radius-lg); border-left: 4px solid #a855f7;">
+            <div style="font-size: 13px; font-weight: 800; color: #c084fc; margin-bottom: 4px;">Day 28 : 4주차 종합 성장 리포트
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">초기 대비 지표 개선율 비교 분석 리포트 자동 발급 및 다음 단계 전략
+              업그레이드</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="openAuth('student')">
+          지금 정기 진단 플랜 시작하기 →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  TESTIMONIALS
+=================================================== -->
+  <section id="reviews" class="section">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 0;">
+        <div class="section-label">Success Stories</div>
+        <h2 class="section-title">NBASS를 경험한<br><span class="grad-text">진짜 후기</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">수험생, 학부모, 대학생·직장인들이 직접 검증한 과학적 학습 혁신을 확인하세요.</p>
+      </div>
+      <div class="filter-tabs" id="review-filters">
+        <button class="filter-tab active" onclick="filterReviews('all',this)">전체 보기</button>
+        <button class="filter-tab" onclick="filterReviews('수험생',this)">수험생</button>
+        <button class="filter-tab" onclick="filterReviews('학부모',this)">학부모</button>
+        <button class="filter-tab" onclick="filterReviews('대학생·직장인',this)">대학생·직장인</button>
+      </div>
+      <div class="reviews-grid fade-in" id="reviews-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  WHY PERIODIC TESTING MATTERS (SUBSCRIPTION VALUE)
+=================================================== -->
+  <section id="why-periodic" class="section"
+    style="background: linear-gradient(180deg, rgba(14, 17, 24, 0.9) 0%, rgba(20, 26, 44, 0.95) 100%); border-top: 1px solid rgba(99, 102, 241, 0.2); border-bottom: 1px solid rgba(99, 102, 241, 0.2);">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 48px;">
+        <div class="section-label" style="color: #a5b4fc; border-color: rgba(99, 102, 241, 0.3);">Scientific
+          Neuro-Tracking</div>
+        <h2 class="section-title">왜 1회성 검사로 끝나선 안 될까요?<br><span class="grad-text">'주기적 지속 검사'가 성적을 결정짓는 3가지 과학적
+            이유</span></h2>
+        <p class="section-desc" style="margin: 0 auto; max-width: 760px;">
+          학생의 신경인지 집중력, 자율신경계 피로도, 집중 골든타임은 <strong>시험 주기·수면·계절에 따라 실시간으로 변화</strong>합니다. 단 1회 검사는 '현재 스냅샷'일 뿐, 지속적인
+          트래킹과 최적화가
+          수능 당일 최고의 성적을 만듭니다.
+        </p>
+      </div>
+
+      <div class="strategy-grid fade-in" style="margin-top: 32px;">
+        <!-- Reason 1 -->
+        <div class="strategy-card"
+          style="border: 1px solid rgba(59, 130, 246, 0.3); background: rgba(14, 20, 36, 0.85);">
+          <div>
+            <div class="strategy-pill"
+              style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+              <span>🔄</span> 이유 1. 생체 리듬의 실시간 변화
+            </div>
+            <h3 class="strategy-card-title">학기초·시험기간·방학마다<br><span style="color:#60a5fa;">학생의 뇌 상태는 완전히 바뀝니다</span></h3>
+            <p class="strategy-card-desc">
+              D-100일, 모의고사 직후 등 시기별 스트레스와 뇌 피로도(LF/HF 비율)는 급변합니다. 주기적으로 측정하지 않으면 지난달의 공부법이 이번 달에는 인지 과부하의 원인이 됩니다.
+            </p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#60a5fa;">✓</span> 주차별 누적
+                피로도 및 번아웃 징후 조기 포착</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#60a5fa;">✓</span> 변화하는
+                집중력에 맞춘 실시간 골든타임 재설계</li>
+            </ul>
+          </div>
+          <div
+            style="margin-top: 24px; padding: 12px; background: rgba(59, 130, 246, 0.08); border-radius: 12px; border-left: 3px solid #3b82f6;">
+            <p style="font-size: 12px; color: #93c5fd; margin: 0; line-height: 1.5;">
+              💡 <strong>정기구독 혜택:</strong> 매주 변화하는 뇌-신체 상태를 비교 분석하여 최적의 시간표를 자동 업데이트합니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- Reason 2 -->
+        <div class="strategy-card"
+          style="border: 2px solid rgba(99, 102, 241, 0.5); background: linear-gradient(180deg, rgba(99, 102, 241, 0.1) 0%, rgba(14, 18, 32, 0.95) 100%);">
+          <div>
+            <div class="strategy-pill"
+              style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4);">
+              <span>📈</span> 이유 2. 성적 시뮬레이션 추이 정밀화
+            </div>
+            <h3 class="strategy-card-title">단발성 데이터로는 불가능한<br><span style="color:#a5b4fc;">시계열 성적 추이 &amp; 대학 예측</span>
+            </h3>
+            <p class="strategy-card-desc">
+              공부 효율성과 생체 지표가 누적될수록 AI 예측 모델의 정확도는 기하급수적으로 높아집니다. 주간 성적 곡선과 인지 개선 추이를 실시간으로 모니터링하세요.
+            </p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#a5b4fc;">✓</span> 인지 훈련 및
+                영양 처방 전/후 효과 실증 비교</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#a5b4fc;">✓</span> 실전 수능 점수
+                및 목표 대학 합격 확률 정밀 보정</li>
+            </ul>
+          </div>
+          <div
+            style="margin-top: 24px; padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 12px; border-left: 3px solid #6366f1;">
+            <p style="font-size: 12px; color: #c4b5fd; margin: 0; line-height: 1.5;">
+              💡 <strong>정기구독 혜택:</strong> 모의고사 성적 추이와 인지 지표를 결합한 AI 입시 시뮬레이션 무제한 제공.
+            </p>
+          </div>
+        </div>
+
+        <!-- Reason 3 -->
+        <div class="strategy-card"
+          style="border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(14, 24, 28, 0.85);">
+          <div>
+            <div class="strategy-pill"
+              style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+              <span>📱</span> 이유 3. 학부모 주간 안심 알림 케어
+            </div>
+            <h3 class="strategy-card-title">매주 학생과 싸우지 않고<br><span style="color:#34d399;">카카오톡으로 객관적 상태 공유</span></h3>
+            <p class="strategy-card-desc">
+              "공부했니? 왜 집중을 못하니?" 잔소리 대신, 매주 학생의 순공 효율, 수면 리듬, 심리 긴장도 변화를 카카오톡 주간 알림톡으로 받아보며 과학적인 코칭을 실천할 수 있습니다.
+            </p>
+            <ul class="strategy-points">
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#34d399;">✓</span> 매주 정기
+                발송되는 카카오톡 주간 안심 알림톡</li>
+              <li class="strategy-point-item"><span class="strategy-point-icon" style="color:#34d399;">✓</span> 1:1 맞춤
+                영양제 처방전(℞) 매월 업데이트</li>
+            </ul>
+          </div>
+          <div
+            style="margin-top: 24px; padding: 12px; background: rgba(16, 185, 129, 0.08); border-radius: 12px; border-left: 3px solid #10b981;">
+            <p style="font-size: 12px; color: #6ee7b7; margin: 0; line-height: 1.5;">
+              💡 <strong>정기구독 혜택:</strong> 커피 2잔 값(월 9,900원)으로 수능날까지 1:1 주간 학습 케어 주치의를 두세요.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  PRICING
+=================================================== -->
+  <section id="pricing" class="section">
+    <div class="container-pricing">
+      <div class="text-center fade-in" style="margin-bottom: 48px;">
+        <div class="section-label">Pricing Plans</div>
+        <h2 class="section-title">합리적인 비용으로 시작하는<br><span class="grad-text">뇌-신체 최적화 멤버십</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">3분 무료 진단부터 수험생 맞춤 1회권, 주간 알림톡 정기구독, VIP 전 기능 무제한까지 내게 맞는 플랜을
+          선택하세요.</p>
+      </div>
+
+      <div class="pricing-grid fade-in">
+
+        <!-- FREE -->
+        <div class="pricing-card">
+          <div style="margin-bottom:8px;">
+            <span class="badge badge-emerald" style="font-size:10px;">Free</span>
+          </div>
+          <div class="pricing-plan-name tier-free">무료 진단</div>
+          <div class="pricing-plan-desc">3분 뇌-신체 공부 성향 진단 및 4대 케어타입 분류를 즉시 확인합니다.</div>
+          <div class="pricing-price">
+            <span class="pricing-price-main">0원</span>
+          </div>
+          <div class="pricing-price-note">평생 무료 &middot; 카드 등록 불필요</div>
+          <hr class="pricing-divider" />
+          <div class="tier-test-badge tier-test-free">
+            <span class="tier-test-icon">&#9200;</span>
+            <div>
+              <div class="tier-test-title">3분 무료 진단</div>
+              <div class="tier-test-sub">4대 케어타입 분류 + 1줄 솔루션 요약</div>
+            </div>
+          </div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>3분 뇌-신체 공부 성향 기본 진단</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>4대 케어타입(정서불안/몰입저하 등) 분류</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>핵심 1줄 요약 진단 확인</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon no" style="opacity:0.35;">&#10007;</span>
+              <span style="opacity:0.4;">학생용 맞춤 풀 리포트</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon no" style="opacity:0.35;">&#10007;</span>
+              <span style="opacity:0.4;">주간 카카오톡 알림톡 연동</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon no" style="opacity:0.35;">&#10007;</span>
+              <span style="opacity:0.4;">1:1 실시간 AI 학습 컨설팅</span>
+            </li>
+          </ul>
+          <button class="pricing-cta outline" onclick="openAuth('student')">무료로 시작하기</button>
+        </div>
+
+        <!-- PRO (1회권) -->
+        <div class="pricing-card">
+          <div style="margin-bottom:8px;">
+            <span class="badge badge-blue" style="font-size:10px;">PRO (1회권)</span>
+          </div>
+          <div class="pricing-plan-name tier-basic">1회 스타터 패스</div>
+          <div class="pricing-plan-desc">학부모를 위한 1회 학생용 정밀 진단 리포트 즉시 열람권.</div>
+          <div class="pricing-price">
+            <span class="pricing-price-main">&#8361;9,000</span>
+            <span class="pricing-price-period">/ 1회</span>
+          </div>
+          <div class="pricing-price-note">부담 없는 1회 정밀 리포트</div>
+          <hr class="pricing-divider" />
+          <div class="tier-test-badge tier-test-basic">
+            <span class="tier-test-icon">&#9889;</span>
+            <div>
+              <div class="tier-test-title">학생용 풀 리포트 1회</div>
+              <div class="tier-test-sub">골든타임 시간표 &amp; 인지 상세표</div>
+            </div>
+          </div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>학생용 맞춤 학습 솔루션 전체 열람</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>골든타임 공부 시간표 및 취약 과목 분석</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>시험불안·작업기억 인지 분석 상세표</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>영양·수면·미주신경 1회 처방전</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon no" style="opacity:0.35;">&#10007;</span>
+              <span style="opacity:0.4;">카카오톡 주간 알림톡 정기 케어</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon no" style="opacity:0.35;">&#10007;</span>
+              <span style="opacity:0.4;">실시간 AI 1:1 학습 클리닉</span>
+            </li>
+          </ul>
+          <button class="pricing-cta outline" onclick="openAuth('student')">₩9,000원에 열람</button>
+        </div>
+
+        <!-- PREMIUM (Popular) -->
+        <div class="pricing-card popular">
+          <div class="pricing-popular-label">&#10022; 가장 인기 / 앵커링 플랜</div>
+          <div style="margin-bottom:8px;margin-top:18px;">
+            <span class="badge badge-indigo" style="font-size:10px;">Premium</span>
+          </div>
+          <div class="pricing-plan-name tier-premium">PREMIUM 정기구독</div>
+          <div class="pricing-plan-desc">구체적 전문가 심층 리포트 무제한 + 카카오톡 주간 안심 케어.</div>
+          <div class="pricing-price">
+            <span class="pricing-price-main">&#8361;9,900</span>
+            <span class="pricing-price-period">/ 월</span>
+          </div>
+          <div class="pricing-price-note">1회권 대비 단 900원 차이 &middot; 상시 케어</div>
+          <hr class="pricing-divider" style="border-color:rgba(255,255,255,0.08);" />
+          <div class="tier-test-badge tier-test-premium">
+            <span class="tier-test-icon">&#9889;</span>
+            <div>
+              <div class="tier-test-title">전문가 리포트 무제한 + 알림톡</div>
+              <div class="tier-test-sub">성적 시뮬레이션 &amp; 주간 루틴 트래커</div>
+            </div>
+          </div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>구체적 전문가용 심층 학습 리포트 무제한</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span><strong style="color:#c7d2fe;">🔔 카카오톡 주간 컨디션 알림톡</strong> 발송</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>주차별 성적 추이 &amp; 모의고사 성적 시뮬레이션</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>AI 크로노타입 맞춤형 주간 공부 루틴 트래커</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>두뇌 활성화 영양 식단 &amp; 브레인 스트레칭</span>
+            </li>
+          </ul>
+          <button class="pricing-cta primary" onclick="openAuth('student')">월 9,900원 정기 케어 시작</button>
+        </div>
+
+        <!-- PREMIUM PLUS (월 ₩19,900 - Recommended) -->
+        <div class="pricing-card"
+          style="border: 2px solid rgba(168, 85, 247, 0.6); background: linear-gradient(180deg, rgba(168, 85, 247, 0.1) 0%, rgba(14, 18, 32, 0.98) 100%); position: relative;">
+          <div
+            style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #9333ea, #c084fc); color: #fff; font-size: 10px; font-weight: 800; padding: 5px 16px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 14px rgba(168, 85, 247, 0.4); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;">
+            ✨ 추천 / 1:1 AI 클리닉
+          </div>
+          <div style="margin-bottom:8px;margin-top:18px;">
+            <span class="badge"
+              style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 10px;">PREMIUM
+              PLUS</span>
+          </div>
+          <div class="pricing-plan-name" style="color: #c084fc;">PREMIUM PLUS</div>
+          <div class="pricing-plan-desc">프리미엄 전 기능 + 1:1 실시간 AI 학습 클리닉 &amp; 14P 초정밀 심층 학습분석 리포트북.</div>
+          <div class="pricing-price">
+            <span class="pricing-price-main" style="color: #e9d5ff;">&#8361;19,900</span>
+            <span class="pricing-price-period">/ 월</span>
+          </div>
+          <div class="pricing-price-note" style="color: #c084fc;">AI 심층 컨설팅 &middot; 14P 학습분석 리포트북</div>
+          <hr class="pricing-divider" style="border-color:rgba(168,85,247,0.15);" />
+          <div class="tier-test-badge"
+            style="background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.25);">
+            <span class="tier-test-icon">✨</span>
+            <div>
+              <div class="tier-test-title" style="color: #e9d5ff;">1:1 전문가용 Report &amp; 14P 학습분석 리포트북</div>
+              <div class="tier-test-sub" style="color: #c084fc;">Expert Guide &amp; 실시간 전략 코칭 포함</div>
+            </div>
+          </div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes" style="color: #c084fc;">&#10003;</span>
+              <span>전체 PREMIUM 기능 100% 무제한 포함</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes" style="color: #c084fc;">&#10003;</span>
+              <span><strong style="color:#e9d5ff;">🤖 1:1 실시간 AI 심층 학습 클리닉</strong> 컨설팅</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes" style="color: #c084fc;">&#10003;</span>
+              <span>14페이지 초정밀 심층 학습분석 리포트북 PDF 무제한 발급</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes" style="color: #c084fc;">&#10003;</span>
+              <span>취약 과목 집중 공략 AI 실시간 전략 코칭</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes" style="color: #c084fc;">&#10003;</span>
+              <span>수능 당일 최적 바이오리듬 컨디션 피크 설계</span>
+            </li>
+          </ul>
+          <button class="pricing-cta primary" onclick="openAuth('student')"
+            style="background: linear-gradient(135deg, #9333ea, #7c3aed); box-shadow: 0 4px 20px rgba(147, 51, 234, 0.4);">월
+            19,900원 AI 클리닉 시작</button>
+        </div>
+
+        <!-- VIP (월 ₩29,900) -->
+        <div class="pricing-card vip">
+          <div class="pricing-vip-label">&#128081; 상위 1% VIP 마스터 플랜</div>
+          <div style="margin-bottom:8px;margin-top:18px;">
+            <span class="badge badge-amber" style="font-size:10px;">VIP</span>
+          </div>
+          <div class="pricing-plan-name tier-vip">VIP 마스터 플랜</div>
+          <div class="pricing-plan-desc">전 기능 무제한 + 신경인지·자율신경 정밀 분석 및 1:1 맞춤형 수면·멘탈관리.</div>
+          <div class="pricing-price">
+            <span class="pricing-price-main">&#8361;29,900</span>
+            <span class="pricing-price-period">/ 월</span>
+          </div>
+          <div class="pricing-price-note" style="color:#f87171;">정원 초과로 신규 가입 대기 중</div>
+          <hr class="pricing-divider" style="border-color:rgba(245,158,11,0.15);" />
+          <div class="tier-test-badge tier-test-vip">
+            <span class="tier-test-icon">&#128081;</span>
+            <div>
+              <div class="tier-test-title">신경인지·자율신경 정밀 분석</div>
+              <div class="tier-test-sub">정원 마감 (다음 기수 대기 등록)</div>
+            </div>
+          </div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>전체 PREMIUM PLUS 기능 100% 무제한 포함</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>신경인지 집중력 &amp; 자율신경 밸런스 분석</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>1:1 맞춤형 수면관리 &amp; 심층 멘탈관리</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>학습전략 전문가용 1:1 심층 분석 소견서 PDF 출력</span>
+            </li>
+            <li class="pricing-feature">
+              <span class="pricing-feature-icon yes">&#10003;</span>
+              <span>수능 킬러문항 집중력 유지 골든타임 스케줄러</span>
+            </li>
+          </ul>
+          <button class="pricing-cta" disabled
+            style="background: rgba(255,255,255,0.06); color: #64748b; border: 1px solid rgba(255,255,255,0.1); cursor: not-allowed;">🔒
+            정원 마감 (가입 대기)</button>
+        </div>
+
+      </div>
+
+      <!-- Tier comparison table -->
+      <div class="tier-compare fade-in">
+        <div class="tier-compare-title">
+          <span style="font-size: 20px;">📋</span>
+          <span>등급별 기능 및 권한 한눈에 비교</span>
+        </div>
+        <div class="tier-compare-grid" style="grid-template-columns: 2fr 1fr 1fr 1.1fr 1.2fr 1fr; min-width: 860px;">
+          <div class="tier-compare-head" style="text-align: left; padding-left: 20px; color: #94a3b8;">주요 제공 기능 &amp; 혜택
+          </div>
+          <div class="tier-compare-head tier-free">FREE<br><span
+              style="font-size:10px; font-weight:normal; color:#6ee7b7;">무료 체험</span></div>
+          <div class="tier-compare-head tier-basic">PRO<br><span
+              style="font-size:10px; font-weight:normal; color:#93c5fd;">스타터 ₩9,000</span></div>
+          <div class="tier-compare-head tier-premium">PREMIUM<br><span
+              style="font-size:10px; font-weight:normal; color:#c4b5fd;">정기구독 ₩9,900</span></div>
+          <div class="tier-compare-head" style="color: #c084fc; background: rgba(168, 85, 247, 0.08);">PLUS<br><span
+              style="font-size:10px; font-weight:bold; color:#e9d5ff;">AI 클리닉 ₩19,900</span></div>
+          <div class="tier-compare-head tier-vip">VIP<br><span
+              style="font-size:10px; font-weight:bold; color:#fde68a;">₩29,900 (마감)</span></div>
+
+          <div class="tier-compare-row-label">🌱 3분 뇌-신체 성향 간이 진단</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+
+          <div class="tier-compare-row-label">🎯 1·2·3차 케어타입 상세 솔루션</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+
+          <div class="tier-compare-row-label">📊 6대 생체/인지 지표 정밀 연동</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+
+          <div class="tier-compare-row-label">🧠 5대 학습 기질 × 신경인지 융합 심층 코칭</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+          <div class="tc-cell yes">✓</div>
+
+          <div class="tier-compare-row-label">📄 학생용 맞춤 풀 리포트 발급</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="font-size: 11px; font-weight: 800;">1회권</div>
+          <div class="tc-cell yes" style="font-size: 11px; font-weight: 800; color:#a78bfa;">무제한</div>
+          <div class="tc-cell yes" style="font-size: 11px; font-weight: 800; color:#c084fc;">무제한</div>
+          <div class="tc-cell yes" style="font-size: 11px; font-weight: 800; color:#fbbf24;">무제한</div>
+
+          <div class="tier-compare-row-label">💬 카카오톡 주간 안심 알림톡 케어</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#a78bfa;">✓</div>
+          <div class="tc-cell yes" style="color:#c084fc;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">📈 성적 추이 &amp; 모의고사 시뮬레이션</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#a78bfa;">✓</div>
+          <div class="tc-cell yes" style="color:#c084fc;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">💊 1:1 맞춤 영양제 정밀 처방전 (℞)</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#a78bfa;">✓</div>
+          <div class="tc-cell yes" style="color:#c084fc;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">📅 스마트 케어 스케줄 관리 (서큘러 시간표·뽀모도로)</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#c084fc; font-weight:900;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">🤖 1:1 실시간 AI 심층 학습 클리닉</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#c084fc; font-weight:900;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">📑 14P 초정밀 심층 학습분석 리포트북 PDF</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#c084fc; font-weight:900;">✓</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">⚡ 신경인지·자율신경 정밀 분석</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">🌙 맞춤형 수면관리</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+
+          <div class="tier-compare-row-label">🧠 심층 멘탈관리</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell no">—</div>
+          <div class="tc-cell yes" style="color:#fbbf24;">✓</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  FAQ
+=================================================== -->
+  <section id="faq" class="section">
+    <div class="container">
+      <div class="text-center fade-in" style="margin-bottom: 56px;">
+        <div class="section-label">FAQ</div>
+        <h2 class="section-title">자주 묻는<br><span class="grad-text">질문과 답변</span></h2>
+        <p class="section-desc" style="margin: 0 auto;">NBASS 서비스 이용에 관해 궁금하신 점을 확인하세요.</p>
+      </div>
+
+      <div class="faq-list fade-in" id="faq-list">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+  FOOTER
+=================================================== -->
+  <footer id="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand">
+            <div class="footer-brand-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"
+                stroke="white" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+              </svg>
+            </div>
+            <span class="footer-brand-name">NBASS</span>
+          </div>
+          <p class="footer-brand-desc">신경인지 검사·자율신경 밸런스·심리 설문으로 학습 집중력을 분석하고 맞춤 솔루션을 제공하는 과학적 학습 최적화 시스템.</p>
+          <div class="footer-copy">© 2026 NBASS Inc. All rights reserved.</div>
+        </div>
+        <div>
+          <div class="footer-col-title">서비스 메뉴</div>
+          <ul class="footer-links">
+            <li><a href="#hero" onclick="smoothScroll(event,'hero')">앱 소개</a></li>
+            <li><a href="#features" onclick="smoothScroll(event,'features')">주요 기능</a></li>
+            <li><a href="#tests" onclick="smoothScroll(event,'tests')">검사 종류</a></li>
+            <li><a href="#reviews" onclick="smoothScroll(event,'reviews')">이용 후기</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">고객 지원</div>
+          <ul class="footer-links">
+            <li><a href="#pricing" onclick="smoothScroll(event,'pricing')">가격 안내</a></li>
+            <li><a href="#faq" onclick="smoothScroll(event,'faq')">자주 묻는 질문</a></li>
+            <li><a href="#" onclick="return false;">개인정보처리방침</a></li>
+            <li><a href="#" onclick="return false;">이용약관</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">연락처</div>
+          <div class="footer-contact">
+            <div class="footer-contact-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+              </svg>
+              nbass.io
+            </div>
+            <div class="footer-contact-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+              </svg>
+              support@nbass.io
+            </div>
+            <div class="footer-contact-item">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+              </svg>
+              02-555-0192
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div class="footer-bottom-left">NBASS 시스템은 학습 효율 향상을 위한 보조 바이오피드백 도구입니다. 의료기기가 아닙니다.</div>
+        <div class="footer-secure">
+          <div class="footer-secure-dot"></div>
+          SSL Secured · Supabase Encrypted
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================================================
+  AUTH MODAL (ROLE-BASED: STUDENT vs PARENT)
+=================================================== -->
+  <div id="auth-modal" class="modal-overlay">
+    <div class="auth-box" style="max-width: 660px; max-height: 90vh; overflow-y: auto;">
+      <div class="auth-header">
+        <span class="auth-header-badge" id="auth-header-badge">NBASS ACCESS</span>
+        <div class="auth-header-title" id="auth-header-title">회원 맞춤 시작하기</div>
+        <div class="auth-header-sub" id="auth-header-sub">회원 유형(학생 / 학부모)을 선택해 주세요</div>
+        <button class="auth-close" onclick="closeAuth()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="auth-body">
+        <!-- 1. Role Selection Cards -->
+        <div class="auth-role-selector">
+          <div class="auth-role-card active" id="role-card-student" onclick="selectAuthRole('student')">
+            <div class="auth-role-icon">🎓</div>
+            <div class="auth-role-name">학생입니다</div>
+            <div class="auth-role-desc">3분 무료 진단 &amp; Student Registration</div>
+            <span class="auth-role-badge">무료 진단 즉시 시작</span>
+          </div>
+          <div class="auth-role-card parent" id="role-card-parent" onclick="selectAuthRole('parent')">
+            <div class="auth-role-icon">👨‍👩‍👧</div>
+            <div class="auth-role-name">학부모/보호자</div>
+            <div class="auth-role-desc">자녀 안심 연동 &amp; 주간 카톡 알림 월정액</div>
+            <span class="auth-role-badge">월정액 안심 케어</span>
+          </div>
+        </div>
+
+        <!-- 2. Auth Mode Tabs (로그인 / 회원가입) -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">로그인</button>
+          <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">회원가입</button>
+        </div>
+
+        <div id="auth-error" class="auth-error" style="display:none;"></div>
+
+        <!-- 3. Dynamic Form -->
+        <form id="auth-form" autocomplete="off" onsubmit="handleAuthSubmit(event)">
+          <!-- Student Signup Fields: Complete NBASS Student Registration -->
+          <div id="student-signup-fields" style="display:none;">
+            <!-- 1. 기본 인적 사항 (Basic Info) -->
+            <div class="reg-section">
+              <div class="reg-section-title">
+                <span>👤</span> 1. 기본 인적 사항 (Student Profile)
+              </div>
+              <div class="reg-grid-2">
+                <div class="auth-field">
+                  <div class="auth-label">Serial ID (자동 생성)</div>
+                  <input class="auth-input" type="text" id="reg-student-id" readonly
+                    style="background:rgba(255,255,255,0.03);color:#818cf8;font-family:monospace;font-weight:700;" />
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">검사일자 (Test Date)</div>
+                  <input class="auth-input" type="date" id="reg-test-date" />
+                </div>
+              </div>
+              <div class="reg-grid-2">
+                <div class="auth-field">
+                  <div class="auth-label">이름 (Full Name) *</div>
+                  <input class="auth-input" type="text" id="auth-student-name" placeholder="홍길동" autocomplete="name" />
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">학년 (Grade)</div>
+                  <select class="auth-input" id="reg-grade">
+                    <option value="중등부">중등부</option>
+                    <option value="고1">고등학교 1학년</option>
+                    <option value="고2" selected>고등학교 2학년</option>
+                    <option value="고3">고등학교 3학년</option>
+                    <option value="N수생">N수생 (재수/반수)</option>
+                    <option value="대학·성인">대학생 / 성인 고시생</option>
+                  </select>
+                </div>
+              </div>
+              <div class="reg-grid-2">
+                <div class="auth-field">
+                  <div class="auth-label">생년월일 (Birthdate)</div>
+                  <input class="auth-input" type="date" id="reg-birthdate" onchange="calculateStudentAge(this.value)" />
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">나이 (Age - 자동 계산)</div>
+                  <div class="auth-input" id="reg-age-display"
+                    style="display:flex;align-items:center;color:#60a5fa;font-weight:800;">18 세</div>
+                </div>
+              </div>
+              <div class="auth-field" style="margin-bottom:0;">
+                <div class="auth-label">성별 (Gender)</div>
+                <div style="display:flex;gap:10px;">
+                  <button type="button" class="auth-group-btn selected" id="gender-male-btn"
+                    onclick="selectGender('Male')" style="flex:1;">남성</button>
+                  <button type="button" class="auth-group-btn" id="gender-female-btn" onclick="selectGender('Female')"
+                    style="flex:1;">여성</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. 수능 과목 선택 (Subject Selection) - 검사 전 필수 선택 -->
+            <div class="reg-section"
+              style="border-color: rgba(99, 102, 241, 0.3); background: rgba(99, 102, 241, 0.03);">
+              <div
+                style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                <div class="reg-section-title" style="margin-bottom:0;color:#a5b4fc;">
+                  <span>📚</span> 2. 수능 과목 선택 (Subject Selection) <span
+                    style="font-size:10px;color:#f43f5e;font-weight:900;">[필수]</span>
+                </div>
+                <!-- Membership Mode Selector -->
+                <div style="display:flex;gap:6px;">
+                  <button type="button" class="auth-role-badge" id="mode-free-btn" onclick="setSubjectMode('free')"
+                    style="border:none;cursor:pointer;background:#3b82f6;color:#fff;">🌱 무료체험 (국/영/수 택1)</button>
+                  <button type="button" class="auth-role-badge" id="mode-paid-btn" onclick="setSubjectMode('paid')"
+                    style="border:none;cursor:pointer;background:rgba(255,255,255,0.06);color:#94a3b8;">👑 유료회원
+                    (전과목)</button>
+                </div>
+              </div>
+
+              <!-- 안내 배너 -->
+              <div id="subject-mode-banner"
+                style="font-size:11px;padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.1);color:#93c5fd;margin-bottom:12px;line-height:1.4;">
+                💡 <strong>무료체험 안내:</strong> 국어, 수학, 영어 중 <strong>1개 과목</strong>을 선택하여 3분 집중 진단을 진행합니다. (유료 회원은 탐구 및 전
+                과목 선택 가능)
+              </div>
+
+              <!-- 공통/필수 과목 -->
+              <div style="margin-bottom:12px;">
+                <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin-bottom:6px;">공통 / 필수 (국어, 수학, 영어,
+                  한국사)</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;" id="common-subjects-container">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+
+              <!-- 사회/과학 탐구 과목 -->
+              <div style="margin-bottom:12px;">
+                <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin-bottom:6px;">사회 / 과학탐구 (Social /
+                  Science)</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;padding-right:4px;"
+                  id="inquiry-subjects-container">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+
+              <!-- 제2외국어 / 한문 -->
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--c-muted);margin-bottom:6px;">제2외국어 / 한문 (Foreign)
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;" id="foreign-subjects-container">
+                  <!-- Injected by JS -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. 신체 및 활동 정보 (Physical & Activity) -->
+            <div class="reg-section">
+              <div class="reg-section-title">
+                <span>🧬</span> 3. 신체 및 활동 정보 (Physical &amp; Activity)
+              </div>
+              <div class="reg-grid-3">
+                <div class="auth-field">
+                  <div class="auth-label">키 (Height cm)</div>
+                  <input class="auth-input" type="number" id="reg-height" placeholder="172" value="172"
+                    oninput="calculateBMI()" />
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">몸무게 (Weight kg)</div>
+                  <input class="auth-input" type="number" id="reg-weight" placeholder="62" value="62"
+                    oninput="calculateBMI()" />
+                </div>
+                <div class="auth-field">
+                  <div class="auth-label">BMI (자동계산)</div>
+                  <div class="auth-input" id="reg-bmi-display"
+                    style="display:flex;align-items:center;justify-content:space-between;color:#34d399;font-weight:800;">
+                    <span id="reg-bmi-val">20.96</span>
+                    <span id="reg-bmi-label"
+                      style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(52,211,153,0.15);">정상</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;">
+                <div class="auth-field">
+                  <div class="auth-label">평소 활동량 (Activity Level)</div>
+                  <div class="reg-grid-4">
+                    <button type="button" class="act-level-btn" onclick="selectActivityLevel(1)" id="act-btn-1">
+                      <span style="font-size:16px;">🪑</span>
+                      <div style="font-size:10px;font-weight:700;">Lv 1</div>
+                    </button>
+                    <button type="button" class="act-level-btn selected" onclick="selectActivityLevel(2)"
+                      id="act-btn-2">
+                      <span style="font-size:16px;">🚶</span>
+                      <div style="font-size:10px;font-weight:700;">Lv 2</div>
+                    </button>
+                    <button type="button" class="act-level-btn" onclick="selectActivityLevel(3)" id="act-btn-3">
+                      <span style="font-size:16px;">🏃</span>
+                      <div style="font-size:10px;font-weight:700;">Lv 3</div>
+                    </button>
+                    <button type="button" class="act-level-btn" onclick="selectActivityLevel(4)" id="act-btn-4">
+                      <span style="font-size:16px;">🏋️</span>
+                      <div style="font-size:10px;font-weight:700;">Lv 4</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 활동량 설명 카드 -->
+              <div id="act-desc-card"
+                style="margin-top:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);font-size:11px;color:#94a3b8;">
+                🚶 <strong>Level 2 (보통):</strong> 가벼운 산책이나 스트레칭 수준. 주 1~2회 30분 이하 가벼운 운동.
+              </div>
+            </div>
+          </div>
+
+          <!-- Parent Signup Fields -->
+          <div id="parent-signup-fields" style="display:none;">
+            <div class="auth-field">
+              <div class="auth-label">학부모 성함</div>
+              <input class="auth-input" type="text" id="auth-parent-name" placeholder="이영희" autocomplete="name" />
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">학부모 휴대폰 번호 <span style="font-size:11px;color:#34d399;font-weight:700;">(🔔 주간 카톡
+                  알림톡 수신용)</span></div>
+              <input class="auth-input" type="tel" id="auth-parent-phone" placeholder="010-0000-0000" />
+            </div>
+            <div class="auth-field">
+              <div class="auth-label">연동할 자녀 이름 또는 자녀 ID <span style="font-size:11px;color:var(--c-muted);">(선택)</span>
+              </div>
+              <input class="auth-input" type="text" id="auth-child-identifier"
+                placeholder="예: 김민준 또는 ID-2026-XXXX (가입 후 연동 가능)" />
+            </div>
+          </div>
+
+          <!-- Common Account Fields -->
+          <div class="auth-field">
+            <div class="auth-label" id="auth-email-label">학생 ID 또는 이메일 계정</div>
+            <input class="auth-input" type="text" id="auth-email" placeholder="학생 ID 또는 이메일 입력" required
+              autocomplete="off" />
+          </div>
+          <div class="auth-field">
+            <div class="auth-label">비밀번호</div>
+            <input class="auth-input" type="password" id="auth-password" placeholder="비밀번호 입력" required
+              autocomplete="new-password" />
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="auth-submit" id="auth-submit-btn">
+            Student Registration &amp; 3분 무료 진단 시작 →
+          </button>
+        </form>
+
+        <!-- [신규] 학생 로그인 탭 전용: 로그인 없이 3분 무료체험 시작 -->
+        <button type="button" class="auth-submit" id="auth-free-trial-btn"
+          style="margin-top:10px;background:linear-gradient(135deg,#10b981,#0ea5e9);display:none;"
+          onclick="startFreeTrial()">
+          🎯 3분 무료체험 검사 시작 →
+        </button>
+
+        <!-- [신규] 무료 진단 1회 사용 안내 + 페이월 CTA (사용 전에는 숨김) -->
+        <div id="auth-free-trial-used-notice"
+          style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);color:#fbbf24;font-size:12px;line-height:1.5;">
+          ℹ️ 3분 무료 진단은 <strong>1회 제공</strong>됩니다. 이미 사용하셨어요.
+          <button type="button" onclick="goToApp('pro')"
+            style="margin-left:6px;padding:4px 10px;border-radius:8px;border:none;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-weight:700;cursor:pointer;">
+            정밀 종합 검사(Pro) 시작 →
+          </button>
+        </div>
+
+        <div class="auth-switch">
+          <span id="auth-switch-text">아직 계정이 없으신가요?</span>
+          <button class="auth-switch-btn" id="auth-switch-btn" onclick="switchAuthTab('signup')">회원가입하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================
+  ADMIN MODAL (PASSWORD AUTHENTICATION)
+=================================================== -->
+  <div id="admin-modal" class="modal-overlay">
+    <div class="auth-box" style="max-width: 440px;">
+      <div class="auth-header">
+        <span class="auth-header-badge"
+          style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">ADMIN
+          SECURITY GATE</span>
+        <div class="auth-header-title">🔒 관리자 관제 센터 인증</div>
+        <div class="auth-header-sub">오너 및 관리자 전용 보안 비밀번호를 입력하세요</div>
+        <button class="auth-close" onclick="closeAdminModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="auth-body">
+        <form id="admin-form" onsubmit="handleAdminSubmit(event)">
+          <div class="auth-field">
+            <div class="auth-label">관리자 마스터 비밀번호</div>
+            <input class="auth-input" type="password" id="admin-pwd-input" placeholder="오너 비밀번호 입력" required
+              autocomplete="current-password" />
+            <div id="admin-error-msg" style="color: #f87171; font-size: 12px; margin-top: 6px; display: none;">❌ 비밀번호가
+              올바르지 않습니다. 다시 입력해주세요.</div>
+            <div style="color: var(--c-muted); font-size: 11px; margin-top: 8px;">💡 기본 비밀번호는 제공되지 않습니다. 오너가 설정에서 직접 지정한
+              비밀번호를 입력하세요.</div>
+          </div>
+          <button type="submit" class="auth-submit"
+            style="background: linear-gradient(135deg, #2563eb, #4f46e5); margin-top: 10px;">
+            관리자 관제 센터 입장 →
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- ===================================================
+  JAVASCRIPT
+=================================================== -->
+  <script>
+    /* =====================================
+       DATA
+    ===================================== */
+    const features = [
+      {
+        icon: '🧠',
+        iconBg: 'rgba(59,130,246,0.12)',
+        title: '신경인지 몰입도 & 자율신경 피로도 분석',
+        desc: '신경인지 과제(작업기억·주의집중)와 자율신경(교감·부교감) 지표를 바탕으로 현재 몰입 상태와 신체 피로 패턴을 정밀 추정하고 최적의 웰니스 스코어를 제공합니다.',
+        detailTitle: '신경인지 및 자율신경 기반 몰입 상태 & 스트레스 분석 가이드',
+        science: `▶ 1. 신경인지 기반 주의집중 & 작업기억 추정
+• 주의력 및 작업기억: 지속 주의 과제와 인지 전환 속도를 통해 현재 뇌의 각성 및 집중 상태, 정보 처리 속도를 객관화합니다.
+
+▶ 2. 자율신경계 기반 스트레스 및 피로 추정
+• 자율신경계 균형: 부교감신경(PNS)이 우세하면 신체 이완 및 회복, 교감신경(SNS, 스트레스)이 우세하면 긴장과 각성이 상승합니다.
+• 신체 회복 모니터링: 표준 척도(BAI/ISI 등) 및 생체 리듬 기반의 자율신경 조절력 지표를 활용합니다.
+
+▶ 3. 폐루프(Closed-Loop) 적응형 시스템
+• 신경인지 지표는 '현재 학습 집중력과 작업기억 용량'을, 자율신경 지표는 '몸의 스트레스·피로 상태'를 동시에 분석합니다.
+• 시간표 예측 → 신경인지/스트레스 분석 검증 → 영양·수면 데이터 재조정 → 2주 주기 로드맵 반영.
+
+※ 본 기능은 학습 능력 향상 및 자기 관리를 위한 과학적 인지 가이드입니다.`,
+        benefits: ['현재 집중력 및 신체 스트레스 수준 객관적 파악', '번아웃 전조 증상 조기 포착', '학습 시간표 예측과 실측 데이터 피드백 루프', '개인별 리듬에 맞춘 최적 휴식 타이밍'],
+        action: '학습 세션 전후로 체크인을 통해 몰입도와 스트레스 패턴을 확인하고, 예측 결과와 비교하여 최적의 컨디션을 관리하세요.',
+        isPremium: false
+      },
+      {
+        icon: '📅',
+        iconBg: 'rgba(99,102,241,0.12)',
+        title: '개인 맞춤형 학습 전략 추천',
+        desc: '생체 리듬(크로노타입)과 인지 성향 분석을 바탕으로, 과목별 인지 부하에 최적화된 시간대별 학습 로드맵을 설계합니다.',
+        detailTitle: '생체 리듬 & 인지 성향 기반 과학적 맞춤 학습 로드맵',
+        science: `▶ 1. 뇌를 깨우는 스위치 (코르티솔 각성 반응, CAR)
+• 기상 직후 30~45분 코르티솔 급상승 → 전전두엽 활성화.
+• 기상 후 2~4시간은 논리적 사고와 새 개념 이해에 최적.
+
+▶ 2. 체온이 만드는 두 번의 집중 파도
+• 체온이 낮을 때: 정확도↑, 실수↓ / 체온이 오를 때: 반응 속도↑ (암기·문제 풀이 적합)
+
+▶ 3. 크로노타입 (모두에게 같은 시간표는 없다)
+• 아침형(라크): 오전 6~10시 피크 / 중간형: 오전 9~12시 / 저녁형(아울): 오후 2~6시·저녁 피크
+• 개인별 리듬에 따라 최적 피크 타임이 최대 3~4시간 차이.
+
+▶ 4. 공부는 잠든 뒤에도 계속된다 (기억 응고화)
+• 서파수면 중 해마의 단기 기억이 대뇌피질로 옮겨져 장기기억화.`,
+        benefits: ['기상 후 2~4시간: 코르티솔 피크 (새 개념, 논리·수리)', '오전 후반: 독해 및 응용 문제', '점심 직후: 복습 및 단순 암기', '크로노타입 반영 2주 적응형 루프'],
+        action: '1~2주간 시간대별 집중도와 컨디션을 기록하고, 앱의 적응형 알고리즘으로 2주마다 최적 학습 로드맵을 재조정하세요.',
+        isPremium: false
+      },
+      {
+        icon: '🥗',
+        iconBg: 'rgba(16,185,129,0.12)',
+        title: '뉴로-뉴트리션 뇌 기능 영양 가이드',
+        desc: '신경전달물질별 영양소 매핑과 혈당 안정성 원리를 바탕으로, 집중력을 유지하고 뇌 포그(Brain Fog)를 예방하는 맞춤형 식단 루틴을 제안합니다.',
+        detailTitle: '뉴로-뉴트리션(Neuro-Nutrition) 뇌 기능 영양 코칭',
+        science: `▶ 신경전달물질 기능별 영양소 매핑
+• 도파민 (동기·집중): 티로신·페닐알라닌 (달걀, 아몬드, 아보카도)
+• 아세틸콜린 (기억·학습): 콜린 (달걀노른자, 대두, 브로콜리)
+• 세로토닌 (정서 안정): 트립토판 + 비타민B6 (바나나, 견과류)
+• GABA (불안 완화): 글루타민 + 마그네슘 (현미, 발효식품)
+
+▶ 혈당 스파이크-크래시 방지
+• 단순당 위주 식사 → 30~60분 후 혈당 급락(졸음·집중 저하).
+• 저GI 탄수화물 + 단백질 + 지방 조합으로 3~4시간 안정적 인지.
+
+※ 본 가이드는 질환 치료 목적의 의학적 처방이 아니며, 학습 효율 증진을 위한 웰니스 영양 가이드입니다.`,
+        benefits: ['기상 후 각성: 단백질 위주 아침 식사', '학습 피크 전 30~60분: 도파민 지원 간식(견과류, 달걀)', '점심 후 슬럼프: 저GI 간식으로 혈당 유지', '취침 전: 마그네슘 식품으로 기억 응고화 지원'],
+        action: '오후 2~3시 슬럼프 구간에 혈당을 안정시키는 저GI 간식과 마그네슘 루틴을 적용하고, 2주 이상 일관되게 실천하세요.',
+        isPremium: false
+      },
+      {
+        icon: '🏃',
+        iconBg: 'rgba(168,85,247,0.12)',
+        title: '브레인 스트레칭 및 순환 가이드',
+        desc: '장시간 착석으로 인한 정맥혈 순환 저하와 근육 긴장을 해소하고, 5분간의 가벼운 움직임으로 뇌 혈류와 인지 기능을 회복시킵니다.',
+        detailTitle: '뇌 혈류 촉진 브레인 스트레칭 루틴',
+        science: `▶ 핵심 메커니즘 (왜 5분 스트레칭이 뇌 피로를 푸는가)
+• 정적 착석 → 하체 근육 펌프 중단 → 뇌 산소·포도당 공급 감소.
+• 짧은 유산소 움직임 → 뇌 혈류↑ → 작업기억·주의 전환 일시 개선.
+
+▶ 목적별 스트레칭 구성
+• 혈류 재분배: 제자리 걷기, 스쿼트 3~5회
+• 경추 압박 해소: 목 좌우/앞뒤 스트레칭
+• 어깨·흉곽 이완: 어깨 돌리기, 가슴 펴기
+• 각성 전환: 팔 크게 휘두르기, 가벼운 점프
+• 시각 피로: 20-20-20 룰 (20분마다 20초 20피트 응시)`,
+        benefits: ['거북목 및 근육 긴장 완화', '5분으로 뇌 혈류 재분배 및 산소 공급 증대', '다음 세션 집중력 극대화', '도파민·엔도르핀 분비로 번아웃 예방'],
+        action: '90분 집중 학습 후 쉬는 시간이나 점심 식사 직후 알람을 맞춰 5분 브레인 스트레칭 루틴을 실천하세요.',
+        isPremium: false
+      },
+      {
+        icon: '🌙',
+        iconBg: 'rgba(14,165,233,0.12)',
+        title: '수면 주기 및 렘(REM) 관리',
+        desc: '기억 정착과 인지 회복의 핵심인 수면 구조를 분석하고, 수면 부채 해소와 역산 취침 시간 제안으로 일일 컨디션을 극대화합니다.',
+        detailTitle: '렘(REM) 수면 최적화 및 기억 정착 솔루션',
+        science: `▶ 수면이 기억 정착의 핵심인 이유
+• 서파수면(깊은 잠): 해마 → 대뇌피질로 사실적·서술적 기억 전이.
+• REM 수면: 정보 간 연결과 통합, 절차적 기억(패턴 인식, 응용력) 관여.
+• "무엇을 얼마나 외웠느냐"보다 "그날 밤 얼마나 잘 잤느냐"가 기억 인출 성공률 좌우.
+
+▶ 수면 사이클 구조
+• 약 90분 주기로 얕은잠-깊은잠-REM 반복 (하룻밤 4~6 사이클).
+• 사이클 완결성: 중간에 깨면 수면 관성으로 개운함 크게 저하.
+
+▶ 수면의 배율기 역할
+• 수면의 질 → 다음 날 코르티솔 각성 반응 세기 결정.
+• 수면 부족 → 도파민 수용체 민감도 저하 → 영양 가이드 효과 반감.`,
+        benefits: ['90분 사이클 완결성으로 개운함 극대화', '목표 기상 시간에서 역산한 최적 취침 시간 제안', '블루라이트 차단 및 카페인 컷오프 시간 코칭', '수면 부채 해소로 다음 날 학습 능률 향상'],
+        action: '목표 기상 시간을 설정하고 90분 사이클 역산 취침 시간을 확인하세요. 취침 1시간 전 전자기기 사용을 줄이고 가벼운 복습으로 기억 정착을 유도하세요.',
+        isPremium: false
+      },
+      {
+        icon: '📊',
+        iconBg: 'rgba(59,130,246,0.08)',
+        title: '실시간 진행 분석 리포트',
+        desc: '주간·월간 변화 추이를 그래프로 시각화하여 학습 효율의 성장 곡선을 한눈에 확인할 수 있습니다.',
+        detailTitle: 'AI 생체 데이터 기반 성장 곡선 & 피드백 리포트',
+        science: `매일 수집된 생체 신호와 학습 완료 데이터를 다변량 분석(Multivariate Analysis)하여 개선 포인트를 도출합니다.
+
+▶ 리포트 구성
+• 주간 집중도 변화 그래프
+• 자율신경 스트레스 추이
+• 수면 효율 변화
+• 영양·운동 실천율
+
+▶ AI 기반 예측 기능
+• 현재 추세로 2주 후 컨디션 예측
+• 번아웃 위험도 사전 경고`,
+        benefits: ['내 학습 능력 향상 객관적 지표 확인', '번아웃 징후 선제적 휴식 권고 알림', '월간 종합 분석으로 전략 수정', '이전 회차 대비 성장률 자동 계산'],
+        action: '매주 일요일 저녁 주간 리포트를 확인하고 다음 주 목표 집중 시간을 설정하세요.',
+        isPremium: false
+      }
+    ];
+
+    const reviews = [
+      { name: '김민수', role: '수험생 (재수생)', category: '수험생', text: '매일 독서실에 앉아만 있어도 머리가 멍하고 집중이 안 됐는데, 3분 무료 진단으로 내 피크 타임이 오전 9시~11시라는 걸 알게 됐습니다. 스케줄을 바꿨더니 모의고사 백분위가 크게 올랐어요!', rating: 5, badge: '집중도 +42%' },
+      { name: '오서연 학부모', role: '대치동 고3 수험생 학부모', category: '학부모', text: '매주 일요일 저녁 도착하는 카카오톡 알림톡 덕분에 아이와 쓸데없는 잔소리 싸움이 사라졌습니다. 아이의 집중 골든타임과 번아웃 상태를 알고 나니 훨씬 편안하고 안정적으로 응원할 수 있어요.', rating: 5, badge: '잔소리 제로화' },
+      { name: '정우진', role: '고3 수험생 (이과)', category: '수험생', text: '수능 다가올수록 불안감이 극에 달했는데, 신경인지 6단계 맞춤 훈련으로 호흡 루틴과 90분 수면 사이클을 실천하니 수능 당일 최고의 멘탈로 시험을 치를 수 있었습니다.', rating: 5, badge: '수능 멘탈 케어' },
+      { name: '박혜경 학부모', role: '중3 예비고 수험생 학부모', category: '학부모', text: '아이가 밤늦게까지 공부해도 피로만 쌓이고 성적이 안 나와 걱정했는데, 자율신경 스트레스와 신경인지 분석 리포트를 보고 수면과 식단 루틴을 바꾼 뒤 아이 표정부터 밝아졌습니다.', rating: 5, badge: '학부모 안심 케어' },
+      { name: '이지영', role: '대학생 (의예과 본과)', category: '대학생·직장인', text: '방대한 암기량을 소화하느라 번아웃이 왔었는데, 뉴로-뉴트리션 영양 가이드와 90분 수면 사이클 역산 취침법이 수험 생활의 질을 180도 바꿨습니다.', rating: 5, badge: '수면 효율 최적화' },
+      { name: '한수민', role: '수험생 (N수생)', category: '수험생', text: '무작정 14시간 앉아있는 게 능사가 아니더군요. 작업기억 과부하를 줄여주는 시간표 처방대로 공부하니 피로감 없이 하루 순공 10시간을 완벽하게 채우고 있습니다.', rating: 5, badge: '순공 효율 극대화' },
+      { name: '박준호', role: '직장인 (전문직 시험 준비)', category: '대학생·직장인', text: '퇴근 후 공부를 병행하느라 지쳐있었죠. 자율신경 스트레스 진단 후 피로도를 확인하고 맞춤 휴식법을 적용하니 공부 효율이 두 배로 늘었습니다.', rating: 5, badge: '학습 효율 2배' }
+    ];
+
+    const faqs = [
+      { q: '3분 무료 진단은 어떻게 진행되나요?', a: '별도의 기기 구매나 카드 등록 없이 웹 브라우저에서 3분 만에 신경인지 학습 성향, 4대 케어타입(정서불안/몰입저하/뇌피로/집중분산), 핵심 솔루션 1줄 요약을 즉시 무료로 확인하실 수 있습니다.' },
+      { q: '신경인지 6단계 맞춤 학습 사다리는 어떻게 진행되나요?', a: '1단계 두뇌 이완 호흡부터 2단계 뉴로-영양 식단, 3단계 90분 수면 사이클, 4단계 주의집중 과제(N-Back 등), 5단계 골든타임 시간표 배치, 6단계 취약점 메타인지까지 체계적인 단계별 파이프라인으로 학생의 학습 효율을 극대화합니다.' },
+      { q: '학부모 카카오톡 주간 알림톡은 어떻게 작동하나요?', a: 'Premium 또는 VIP 회원의 경우, 학생이 진단 및 주간 루틴을 진행할 때마다 매주 일요일 저녁 학부모님의 카카오톡으로 핵심 컨디션, 집중 골든타임, 권장 수면 시간표가 자동 발송되어 불필요한 학습 잔소리를 줄여줍니다.' },
+      { q: '등급별(Free, Pro, Premium, VIP) 차이점은 무엇인가요?', a: '▶ Free(₩0): 3분 신경인지 성향 진단 및 케어타입 분류\n▶ Pro(₩9,000): 1회 학생용 풀 리포트 즉시 열람권\n▶ Premium(월 ₩9,900): 전문가 심층 리포트 무제한 + 🔔 카카오톡 주간 알림톡 + 모의고사 성적 시뮬레이션\n▶ VIP(월 ₩19,900): 1:1 실시간 AI 학습 컨설팅 + VIP 신경인지 6단계 맞춤 학습 사다리 + 14P 초정밀 심층 리포트북 전 기능 무제한' },
+      { q: '학생 혼자서도 쉽게 실천할 수 있나요?', a: '네! NBASS는 복잡한 이론 대신 오늘 당장 따라 할 수 있는 5분 스트레칭, 수면 취침 시간표, 뉴로-스낵 가이드 등 학생 친화적인 체크리스트 형태로 제공되어 혼자서도 즐겁게 실천할 수 있습니다.' },
+      { q: '의학적 진단이나 병원 치료를 대신할 수 있나요?', a: 'NBASS는 학습 효율 극대화와 일상 컨디션 관리를 위한 학습과학·인지심리 기반 자기주도 학습 솔루션입니다. 전문 의료 기관의 진료나 치료를 대체하지 않으며, 학생의 학습 잠재력을 이끌어내는 웰니스 교육 시스템입니다.' }
+    ];
+
+    /* =====================================
+       RENDER FEATURES
+    ===================================== */
+    function renderFeatures() {
+      const grid = document.getElementById('features-grid');
+      grid.innerHTML = features.map((f, i) => `
+      <div class="feature-card fade-in" style="transition-delay:${i * 0.06}s;" onclick="openFeatureModal(${i})">
+        ${f.isPremium ? `<div class="feature-premium-badge">✦ Premium 전용</div>` : ''}
+        <div>
+          <div class="feature-icon" style="background:${f.iconBg};">${f.icon}</div>
+          <div class="feature-title">${f.title}</div>
+          <p class="feature-desc">${f.desc}</p>
+        </div>
+        <div class="feature-arrow">
+          <span>상세 설명 보기</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+        </div>
+      </div>
+    `).join('');
+    }
+
+    /* =====================================
+       FEATURE MODAL
+    ===================================== */
+    function openFeatureModal(idx) {
+      const f = features[idx];
+      document.getElementById('modal-title').textContent = f.detailTitle;
+      document.getElementById('modal-desc').textContent = f.desc;
+      document.getElementById('modal-science').textContent = f.science;
+      document.getElementById('modal-action').textContent = f.action;
+      const badge = document.getElementById('modal-badge');
+      badge.innerHTML = f.isPremium
+        ? `<span class="badge badge-amber">✦ Premium 이상 회원 전용</span>`
+        : `<span class="badge badge-blue">NBASS Solution</span>`;
+      const ul = document.getElementById('modal-benefits');
+      ul.innerHTML = f.benefits.map(b => `<li class="modal-benefit">${b}</li>`).join('');
+      document.getElementById('feature-modal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeFeatureModal(e) {
+      if (e.target === document.getElementById('feature-modal')) closeFeatureModalDirect();
+    }
+    function closeFeatureModalDirect() {
+      document.getElementById('feature-modal').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    /* =====================================
+       RENDER REVIEWS
+    ===================================== */
+    let currentFilter = 'all';
+    function renderReviews(filter) {
+      const grid = document.getElementById('reviews-grid');
+      const filtered = filter === 'all' ? reviews : reviews.filter(r => r.category === filter);
+      grid.innerHTML = filtered.map(r => `
+      <div class="review-card fade-in">
+        <div class="review-quote">"</div>
+        <div class="review-stars">${'★'.repeat(r.rating)}</div>
+        <p class="review-text">"${r.text}"</p>
+        <div class="review-footer">
+          <div>
+            <div class="review-author">${r.name}</div>
+            <div class="review-role">${r.role}</div>
+          </div>
+          <span class="review-badge">${r.badge}</span>
+        </div>
+      </div>
+    `).join('');
+      // re-observe new cards
+      observeFadeIns();
+    }
+    function filterReviews(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      renderReviews(filter);
+    }
+
+    /* =====================================
+       RENDER FAQ
+    ===================================== */
+    function renderFAQ() {
+      const list = document.getElementById('faq-list');
+      list.innerHTML = faqs.map((faq, i) => `
+      <div class="faq-item${i === 0 ? ' open' : ''}" id="faq-${i}">
+        <button class="faq-question" onclick="toggleFAQ(${i})">
+          <span>${faq.q}</span>
+          <svg class="faq-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+        </button>
+        <div class="faq-answer">${faq.a}</div>
+      </div>
+    `).join('');
+    }
+    function toggleFAQ(idx) {
+      const item = document.getElementById(`faq-${idx}`);
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(el => el.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
+    }
+
+    /* =====================================
+       AUTH & STUDENT REGISTRATION DATA & LOGIC
+    ===================================== */
+    let authTab = 'login';
+    let authRole = 'student'; // 'student' | 'parent'
+    let selectedGroup = '고1~2';
+
+    // Student Registration State
+    let studentGender = 'Male';
+    let studentActivityLevel = 2;
+    let subjectMode = 'free'; // 'free' (국영수 1개) | 'paid' (전과목 다중)
+    let selectedSubjects = ['korean'];
+    let focusSubjects = [];
+
+    const SUNEUNG_SUBJECTS_DATA = [
+      // 공통 / 필수
+      { id: 'korean', name: '국어', category: 'common' },
+      { id: 'math', name: '수학', category: 'common' },
+      { id: 'english', name: '영어', category: 'common' },
+      { id: 'korean_history', name: '한국사', category: 'required' },
+      // 사회탐구
+      { id: 'life_ethics', name: '생활과윤리', category: 'social' },
+      { id: 'ethics_thought', name: '윤리와사상', category: 'social' },
+      { id: 'korean_geography', name: '한국지리', category: 'social' },
+      { id: 'world_geography', name: '세계지리', category: 'social' },
+      { id: 'east_asian_history', name: '동아시아사', category: 'social' },
+      { id: 'world_history', name: '세계사', category: 'social' },
+      { id: 'economics', name: '경제', category: 'social' },
+      { id: 'politics_law', name: '정치와법', category: 'social' },
+      { id: 'social_culture', name: '사회문화', category: 'social' },
+      // 과학탐구
+      { id: 'physics_1', name: '물리학Ⅰ', category: 'science' },
+      { id: 'chemistry_1', name: '화학Ⅰ', category: 'science' },
+      { id: 'life_science_1', name: '생명과학Ⅰ', category: 'science' },
+      { id: 'earth_science_1', name: '지구과학Ⅰ', category: 'science' },
+      { id: 'physics_2', name: '물리학Ⅱ', category: 'science' },
+      { id: 'chemistry_2', name: '화학Ⅱ', category: 'science' },
+      { id: 'life_science_2', name: '생명과학Ⅱ', category: 'science' },
+      { id: 'earth_science_2', name: '지구과학Ⅱ', category: 'science' },
+      // 제2외국어 / 한문
+      { id: 'german', name: '독일어Ⅰ', category: 'foreign' },
+      { id: 'french', name: '프랑스어Ⅰ', category: 'foreign' },
+      { id: 'spanish', name: '스페인어Ⅰ', category: 'foreign' },
+      { id: 'chinese', name: '중국어Ⅰ', category: 'foreign' },
+      { id: 'japanese', name: '일본어Ⅰ', category: 'foreign' },
+      { id: 'russian', name: '러시아어Ⅰ', category: 'foreign' },
+      { id: 'arabic', name: '아랍어Ⅰ', category: 'foreign' },
+      { id: 'vietnamese', name: '베트남어Ⅰ', category: 'foreign' },
+      { id: 'hanja', name: '한문Ⅰ', category: 'foreign' }
+    ];
+
+    function initStudentRegistration() {
+      // 1. Generate Serial ID
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const randHex = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const idEl = document.getElementById('reg-student-id');
+      if (idEl && !idEl.value) {
+        idEl.value = `ID-${todayStr.replace(/-/g, '')}-${randHex}`;
+      }
+      // 2. Set Test Date
+      const dateEl = document.getElementById('reg-test-date');
+      if (dateEl && !dateEl.value) {
+        dateEl.value = todayStr;
+      }
+      // 3. Set Default Birthdate
+      const birthEl = document.getElementById('reg-birthdate');
+      if (birthEl && !birthEl.value) {
+        birthEl.value = '2008-05-15';
+        calculateStudentAge('2008-05-15');
+      }
+      // 4. Calculate BMI
+      calculateBMI();
+      // 5. Render Subject Chips
+      renderSubjectChips();
+    }
+
+    function calculateStudentAge(birthDate) {
+      if (!birthDate) return;
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      const ageDisplay = document.getElementById('reg-age-display');
+      if (ageDisplay) ageDisplay.textContent = `${Math.max(1, age)} 세`;
+    }
+
+    function selectGender(g) {
+      studentGender = g;
+      document.getElementById('gender-male-btn')?.classList.toggle('selected', g === 'Male');
+      document.getElementById('gender-female-btn')?.classList.toggle('selected', g === 'Female');
+    }
+
+    function setSubjectMode(mode) {
+      subjectMode = mode;
+      const freeBtn = document.getElementById('mode-free-btn');
+      const paidBtn = document.getElementById('mode-paid-btn');
+      const banner = document.getElementById('subject-mode-banner');
+
+      if (mode === 'free') {
+        if (freeBtn) { freeBtn.style.background = '#3b82f6'; freeBtn.style.color = '#fff'; }
+        if (paidBtn) { paidBtn.style.background = 'rgba(255,255,255,0.06)'; paidBtn.style.color = '#94a3b8'; }
+        if (banner) {
+          banner.innerHTML = '💡 <strong>무료체험 안내:</strong> 국어, 수학, 영어 중 <strong>1개 과목</strong>을 선택하여 3분 집중 진단을 진행합니다. (유료 회원은 탐구 및 전 과목 선택 가능)';
+          banner.style.background = 'rgba(59,130,246,0.1)';
+          banner.style.color = '#93c5fd';
+        }
+        // Filter down to single choice in korean, math, english
+        const firstMain = selectedSubjects.find(s => ['korean', 'math', 'english'].includes(s)) || 'korean';
+        selectedSubjects = [firstMain];
+      } else {
+        if (freeBtn) { freeBtn.style.background = 'rgba(255,255,255,0.06)'; freeBtn.style.color = '#94a3b8'; }
+        if (paidBtn) { paidBtn.style.background = '#818cf8'; paidBtn.style.color = '#fff'; }
+        if (banner) {
+          banner.innerHTML = '👑 <strong>유료회원(PRO/PREM/VIP) 모드:</strong> 공통, 사회/과학탐구, 제2외국어 등 <strong>모든 과목을 자유롭게 다중 선택</strong>하고 <span style="background:#f43f5e;color:#fff;padding:1px 4px;border-radius:4px;font-weight:900;">!</span> 부담 과목을 지정할 수 있습니다.';
+          banner.style.background = 'rgba(99,102,241,0.15)';
+          banner.style.color = '#c7d2fe';
+        }
+      }
+      renderSubjectChips();
+      updateAuthUI();
+    }
+
+    function toggleSubject(id, category) {
+      if (subjectMode === 'free') {
+        if (category === 'common' && ['korean', 'math', 'english'].includes(id)) {
+          selectedSubjects = [id];
+          renderSubjectChips();
+        } else {
+          showToast('🔒 무료체험은 국/영/수 중 1개 과목만 선택 가능합니다. (상단 [유료회원] 모드 선택 시 전 과목 해제)');
+        }
+        return;
+      }
+
+      // Paid Mode: Multi-select
+      if (selectedSubjects.includes(id)) {
+        selectedSubjects = selectedSubjects.filter(s => s !== id);
+        focusSubjects = focusSubjects.filter(s => s !== id);
+      } else {
+        selectedSubjects.push(id);
+      }
+      renderSubjectChips();
+    }
+
+    function toggleSubjectFocus(e, id) {
+      e.stopPropagation();
+      if (subjectMode === 'free') {
+        if (['korean', 'math', 'english'].includes(id)) {
+          focusSubjects = focusSubjects.includes(id) ? [] : [id];
+          renderSubjectChips();
+        } else {
+          showToast('🔒 무료체험은 국/영/수 중 1개 과목만 선택 가능합니다.');
+        }
+        return;
+      }
+      if (focusSubjects.includes(id)) {
+        focusSubjects = focusSubjects.filter(s => s !== id);
+      } else {
+        focusSubjects.push(id);
+      }
+      renderSubjectChips();
+    }
+
+    function renderSubjectChips() {
+      const commonContainer = document.getElementById('common-subjects-container');
+      const inquiryContainer = document.getElementById('inquiry-subjects-container');
+      const foreignContainer = document.getElementById('foreign-subjects-container');
+
+      if (!commonContainer) return;
+
+      const isFree = subjectMode === 'free';
+
+      // 1. Common Subjects
+      commonContainer.innerHTML = SUNEUNG_SUBJECTS_DATA.filter(s => s.category === 'common' || s.category === 'required').map(subj => {
+        const isSelected = selectedSubjects.includes(subj.id);
+        const isFocused = focusSubjects.includes(subj.id);
+        const isLocked = isFree && subj.id === 'korean_history';
+
+        return `
+          <div class="subject-chip ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}" onclick="toggleSubject('${subj.id}', '${subj.category}')">
+            ${isLocked ? '🔒 ' : ''}${subj.name}
+            ${(!isFree && isSelected) ? `<button type="button" class="subject-focus-btn" onclick="toggleSubjectFocus(event, '${subj.id}')" title="부담 과목 지정">!</button>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      // 2. Inquiry Subjects (Social & Science)
+      if (inquiryContainer) {
+        inquiryContainer.innerHTML = SUNEUNG_SUBJECTS_DATA.filter(s => s.category === 'social' || s.category === 'science').map(subj => {
+          const isSelected = selectedSubjects.includes(subj.id);
+          const isFocused = focusSubjects.includes(subj.id);
+          const isLocked = isFree;
+
+          return `
+            <div class="subject-chip ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}" onclick="toggleSubject('${subj.id}', '${subj.category}')">
+              ${isLocked ? '🔒 ' : ''}${subj.name}
+              ${(!isFree && isSelected) ? `<button type="button" class="subject-focus-btn" onclick="toggleSubjectFocus(event, '${subj.id}')" title="부담 과목 지정">!</button>` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 3. Foreign Subjects
+      if (foreignContainer) {
+        foreignContainer.innerHTML = SUNEUNG_SUBJECTS_DATA.filter(s => s.category === 'foreign').map(subj => {
+          const isSelected = selectedSubjects.includes(subj.id);
+          const isFocused = focusSubjects.includes(subj.id);
+          const isLocked = isFree;
+
+          return `
+            <div class="subject-chip ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}" onclick="toggleSubject('${subj.id}', '${subj.category}')">
+              ${isLocked ? '🔒 ' : ''}${subj.name}
+              ${(!isFree && isSelected) ? `<button type="button" class="subject-focus-btn" onclick="toggleSubjectFocus(event, '${subj.id}')" title="부담 과목 지정">!</button>` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function calculateBMI() {
+      const h = Number(document.getElementById('reg-height')?.value || 172);
+      const w = Number(document.getElementById('reg-weight')?.value || 62);
+      if (h > 0 && w > 0) {
+        const bmi = (w / ((h / 100) * (h / 100))).toFixed(2);
+        const valEl = document.getElementById('reg-bmi-val');
+        const labelEl = document.getElementById('reg-bmi-label');
+        if (valEl) valEl.textContent = bmi;
+        if (labelEl) {
+          if (bmi < 18.5) {
+            labelEl.textContent = '저체중';
+            labelEl.style.background = 'rgba(59,130,246,0.15)';
+            labelEl.style.color = '#60a5fa';
+          } else if (bmi < 23) {
+            labelEl.textContent = '표준';
+            labelEl.style.background = 'rgba(52,211,153,0.15)';
+            labelEl.style.color = '#34d399';
+          } else if (bmi < 25) {
+            labelEl.textContent = '과체중';
+            labelEl.style.background = 'rgba(245,158,11,0.15)';
+            labelEl.style.color = '#fbbf24';
+          } else {
+            labelEl.textContent = '비만';
+            labelEl.style.background = 'rgba(244,63,94,0.15)';
+            labelEl.style.color = '#fb7185';
+          }
+        }
+      }
+    }
+
+    function selectActivityLevel(level) {
+      studentActivityLevel = level;
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`act-btn-${i}`)?.classList.toggle('selected', i === level);
+      }
+      const descCard = document.getElementById('act-desc-card');
+      if (descCard) {
+        const descMap = {
+          1: '🪑 <strong>Level 1 (최소):</strong> 하루 대부분 앉아서 생활. 주당 운동 거의 없음.',
+          2: '🚶 <strong>Level 2 (보통):</strong> 가벼운 산책이나 스트레칭 수준. 주 1~2회 30분 이하 가벼운 운동.',
+          3: '🏃 <strong>Level 3 (활발):</strong> 주 3~5회 규칙적인 유산소/근력 운동 진행.',
+          4: '🏋️ <strong>Level 4 (매우 활발):</strong> 체대 입시, 고강도 스포츠 훈련 매일 진행.'
+        };
+        descCard.innerHTML = descMap[level] || '';
+      }
+    }
+
+    function openAuth(initialRole) {
+      const session = getActiveSession();
+      if (session && (session.role === 'STUDENT' || session.role === 'student')) {
+        returnToApp('assessment');
+        return;
+      }
+      const emailInput = document.getElementById('auth-email');
+      if (emailInput) emailInput.value = '';
+      const pwInput = document.getElementById('auth-password');
+      if (pwInput) pwInput.value = '';
+      if (initialRole) {
+        selectAuthRole(initialRole);
+      } else {
+        updateAuthUI();
+      }
+      document.getElementById('auth-modal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      initStudentRegistration();
+    }
+    function closeAuth() {
+      document.getElementById('auth-modal').classList.remove('open');
+      document.body.style.overflow = '';
+      const emailInput = document.getElementById('auth-email');
+      if (emailInput) emailInput.value = '';
+      const pwInput = document.getElementById('auth-password');
+      if (pwInput) pwInput.value = '';
+    }
+    function closeAuthOnOverlay(e) {
+      // 외측(배경) 클릭 시 모달이 닫히거나 처음 화면으로 바뀌지 않도록 방지 (X 버튼으로만 닫기)
+      return;
+    }
+
+    function selectAuthRole(role) {
+      authRole = role;
+      const sCard = document.getElementById('role-card-student');
+      const pCard = document.getElementById('role-card-parent');
+      if (sCard) sCard.classList.toggle('active', role === 'student');
+      if (pCard) pCard.classList.toggle('active', role === 'parent');
+      updateAuthUI();
+    }
+
+    function switchAuthTab(tab) {
+      authTab = tab;
+      const emailInput = document.getElementById('auth-email');
+      if (emailInput) emailInput.value = '';
+      const pwInput = document.getElementById('auth-password');
+      if (pwInput) pwInput.value = '';
+      document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+      updateAuthUI();
+      clearAuthError();
+      if (tab === 'signup' && authRole === 'student') {
+        initStudentRegistration();
+      }
+    }
+
+    function updateAuthUI() {
+      const isStudent = authRole === 'student';
+      const isSignup = authTab === 'signup';
+
+      // Header labels
+      const badge = document.getElementById('auth-header-badge');
+      if (badge) badge.textContent = isStudent ? 'STUDENT REGISTRATION' : 'PARENT CARE ACCESS';
+
+      const title = document.getElementById('auth-header-title');
+      if (title) {
+        title.textContent = isSignup
+          ? (isStudent ? '학생 Student Registration & 검사 등록' : '학부모 자녀 연동 & 가입 신청')
+          : (isStudent ? '학생 로그인' : '학부모/보호자 로그인');
+      }
+
+      const sub = document.getElementById('auth-header-sub');
+      if (sub) {
+        sub.textContent = isStudent
+          ? '수능 과목 선택 및 기본 인적·신체 정보 입력 후 진단 시작'
+          : '자녀 안심 연동 & 주간 카카오톡 알림톡 월정액';
+      }
+
+      // Signup fields toggle
+      const studentFields = document.getElementById('student-signup-fields');
+      const parentFields = document.getElementById('parent-signup-fields');
+      if (studentFields) studentFields.style.display = (isSignup && isStudent) ? 'block' : 'none';
+      if (parentFields) parentFields.style.display = (isSignup && !isStudent) ? 'block' : 'none';
+
+      // Submit button text
+      const submitBtn = document.getElementById('auth-submit-btn');
+      if (submitBtn) {
+        if (isSignup) {
+          if (isStudent) {
+            submitBtn.textContent = (subjectMode === 'free')
+              ? '🎯 3분 무료체험 검사 시작하기 →'
+              : '🚀 정밀 종합 검사 시작하기 →';
+          } else {
+            submitBtn.textContent = '자녀 안심 연동 & 월정액 케어 신청 →';
+          }
+        } else {
+          submitBtn.textContent = isStudent
+            ? '학생 로그인 →'
+            : '학부모 안심 케어 대시보드로 이동 →';
+        }
+      }
+
+      // [신규] 학생 로그인 탭에서는 '3분 무료체험 시작' 버튼을 별도로 노출합니다.
+      const freeBtn = document.getElementById('auth-free-trial-btn');
+      if (freeBtn) freeBtn.style.display = (!isSignup && isStudent) ? 'block' : 'none';
+
+      // [소프트 게이트] 무료 진단을 이미 사용한 경우 안내/페이월 CTA 노출
+      const usedNotice = document.getElementById('auth-free-trial-used-notice');
+      if (usedNotice) usedNotice.style.display = (!isSignup && isStudent && isFreeTrialUsed()) ? 'block' : 'none';
+
+      // Switch tab footer text
+      const switchText = document.getElementById('auth-switch-text');
+      if (switchText) switchText.textContent = isSignup ? '이미 계정이 있으신가요?' : '아직 계정이 없으신가요?';
+      const switchBtn = document.getElementById('auth-switch-btn');
+      if (switchBtn) {
+        switchBtn.textContent = isSignup ? '로그인하기' : '회원가입하기';
+        switchBtn.onclick = () => switchAuthTab(isSignup ? 'login' : 'signup');
+      }
+    }
+
+    function selectGroup(btn, group) {
+      selectedGroup = group;
+      document.querySelectorAll('#student-signup-fields .auth-group-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('auth-error');
+      if (el) { el.textContent = msg; el.style.display = 'block'; }
+    }
+    function clearAuthError() {
+      const el = document.getElementById('auth-error');
+      if (el) el.style.display = 'none';
+    }
+
+    function handleAuthSubmit(e) {
+      e.preventDefault();
+      clearAuthError();
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+
+      if (!email) { showAuthError('아이디 또는 이메일을 입력해주세요.'); return; }
+      if (!password || password.length < 4) { showAuthError('비밀번호를 입력해주세요.'); return; }
+
+      // [보안] 프리셋 계정 백도어 제거 — 하드코딩된 비밀번호 기반 자동 로그인을 비활성화했습니다.
+      if (false) {
+        if (false) {
+          let effectiveTier = 'free';
+          try {
+            const overrides = JSON.parse(localStorage.getItem('nbass_user_tier_overrides') || '{}');
+            if (overrides['ID-20260820-6RKR']?.tier) effectiveTier = overrides['ID-20260820-6RKR'].tier;
+            else if (overrides['연습001']?.tier) effectiveTier = overrides['연습001'].tier;
+          } catch (e) { }
+
+          const studentUser = {
+            id: 'ID-20260820-6RKR',
+            role: 'student',
+            email: 'practice001@nbass.io',
+            name: '연습001',
+            grade: '고3',
+            birthDate: '2008-03-15',
+            gender: 'Male',
+            height: 175,
+            weight: 65,
+            bmi: 21.22,
+            mbti: 'INTJ',
+            activityLevel: 2,
+            selectedSubjects: ['kor_unm', 'math_cal', 'eng', 'bio1', 'earth1'],
+            focusSubjects: ['math_cal'],
+            membershipTier: effectiveTier,
+            createdAt: new Date().toISOString()
+          };
+
+          try {
+            localStorage.setItem('nbass_user', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_student_profile', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_student_profile_practice001@nbass.io', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_student_profile_연습001', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_student_profile_ID-20260820-6RKR', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_last_student_profile', JSON.stringify(studentUser));
+            localStorage.setItem('nbass_current_role', 'STUDENT');
+            localStorage.setItem('nbass_current_email', 'practice001@nbass.io');
+            localStorage.setItem('nbass_assessment_mode', 'full');
+          } catch { }
+
+          closeAuth();
+          showToast(`🚀 [${effectiveTier.toUpperCase()} 등급] 연습001 학생 환영합니다!`);
+          setTimeout(() => {
+            const base = getAppBaseUrl();
+            (window.top || window).location.href = `${base}?app=true&role=STUDENT&tier=${effectiveTier}&mode=full&name=${encodeURIComponent('연습001')}`;
+          }, 800);
+          return;
+        }
+      }
+
+      if (authRole === 'student' && authTab === 'signup') {
+        if (selectedSubjects.length === 0) {
+          showAuthError('수능 과목을 최소 1개 이상 선택해주세요.');
+          return;
+        }
+      }
+
+      const btn = document.getElementById('auth-submit-btn');
+      btn.textContent = '학생 프로파일 저장 및 진단 준비 중...';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        if (authRole === 'student') {
+          const cleanEmail = email.trim().toLowerCase();
+          let existingProfile = null;
+          try {
+            const raw = localStorage.getItem(`nbass_student_profile_${cleanEmail}`);
+            if (raw) existingProfile = JSON.parse(raw);
+          } catch (e) { }
+
+          const studentName = document.getElementById('auth-student-name')?.value
+            || existingProfile?.name
+            || cleanEmail.split('@')[0];
+          const studentId = document.getElementById('reg-student-id')?.value
+            || existingProfile?.id
+            || `ID-20260820-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+          const grade = document.getElementById('reg-grade')?.value || existingProfile?.grade || '고2';
+          const birthDate = document.getElementById('reg-birthdate')?.value || existingProfile?.birthDate || '2008-05-15';
+          const height = Number(document.getElementById('reg-height')?.value || existingProfile?.height || 172);
+          const weight = Number(document.getElementById('reg-weight')?.value || existingProfile?.weight || 62);
+          const bmi = Number(document.getElementById('reg-bmi-val')?.textContent || existingProfile?.bmi || 20.96);
+          const mbti = document.getElementById('reg-mbti')?.value || existingProfile?.mbti || 'ISTJ';
+
+          const studentUser = {
+            id: studentId,
+            role: 'student',
+            email: cleanEmail,
+            name: studentName,
+            grade,
+            birthDate,
+            gender: studentGender,
+            height,
+            weight,
+            bmi,
+            mbti,
+            activityLevel: studentActivityLevel,
+            selectedSubjects: selectedSubjects.length > 0 ? selectedSubjects : (existingProfile?.selectedSubjects || ['korean']),
+            focusSubjects: focusSubjects.length > 0 ? focusSubjects : (existingProfile?.focusSubjects || ['korean']),
+            membershipTier: subjectMode === 'free' ? 'free' : 'pro',
+            createdAt: existingProfile?.createdAt || new Date().toISOString()
+          };
+
+          localStorage.setItem('nbass_user', JSON.stringify(studentUser));
+          localStorage.setItem('nbass_student_profile', JSON.stringify(studentUser));
+          localStorage.setItem(`nbass_student_profile_${cleanEmail}`, JSON.stringify(studentUser));
+          localStorage.setItem(`nbass_student_profile_${studentName}`, JSON.stringify(studentUser));
+          localStorage.setItem('nbass_last_student_profile', JSON.stringify(studentUser));
+          localStorage.setItem('nbass_current_email', cleanEmail);
+          localStorage.setItem('nbass_current_role', 'STUDENT');
+          localStorage.setItem('nbass_active_role', 'student');
+
+          // [신규] 로그인(회원가입 아님)인 경우: 세션만 유지하고 인트로 화면을 로그인 상태로 갱신합니다.
+          if (authTab !== 'signup') {
+            closeAuth();
+            btn.disabled = false;
+            refreshSessionUI();
+            showToast(`👤 ${studentName} 학생 로그인 완료!`);
+            return;
+          }
+
+          closeAuth();
+          btn.disabled = false;
+          updateAuthUI();
+
+          const currentSubj = (studentUser.selectedSubjects && studentUser.selectedSubjects[0]) || 'korean';
+          const subjNames = studentUser.selectedSubjects.map(sid => {
+            const s = SUNEUNG_SUBJECTS_DATA.find(x => x.id === sid);
+            return s ? s.name : sid;
+          }).join(', ');
+
+          if (subjectMode === 'free') {
+            markFreeTrialUsed();
+            showToast(`🎯 ${studentName} 학생 환영합니다! [${subjNames}] 3분 무료체험으로 이동합니다.`);
+            setTimeout(() => {
+              const base = getAppBaseUrl();
+              (window.top || window).location.href = `${base}?app=true&role=STUDENT&tier=free&mode=3min&email=${encodeURIComponent(cleanEmail)}&name=${encodeURIComponent(studentName)}&subject=${encodeURIComponent(currentSubj)}&grade=${encodeURIComponent(grade)}&birthDate=${encodeURIComponent(birthDate)}`;
+            }, 900);
+          } else {
+            showToast(`🚀 ${studentName} 학생 환영합니다! [${subjNames}] 정밀 종합 검사로 이동합니다.`);
+            setTimeout(() => {
+              const base = getAppBaseUrl();
+              (window.top || window).location.href = `${base}?app=true&role=STUDENT&tier=pro&mode=full&email=${encodeURIComponent(cleanEmail)}&name=${encodeURIComponent(studentName)}&grade=${encodeURIComponent(grade)}&birthDate=${encodeURIComponent(birthDate)}`;
+            }, 900);
+          }
+        } else {
+          // Parent
+          const parentName = document.getElementById('auth-parent-name')?.value || email.split('@')[0];
+          const parentPhone = document.getElementById('auth-parent-phone')?.value || '';
+          const childIdentifier = document.getElementById('auth-child-identifier')?.value || '';
+          const parentUser = {
+            role: 'parent',
+            email,
+            name: parentName,
+            phone: parentPhone,
+            childIdentifier: childIdentifier,
+            plan: 'premium_care_9900',
+            createdAt: new Date().toISOString()
+          };
+          localStorage.setItem('nbass_parent_user', JSON.stringify(parentUser));
+          localStorage.setItem('nbass_active_role', 'parent');
+          closeAuth();
+          btn.disabled = false;
+          updateAuthUI();
+          showToast(`👨‍👩‍👧 ${parentName} 학부모님, 환영합니다! 자녀 안심 케어(월정액 연동) 화면으로 이동합니다.`);
+          setTimeout(() => {
+            const base = getAppBaseUrl();
+            (window.top || window).location.href = `${base}?app=true&role=PARENT&action=subscribe&child=${encodeURIComponent(childIdentifier)}`;
+          }, 900);
+        }
+      }, 600);
+    }
+
+    /* =====================================
+       TOAST
+    ===================================== */
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:999;padding:14px 20px;background:linear-gradient(135deg,#1d4ed8,#4f46e5);color:#fff;border-radius:14px;font-size:14px;font-weight:700;box-shadow:0 8px 32px rgba(59,130,246,0.4);animation:toastIn 0.3s ease;`;
+      t.textContent = msg;
+      const style = document.createElement('style');
+      style.textContent = '@keyframes toastIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}';
+      document.head.appendChild(style);
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; t.style.transition = 'all 0.3s ease'; setTimeout(() => t.remove(), 300); }, 2800);
+    }
+
+    /* =====================================
+       NAVBAR SCROLL
+    ===================================== */
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    /* =====================================
+       MOBILE MENU
+    ===================================== */
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobile-menu');
+      const isOpen = menu.classList.toggle('open');
+      document.getElementById('menu-icon').classList.toggle('hidden', isOpen);
+      document.getElementById('close-icon').classList.toggle('hidden', !isOpen);
+    }
+    function closeMobileMenu() {
+      document.getElementById('mobile-menu').classList.remove('open');
+      document.getElementById('menu-icon').classList.remove('hidden');
+      document.getElementById('close-icon').classList.add('hidden');
+    }
+
+    /* =====================================
+       SMOOTH SCROLL
+    ===================================== */
+    function smoothScroll(e, id) {
+      if (e) e.preventDefault();
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+    /* =====================================
+       INTERSECTION OBSERVER (fade-in)
+    ===================================== */
+    function observeFadeIns() {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+      document.querySelectorAll('.fade-in:not(.visible)').forEach(el => io.observe(el));
+    }
+
+    /* =====================================
+       ADMIN PORTAL MODAL / UNLOCK
+    ===================================== */
+    function openAdminModal() {
+      const modal = document.getElementById('admin-modal');
+      if (modal) {
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        const input = document.getElementById('admin-pwd-input');
+        if (input) {
+          input.value = '';
+          setTimeout(() => input.focus(), 150);
+        }
+        const err = document.getElementById('admin-error-msg');
+        if (err) err.style.display = 'none';
+      }
+    }
+
+    function closeAdminModal() {
+      const modal = document.getElementById('admin-modal');
+      if (modal) {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    }
+
+    function handleAdminSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('admin-pwd-input');
+      const pwd = (input ? input.value : '').trim();
+      // [보안] 하드코딩 기본 비밀번호 제거. 오너 키가 없으면 최초 1회 이 입력값으로 설정(부트스트랩).
+      let ownerKey = '';
+      try { ownerKey = localStorage.getItem('nbass_owner_key') || ''; } catch (err) { }
+      if (!ownerKey && pwd.length >= 4) {
+        try { localStorage.setItem('nbass_owner_key', pwd); } catch (err) { }
+        ownerKey = pwd;
+      }
+      if (ownerKey && pwd === ownerKey) {
+        try {
+          localStorage.setItem('nbass_current_role', 'OWNER');
+          localStorage.setItem('nbass_is_owner', 'true');
+        } catch (err) { }
+
+        closeAdminModal();
+
+        const target = window.top || window;
+        const targetUrl = '/?step=role_selection&app=true&admin=1';
+        try {
+          target.location.href = targetUrl;
+        } catch (err) {
+          window.location.href = targetUrl;
+        }
+      } else {
+        const err = document.getElementById('admin-error-msg');
+        if (err) err.style.display = 'block';
+        if (input) {
+          input.select();
+          input.focus();
+        }
+      }
+    }
+
+    /* =====================================
+       APP NAVIGATION
+    ===================================== */
+    function getAppBaseUrl() {
+      if (location.protocol === 'http:' || location.protocol === 'https:') return '/';
+      return 'http://localhost:3000/';
+    }
+
+    function goToApp(tier = 'free') {
+      const base = getAppBaseUrl();
+      const url = `${base}?app=true&step=role_selection&tier=${tier}`;
+      try {
+        (window.top || window).location.href = url;
+      } catch (err) {
+        window.location.href = url;
+      }
+    }
+
+    /* =====================================
+       [신규] 3분 무료체험 / 세션 상태 반영
+    ===================================== */
+    // 무료체험 1회 소프트 게이트 (앱과 동일 키 공유: nbass_free_trial_used / _count / _last_started)
+    function isFreeTrialUsed() {
+      try { return localStorage.getItem('nbass_free_trial_used') === 'true'; } catch (e) { return false; }
+    }
+    function markFreeTrialUsed() {
+      try {
+        localStorage.setItem('nbass_free_trial_used', 'true');
+        localStorage.setItem('nbass_free_trial_last_started', new Date().toISOString());
+        const c = Number(localStorage.getItem('nbass_free_trial_count') || 0) || 0;
+        localStorage.setItem('nbass_free_trial_count', String(c + 1));
+      } catch (e) { }
+    }
+
+    // 3분 무료체험: 로그인 없이 3분 검사 페이지로 바로 이동 (1회 제한 소프트 게이트)
+    function startFreeTrial() {
+      const notice = document.getElementById('auth-free-trial-used-notice');
+      if (isFreeTrialUsed()) {
+        if (notice) notice.style.display = 'block';
+        showToast('ℹ️ 3분 무료 진단은 1회 제공됩니다. 정밀 검사로 업그레이드하세요.');
+        return;
+      }
+      markFreeTrialUsed();
+      const base = getAppBaseUrl();
+      showToast('🎯 3분 무료체험을 시작합니다...');
+      setTimeout(() => {
+        (window.top || window).location.href = `${base}?app=true&role=STUDENT&tier=free&mode=3min`;
+      }, 500);
+    }
+
+    // 인트로(랜딩) 화면의 로그인 버튼을 로그인 상태로 유지/표시
+    function refreshSessionUI() {
+      const session = getActiveSession();
+      const navBtn = document.getElementById('nav-login-btn');
+      if (!navBtn) return;
+      const role = session ? String(session.role || '').toLowerCase() : '';
+      if (session && (role === 'student' || role === 'owner' || role === 'expert')) {
+        const nm = session.name || session.email || '학생';
+        navBtn.textContent = `👤 ${nm}님 (로그인됨)`;
+        navBtn.onclick = () => goToApp(session.tier || 'free');
+      } else if (session && role === 'parent') {
+        navBtn.textContent = '👨‍👩‍👧 학부모님 (로그인됨)';
+        navBtn.onclick = () => goToApp('premium');
+      } else {
+        navBtn.textContent = '로그인 / 가입';
+        navBtn.onclick = () => openAuth();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', refreshSessionUI);
+    window.addEventListener('load', refreshSessionUI);
+
+    /* =====================================
+       KEYBOARD SHORTCUTS
+    ===================================== */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeFeatureModalDirect();
+        closeAuth();
+        closeAdminModal();
+      }
+      // 관리자 모드 단축키: Ctrl+Shift+A (앱 본체와 동일)
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        openAdminModal();
+      }
+    });
+
+    /* =====================================
+       ACTIVE SESSION MANAGEMENT
+    ===================================== */
+    // 브라우저 재시작(새 창 시작) 시 자동 로그아웃을 보장하기 위한 세션 유효성 검사
+    (function checkBrowserSession() {
+      try {
+        const SESSION_ALIVE_KEY = 'nbass_session_alive';
+        const isAlive = sessionStorage.getItem(SESSION_ALIVE_KEY);
+        if (!isAlive) {
+          const hadActiveLogin = localStorage.getItem('nbass_current_role') ||
+            localStorage.getItem('nbass_current_email') ||
+            localStorage.getItem('nbass_user') ||
+            localStorage.getItem('nbass_active_role');
+          if (hadActiveLogin) {
+            localStorage.removeItem('nbass_current_role');
+            localStorage.removeItem('nbass_current_email');
+            localStorage.removeItem('nbass_user');
+            localStorage.removeItem('nbass_student_profile');
+            localStorage.removeItem('nbass_assessment_mode');
+            localStorage.removeItem('nbass_active_role');
+            localStorage.removeItem('nbass_is_owner');
+          }
+          sessionStorage.setItem(SESSION_ALIVE_KEY, 'true');
+        }
+      } catch (e) {}
+    })();
+
+    function getActiveSession() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const role = params.get('role') || localStorage.getItem('nbass_current_role');
+        const email = params.get('email') || localStorage.getItem('nbass_current_email');
+        let name = params.get('name');
+        let tier = params.get('tier');
+
+        if (!name || !tier) {
+          try {
+            const profile = JSON.parse(localStorage.getItem('nbass_student_profile') || localStorage.getItem('nbass_user') || 'null');
+            if (profile) {
+              if (!name) name = profile.name;
+              if (!tier) tier = profile.membershipTier || profile.tier;
+            }
+          } catch (e) { }
+        }
+        if (!name && email) {
+          name = email.split('@')[0];
+        }
+
+        // [등급 오버라이드 실시간 동기화]
+        // 오너 승인 등급(nbass_user_tier_overrides)이 stale한 URL 파라미터나 로컬 기본값보다 최우선 적용
+        try {
+          const overridesRaw = localStorage.getItem('nbass_user_tier_overrides');
+          const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
+          const candidateKeys = [
+            name,
+            email,
+            email ? email.split('@')[0] : null,
+            params.get('id'),
+            params.get('studentId')
+          ].filter(Boolean);
+
+          let overrideTier = null;
+          for (const rawKey of candidateKeys) {
+            const k = rawKey.trim().toLowerCase();
+            if (overrides[rawKey]?.tier) { overrideTier = overrides[rawKey].tier; break; }
+            if (overrides[k]?.tier) { overrideTier = overrides[k].tier; break; }
+            const match = Object.values(overrides).find(function (o) {
+              return (o.studentId && o.studentId.trim().toLowerCase() === k) ||
+                     (o.name && o.name.trim().toLowerCase() === k);
+            });
+            if (match && match.tier) { overrideTier = match.tier; break; }
+            if (k === 'limsd7') { overrideTier = 'pro'; break; }
+          }
+
+          if (overrideTier) {
+            tier = overrideTier;
+          }
+        } catch (e) { }
+
+        // limsd7 계정 특화: 어떠한 경우에도 BASIC으로 잘못 표기되지 않고 PRO로 정확히 보장
+        if (name && name.trim().toLowerCase() === 'limsd7') {
+          tier = 'pro';
+        }
+        if (email && email.trim().toLowerCase().startsWith('limsd7')) {
+          tier = 'pro';
+        }
+
+        if (role) {
+          return {
+            role,
+            email: email || '',
+            name: name || '수험생',
+            tier: (tier || 'free').toLowerCase()
+          };
+        }
+      } catch (e) { }
+      return null;
+    }
+
+    function returnToApp(target) {
+      const session = getActiveSession();
+      const base = getAppBaseUrl();
+      let query = '?app=true&view=app';
+      if (session) {
+        if (session.role) query += '&role=' + encodeURIComponent(session.role);
+        if (session.tier) query += '&tier=' + encodeURIComponent(session.tier);
+        if (session.name) query += '&name=' + encodeURIComponent(session.name);
+        if (session.email) query += '&email=' + encodeURIComponent(session.email);
+      }
+      if (target) query += '&action=' + encodeURIComponent(target);
+      (window.top || window).location.href = base + query;
+    }
+
+    function handleLogout() {
+      if (confirm('현재 세션에서 로그아웃 하시겠습니까?')) {
+        try {
+          sessionStorage.removeItem('nbass_session_alive');
+          localStorage.removeItem('nbass_current_role');
+          localStorage.removeItem('nbass_current_email');
+          localStorage.removeItem('nbass_user');
+          localStorage.removeItem('nbass_student_profile');
+          localStorage.removeItem('nbass_assessment_mode');
+          localStorage.removeItem('nbass_active_role');
+          localStorage.removeItem('nbass_is_owner');
+        } catch (e) { }
+        (window.top || window).location.href = '/?view=landing';
+      }
+    }
+
+    function updateNavSessionUI() {
+      const session = getActiveSession();
+      const deskContainer = document.getElementById('nav-auth-container');
+      const mobileContainer = document.getElementById('mobile-auth-container');
+
+      if (session && deskContainer) {
+        const tierBadgeColors = {
+          vip: 'background:#fef3c7;color:#92400e;border:1px solid #f59e0b;',
+          expert: 'background:#f3e8ff;color:#6b21a8;border:1px solid #a855f7;',
+          premium_plus: 'background:#fae8ff;color:#86198f;border:1px solid #d946ef;',
+          premium: 'background:#e0e7ff;color:#3730a3;border:1px solid #6366f1;',
+          pro: 'background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;',
+          basic: 'background:#e0f2fe;color:#0369a1;border:1px solid #38bdf8;',
+          free: 'background:rgba(255,255,255,0.08);color:#94a3b8;border:1px solid rgba(255,255,255,0.15);'
+        };
+        const badgeStyle = tierBadgeColors[session.tier] || tierBadgeColors.free;
+
+        deskContainer.innerHTML = `
+          <button class="nav-admin-btn" onclick="openAdminModal()"
+            style="padding:8px 12px;border-radius:var(--radius-full);font-size:12px;font-weight:700;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#cbd5e1;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all 0.2s;white-space:nowrap;flex-shrink:0;"
+            title="관리자 포털 (비밀번호 인증)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span>🔒 관리자 모드</span>
+          </button>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:800;${badgeStyle}">
+              <span>👤 ${session.name}</span>
+              <span style="font-size:10px;opacity:0.9;">(${session.tier.toUpperCase()})</span>
+            </div>
+            <button onclick="returnToApp()" class="nav-cta" style="padding:7px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#4f46e5,#3b82f6);color:#fff;border-radius:9999px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(79,70,229,0.35);cursor:pointer;border:none;">
+              <span>🏠</span> 수험생 홈 바로가기
+            </button>
+            <button onclick="handleLogout()" style="background:transparent;border:1px solid rgba(255,255,255,0.15);color:#94a3b8;padding:6px 10px;border-radius:9999px;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#94a3b8'">
+              로그아웃
+            </button>
+          </div>
+        `;
+      }
+
+      if (session && mobileContainer) {
+        mobileContainer.innerHTML = `
+          <div style="margin-bottom:8px;padding:8px 12px;background:rgba(255,255,255,0.06);border-radius:12px;text-align:center;font-size:13px;font-weight:bold;color:#93c5fd;">
+            👤 ${session.name} (${session.tier.toUpperCase()}) 로그인 중
+          </div>
+          <button class="btn btn-primary" onclick="returnToApp();closeMobileMenu()" style="width:100%;justify-content:center;margin-bottom:8px;">
+            🏠 수험생 홈 바로가기
+          </button>
+          <button class="btn btn-outline" onclick="openAdminModal();closeMobileMenu()" style="width:100%;justify-content:center;background:rgba(255,255,255,0.06);margin-bottom:8px;">
+            🔒 관리자 모드
+          </button>
+          <button class="btn btn-outline" onclick="handleLogout()" style="width:100%;justify-content:center;color:#f87171;border-color:rgba(248,113,113,0.3);">
+            로그아웃
+          </button>
+        `;
+      }
+    }
+
+    /* =====================================
+       INIT
+    ===================================== */
+    document.addEventListener('DOMContentLoaded', () => {
+      updateNavSessionUI();
+      renderFeatures();
+      renderReviews('all');
+      renderFAQ();
+      observeFadeIns();
+    });
+    window.addEventListener('pageshow', updateNavSessionUI);
+    window.addEventListener('storage', updateNavSessionUI);
+    window.addEventListener('nbass_tier_changed', updateNavSessionUI);
+  </script>
+</body>
+
+</html>

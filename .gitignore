@@ -33,3 +33,5 @@ Output/
 # Temp files
 temp/
 *.pdf
+.env
+tsc_errors*.txt

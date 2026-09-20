@@ -323,13 +323,13 @@ export const calculateVitalityFatigueMetrics = (hrv: HRVData, isPortable: boolea
         fatigue = hrv.fatigue || 50;
 
         calculationDetail = `
-### 🧮 지수 산출 (HRV/Clinical 모드)
+### 🧮 지수 산출 (자율신경 분석 모드)
 
 **측정 기반:**
-- Vitality: 신체 활력도 측정값 기반 (**${vitality}%**)
-- Fatigue: 누적 피로 지수 측정값 기반 (**${fatigue}%**)
+- Vitality: 신체 활력도 지표 기반 (**${vitality}%**)
+- Fatigue: 누적 피로 지표 기반 (**${fatigue}%**)
 
-💡 더 상세한 지수 산출을 원하시면 Portable HRV 기기의 맥박 다양성(Variety), SDNN, 혈관 건강 지수 데이터를 입력해 주세요.
+💡 설문 응답 및 생활 리듬 데이터를 바탕으로 정밀 분석됩니다.
 `;
     }
 

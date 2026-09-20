@@ -8,6 +8,8 @@ import { MENTAL_PRESCRIPTIONS } from '../data/prescriptions';
 import { CARE_STRATEGIES } from '../data/careStrategies';
 import { generateAISchedule, ScheduleItem } from '../services/schedulingEngine';
 import { CARE_TYPE_LABELS } from '../logicEngine';
+import { isLearningAnalyticsTested } from '../utils/constants';
+import { calculateRecommendedSubjectRatios } from '../services/studyStrategyEngine';
 
 interface PsychologicalAssessmentProps {
     result: AssessmentResult;
@@ -238,19 +240,39 @@ const LearningAnalyticsDashboard: React.FC<{ result: AssessmentResult }> = ({ re
 
 // Subject Time Distribution Component
 const SubjectTimeDistribution: React.FC<{ result: AssessmentResult }> = ({ result }) => {
-    const { analytics } = result;
+    const { analytics, student } = result;
+    const isTested = isLearningAnalyticsTested(analytics);
+    const ratios = (analytics.subjectRatios && Object.values(analytics.subjectRatios).some(v => Number(v) > 0))
+        ? analytics.subjectRatios
+        : calculateRecommendedSubjectRatios(student);
+
     const subjects = [
-        { name: 'KOR', value: analytics.subjectRatios.korean, color: '#f43f5e' },
-        { name: 'MAT', value: analytics.subjectRatios.math, color: '#3b82f6' },
-        { name: 'ENG', value: analytics.subjectRatios.english, color: '#10b981' },
-        { name: 'SCI', value: analytics.subjectRatios.science, color: '#a855f7' },
-        { name: 'SOC', value: analytics.subjectRatios.social, color: '#f59e0b' },
-        { name: 'OTH', value: analytics.subjectRatios.other, color: '#64748b' }
+        { name: 'KOR', label: '국어', value: ratios.korean, color: '#f43f5e' },
+        { name: 'MAT', label: '수학', value: ratios.math, color: '#3b82f6' },
+        { name: 'ENG', label: '영어', value: ratios.english, color: '#10b981' },
+        { name: 'SCI', label: '과탐', value: ratios.science, color: '#a855f7' },
+        { name: 'SOC', label: '사탐', value: ratios.social, color: '#f59e0b' },
+        { name: 'OTH', label: '기타', value: ratios.other, color: '#64748b' }
     ];
+
+    const weakSubjectLabel = student.weakSubject === 'math' ? '수학' : student.weakSubject === 'korean' ? '국어' : student.weakSubject === 'english' ? '영어' : '';
 
     return (
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-6">Subject Time Distribution (%)</p>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-6">
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest">
+                    {isTested ? 'Subject Time Distribution (%)' : 'Recommended Subject Distribution (%)'}
+                </p>
+                {!isTested ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                        🎯 {weakSubjectLabel ? `등록 취약과목 [${weakSubjectLabel}]` : '등록 우선순위'} 기반 AI 추천
+                    </span>
+                ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
+                        검사 실측치
+                    </span>
+                )}
+            </div>
 
             <div className="flex items-end justify-between gap-4">
                 {subjects.map((subject, idx) => (
@@ -262,7 +284,8 @@ const SubjectTimeDistribution: React.FC<{ result: AssessmentResult }> = ({ resul
                                 style={{ width: '100%', backgroundColor: subject.color }}
                             ></div>
                         </div>
-                        <p className="text-xs font-bold text-slate-500">{subject.name}</p>
+                        <p className="text-xs font-bold text-slate-700">{subject.name}</p>
+                        <p className="text-[10px] text-slate-400">{subject.label}</p>
                     </div>
                 ))}
             </div>
@@ -493,50 +516,7 @@ const VitalityFatigueChart: React.FC<{ result: AssessmentResult }> = ({ result }
     );
 };
 
-// Brain Balance Radar Component
-const BrainBalanceRadar: React.FC<{ result: AssessmentResult }> = ({ result }) => {
-    const { hrv } = result;
-    const data = [
-        { subject: 'Gamma (인지)', A: hrv.eegGamma, fullMark: 100 },
-        { subject: 'H-Beta (긴장)', A: hrv.eegHBeta, fullMark: 100 },
-        { subject: 'M-Beta (몰입)', A: hrv.eegMBeta, fullMark: 100 },
-        { subject: 'L-Beta (주의)', A: hrv.eegLBeta, fullMark: 100 },
-        { subject: 'Alpha (이완)', A: hrv.eegAlpha, fullMark: 100 },
-        { subject: 'Theta (졸음)', A: hrv.eegTheta, fullMark: 100 }
-    ];
 
-    // Map dominant EEG to diagnosis
-    const getDominantInterpretation = () => {
-        const primaryEEG = hrv.dominantEEG && hrv.dominantEEG.length > 0 ? hrv.dominantEEG[0] : '';
-        switch (primaryEEG) {
-            case 'Gamma': return '불안/흥분 상태 우세 - 스트레스 관리 필요';
-            case 'H-Beta': return '긴장/스트레스 상태 - 이완 훈련 권장';
-            case 'M-Beta': return '집중/몰입 상태 - 학습에 최적화됨 ✅';
-            case 'L-Beta': return '주변 인식 상태 - 주의력 분산 가능';
-            case 'Alpha': return '안정/이완 상태 - 창의성에 유리';
-            case 'Theta': return '졸음/수면 상태 - 휴식 필요';
-            default: return '뇌파 분석 중';
-        }
-    };
-
-    return (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-            <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Brain Balance Radar</h4>
-            <div className="h-72" style={{ minHeight: '288px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 50]} />
-                        <Radar name="Brain Waves" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
-                        <Tooltip />
-                    </RadarChart>
-                </ResponsiveContainer>
-            </div>
-            <p className="text-xs text-slate-500 text-center mt-2">우세 뇌파: {hrv.dominantEEG} - {getDominantInterpretation()}</p>
-        </div>
-    );
-};
 
 // Stress & Concentration Gauge Component
 const StressConcentrationGauge: React.FC<{ result: AssessmentResult }> = ({ result }) => {
@@ -644,10 +624,9 @@ export const PsychologicalAssessment: React.FC<PsychologicalAssessmentProps> = (
             <ExpertCareStrategy result={result} />
 
             {/* Charts Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[300px]">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 min-h-[300px]">
                 <ANSBalanceChart result={result} />
                 <VitalityFatigueChart result={result} />
-                <BrainBalanceRadar result={result} />
                 <StressConcentrationGauge result={result} />
             </div>
         </div>

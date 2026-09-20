@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SelfCheckData } from '../../data/resourceContents';
-import DatabaseService from '../../services/database';
+import DatabaseService from '../../services/unifiedSyncService';
 
 interface SelfCheckModalProps {
     isOpen: boolean;

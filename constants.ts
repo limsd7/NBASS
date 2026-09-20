@@ -3,9 +3,9 @@ import { CareType } from './types';
 export const PRODUCTS: Record<string, { name: string; desc: string; price: number; tags: string[] }> = {
   'focus_alpha': {
     name: '포커스 알파 (Focus Alpha)',
-    desc: 'L-테아닌이 함유되어 뇌파 안정 및 집중력 강화에 도움을 줍니다.',
+    desc: 'L-테아닌이 함유되어 긴장 완화 및 집중력 강화에 도움을 줍니다.',
     price: 45000,
-    tags: ['집중력', '뇌파안정']
+    tags: ['집중력', '긴장완화']
   },
   'energy_bal': {
     name: '에너지 밸런스 (Energy Balance)',

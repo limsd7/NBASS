@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CareType, type AssessmentResult, PredictionResult, RiskPrediction, TrendAnalysis } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { generatePrediction } from '../services/predictionEngine';
-import DatabaseService, { db } from '../services/database';
+import { unifiedSyncService as DatabaseService, db } from '../services/unifiedSyncService';
 import ConsultationHistoryModal from './modals/ConsultationHistoryModal';
 import { SelfCheckModal } from './resources/SelfCheckModal';
 import { DailyRoutineTracker } from './resources/DailyRoutineTracker';
@@ -176,7 +176,7 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
                 },
                 {
                     title: "4-7-8 호흡 (Brain Reset)",
-                    expertDesc: "부교감 신경을 즉각적으로 활성화하여 산만해진 뇌파(베타파)를 안정된 상태(알파파)로 전환합니다.",
+                    expertDesc: "부교감 신경을 즉각적으로 활성화하여 산만해진 과각성 긴장을 안정된 몰입 상태로 전환합니다.",
                     rationale: "4초 흡입, 7초 멈춤, 8초 배출의 리듬은 강제적으로 심박수를 낮추고 신경계를 이완시켜, 공부 시작 전 불안감을 없애줍니다.",
                     managerGuide: "🗣️ 제안: \"시험 직전, 딱 1분만 눈 감고 이 호흡을 하면 머리가 맑아집니다.\"",
                     action: "공부 시작 전 3회 반복 실시.",
@@ -383,7 +383,7 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
                 },
                 {
                     title: "복근 호흡 (Belly Breathing)",
-                    expertDesc: "수면 뇌파(델타파)를 유도하는 횡경막 호흡법입니다.",
+                    expertDesc: "깊은 수면과 이완을 유도하는 횡경막 호흡법입니다.",
                     rationale: "누워서 배 위에 무거운 책을 올리고 호흡하면 자연스럽게 복식 호흡이 유도되어, 교감 신경을 끄고 수면 모드로 진입합니다.",
                     managerGuide: "🗣️ 제안: \"잠이 안 오면 배 위에 책을 올리고 그 책을 숨으로 들어올려봐.\"",
                     action: "취침 시 배 위에 책을 올리고 5분간 호흡 집중.",
@@ -938,7 +938,7 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
             guides: [
                 {
                     title: "리듬 워킹 (Serotonin Walk)",
-                    expertDesc: "일정한 박자로 걷는 행위가 뇌파를 안정시킵니다.",
+                    expertDesc: "일정한 박자로 걷는 행위가 자율신경과 두뇌를 안정시킵니다.",
                     rationale: "하나-둘, 하나-둘. 규칙적인 리듬은 뇌간을 자극하여 세로토닌 분비를 촉진합니다. 이는 약물에 버금가는 정서 안정 효과가 있습니다.",
                     managerGuide: "🗣️ 제안: \"좋아하는 노래 비트에 맞춰서 20분만 걷자. 박자가 널 편안하게 해줄 거야.\"",
                     action: "BPM 100~120 정도의 음악을 들으며 박자에 맞춰 산책.",
@@ -985,7 +985,7 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
                     difficulty: 'easy'
                 },
                 {
-                    title: "뇌파 쿨링 호흡 (Cooling)",
+                    title: "두뇌 쿨링 호흡 (Cooling)",
                     expertDesc: "코로 시원한 공기를 마셔 전두엽의 열을 식힙니다.",
                     rationale: "스트레스를 받으면 뇌 온도가 상승합니다. 천천히 깊게 들이마시는 시원한 공기는 물리적으로 뇌를 쿨링하여 이성적 판단을 돕습니다.",
                     managerGuide: "🗣️ 시각화: \"머리가 뜨겁지? 시원한 박하향 공기가 뇌로 들어간다고 상상하며 숨셔봐.\"",
@@ -1093,8 +1093,8 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
             guides: [
                 {
                     title: "업비트 음악 (BPM 130+)",
-                    expertDesc: "빠른 템포의 음악으로 뇌파를 베타파로 끌어올립니다.",
-                    rationale: "무기력한 뇌는 델타/세타파(수면/멍함) 상태입니다. 빠른 비트는 청각 피질을 자극하여 뇌 전체의 텐션을 강제로 높입니다.",
+                    expertDesc: "빠른 템포의 음악으로 두뇌의 각성도를 끌어올립니다.",
+                    rationale: "무기력한 뇌는 저각성(수면/멍함) 상태입니다. 빠른 비트는 청각 피질을 자극하여 뇌 전체의 텐션을 강제로 높입니다.",
                     managerGuide: "🗣️ DJ: \"신나는 아이돌 노래, 록 음악 크게 틀어. 몸이 들썩거려야 뇌도 춤을 춘다.\"",
                     action: "공부 시작 전 3곡, 댄스곡이나 록 음악 듣기.",
                     difficulty: 'hard'
@@ -1402,7 +1402,7 @@ export const EXPERT_CONTENTS: Record<string, CareContent> = {
                 {
                     title: "NSDR (Non-Sleep Deep Rest)",
                     expertDesc: "깨어 있지만 깊은 휴식을 취하는 요가 니드라 기법입니다.",
-                    rationale: "20분의 NSDR은 4시간의 수면 효과와 맞먹습니다. 유튜브 가이드를 들으며 뇌파를 델타파로 낮추세요.",
+                    rationale: "20분의 NSDR은 4시간의 수면 효과와 맞먹습니다. 유튜브 가이드를 들으며 두뇌를 깊은 수면 이완 상태로 낮추세요.",
                     managerGuide: "🗣️ 추천: \"잠깐 누워서 이거 들어봐. 잠든 건 아닌데 머리가 엄청 개운해질 거야.\"",
                     action: "유튜브에서 '요가 니드라' 또는 'NSDR' 검색하여 따라 하기.",
                     difficulty: 'medium'
@@ -2120,15 +2120,15 @@ const PARENT_SCRIPTS: Record<string, ParentScript[]> = {
 };
 
 // 📊 성공 지표 (KPI) 데이터 - CareType별 객관적 측정 기준
-const SUCCESS_INDICATORS: Record<string, SuccessIndicator[]> = {
+export const SUCCESS_INDICATORS: Record<string, SuccessIndicator[]> = {
     [CareType.HEALTHY]: [
         {
             category: '컨디션 유지',
             icon: '✨',
-            indicator: 'HRV 안정 상태 유지',
-            targetValue: 'SDNN 50ms 이상 유지',
-            timeframe: '매 측정 시',
-            measureMethod: 'HRV 측정기 또는 앱 측정',
+            indicator: '자율신경 안정 상태 유지',
+            targetValue: '자율신경 균형도(PNS/SNS) 안정 유지',
+            timeframe: '매 점검 시',
+            measureMethod: '정기 평가 및 설문 재점검',
             priority: 'medium'
         },
         {
@@ -2293,12 +2293,12 @@ const SUCCESS_INDICATORS: Record<string, SuccessIndicator[]> = {
             priority: 'medium'
         },
         {
-            category: 'HRV',
+            category: '자율신경',
             icon: '❤️',
-            indicator: 'HRV 개선',
-            targetValue: 'RMSSD 10ms 이상 증가',
+            indicator: '자율신경 밸런스 개선',
+            targetValue: '부교감신경 회복력 15% 이상 개선',
             timeframe: '4주',
-            measureMethod: 'HRV 측정기 재측정',
+            measureMethod: '설문 및 지표 재평가',
             priority: 'medium'
         }
     ],
@@ -3102,7 +3102,7 @@ const RESOURCES: Record<string, Resource[]> = {
 };
 
 // 📅 주차별 로드맵 데이터 - CareType별 장기 관리 계획
-const WEEKLY_PLANS: Record<string, WeeklyPlan> = {
+export const WEEKLY_PLANS: Record<string, WeeklyPlan> = {
     [CareType.HEALTHY]: {
         totalWeeks: 4,
         goal: '최상의 컨디션 유지 및 학습 효율 극대화',

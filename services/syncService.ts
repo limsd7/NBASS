@@ -16,6 +16,10 @@ export type SyncMessageType =
     | 'SURVEY_ADRENAL'
     | 'PROTOCOL_DATA'
     | 'ANALYTICS_DATA'
+    | 'SLEEP_RECORD_UPDATE'
+    | 'SLEEP_GOAL_UPDATE'
+    | 'GRADE_RECORD_UPDATE'
+    | 'GRADE_GOAL_UPDATE'
     | 'STUDENT_COMPLETE'
     | 'ADMIN_READY'
     | 'SESSION_CLOSED';

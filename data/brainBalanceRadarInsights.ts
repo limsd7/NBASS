@@ -1,16 +1,16 @@
 /**
  * Brain Balance Radar 설명자료
- * 뇌파 항목별 특성 및 CareType별 맞춤형 공부법 전략
+ * 인지 몰입 항목별 특성 및 CareType별 맞춤형 공부법 전략
  * 
- * HRV 모드 및 의학적 모드에서 적용 (Portable 모드는 EEG 미사용으로 제외)
+ * 신경인지 모드 및 의학적 모드에서 적용
  * 모든 12가지 CareType과 매칭
  */
 
 import { CareType } from '../types';
 
-// ========== 뇌파 항목별 특성 ==========
+// ========== 인지 항목별 특성 ==========
 export interface EEGCharacteristic {
-    name: string;           // 뇌파 이름
+    name: string;           // 인지 지표 이름
     nameKr: string;         // 한글명
     frequency: string;      // 주파수 범위
     studyState: string;     // 학습 시 상태
@@ -69,7 +69,7 @@ export const EEG_CHARACTERISTICS: Record<string, EEGCharacteristic> = {
     }
 };
 
-// ========== 뇌파 우세 유형별 공부법 ==========
+// ========== 인지 우세 유형별 공부법 ==========
 export type DominantEEGType = 'M_BETA_GAMMA' | 'L_BETA_H_BETA' | 'ALPHA' | 'THETA';
 
 export interface EEGStudyStrategy {
@@ -92,7 +92,7 @@ export const EEG_STUDY_STRATEGIES: Record<DominantEEGType, EEGStudyStrategy> = {
         type: 'M_BETA_GAMMA',
         title: 'Deep Work Mode',
         titleKr: 'M-Beta & Gamma 우세형: 딥 워크 모드',
-        scientificMeaning: `M-Beta(15~20Hz, 몰입)와 Gamma(30Hz 이상, 인지)가 동시에 높다는 것은 뇌가 **'최고 성능 모드'**에 진입했음을 의미합니다. 논리적 사고와 문제 해결을 담당하는 뇌파와 고차원적 인지 기능이 동시에 활발해, 복잡한 논리 구조를 가진 최고 난도 문항을 정복하기에 가장 완벽한 타이밍입니다.`,
+        scientificMeaning: `M-Beta(몰입)와 Gamma(통찰) 상태가 동시에 활성화된 것은 뇌가 **'최고 성능 모드'**에 진입했음을 의미합니다. 논리적 사고와 문제 해결을 담당하는 집중 회로와 고차원적 인지 기능이 동시에 활발해, 복잡한 논리 구조를 가진 최고 난도 문항을 정복하기에 가장 완벽한 타이밍입니다.`,
         recommendedMode: '딥 워크 (Deep Work)',
         subjectStrategies: {
             math: `**수학: 킬러 문항 및 고난도 추론**
@@ -144,7 +144,7 @@ export const EEG_STUDY_STRATEGIES: Record<DominantEEGType, EEGStudyStrategy> = {
         type: 'ALPHA',
         title: 'Review & Creative Mode',
         titleKr: 'Alpha 우세형: 복습 및 창의 모드',
-        scientificMeaning: `Alpha(이완) 뇌파가 우세한 상태는 뇌가 아주 편안하면서도 집중의 문이 활짝 열려 있는 **'가장 효율적인 학습 대기 상태'**입니다. 자율신경균형도가 이상적일 때 나타나기 쉽고, 지식을 억지로 밀어넣기보다 이미 배운 내용을 연결하고 장기 기억으로 전환하는 활동이 극대화됩니다.`,
+        scientificMeaning: `Alpha(안정 이완) 상태가 우세한 것은 뇌가 아주 편안하면서도 집중의 문이 활짝 열려 있는 **'가장 효율적인 학습 대기 상태'**입니다. 자율신경균형도가 이상적일 때 나타나기 쉽고, 지식을 억지로 밀어넣기보다 이미 배운 내용을 연결하고 장기 기억으로 전환하는 활동이 극대화됩니다.`,
         recommendedMode: '복습 및 창의 (Review & Creative)',
         subjectStrategies: {
             math: `**수학: 개념 연결 및 복습**
@@ -159,7 +159,7 @@ export const EEG_STUDY_STRATEGIES: Record<DominantEEGType, EEGStudyStrategy> = {
         },
         additionalStrategies: [
             '**멘탈 리허설**: 눈 감고 오늘 배운 내용을 머릿속으로 빠르게 훑어보기',
-            '**낮은 볼륨의 클래식/자연음**: BPM 60~70 음악으로 Alpha파 유지',
+            '**낮은 볼륨의 클래식/자연음**: BPM 60~70 음악으로 안정적 이완 상태 유지',
             '**호흡법**: 들숨보다 날숨을 길게 (부교감 활성화)',
             '**색깔 펜 활용**: 시각적 자극으로 정보를 더 오래 기억'
         ],
@@ -169,7 +169,7 @@ export const EEG_STUDY_STRATEGIES: Record<DominantEEGType, EEGStudyStrategy> = {
         type: 'THETA',
         title: 'Activation & Recovery Mode',
         titleKr: 'Theta 우세형: 각성 또는 회복 모드',
-        scientificMeaning: `Theta(졸음) 뇌파가 우세한 상태는 뇌가 극도로 지쳐 있거나 각성도가 낮아 무의식과 수면의 경계에 머물러 있는 상태입니다. 뇌가 정보를 처리할 데이터 대역폭을 닫은 신호이며, 이 상태에서 고난도 문제를 풀면 기억 저장 효율이 0에 수렴합니다.`,
+        scientificMeaning: `Theta(피로/졸음) 상태가 우세한 것은 뇌가 극도로 지쳐 있거나 각성도가 낮아 무의식과 수면의 경계에 머물러 있는 상태입니다. 뇌가 정보를 처리할 데이터 대역폭을 닫은 신호이며, 이 상태에서 고난도 문제를 풀면 기억 저장 효율이 0에 수렴합니다.`,
         recommendedMode: '강제 각성 또는 회복 (Activation/Recovery)',
         subjectStrategies: {
             math: `**수학: 단순 연산 또는 휴식**
@@ -194,115 +194,115 @@ export const EEG_STUDY_STRATEGIES: Record<DominantEEGType, EEGStudyStrategy> = {
 
 // ========== CareType별 Brain Balance Radar 해석 ==========
 export interface BrainBalanceInsight {
-    dominantType: DominantEEGType;      // 해당 CareType에서 주로 나타나는 뇌파 패턴
-    interpretation: string;              // CareType과 뇌파의 연관성 해석
+    dominantType: DominantEEGType;      // 해당 CareType에서 주로 나타나는 인지 패턴
+    interpretation: string;              // CareType과 인지 상태의 연관성 해석
     studyRecommendation: string;        // 맞춤형 공부법 추천
-    warningPatterns: string[];          // 주의해야 할 뇌파 패턴
-    optimizationTips: string[];         // 뇌파 최적화 팁
+    warningPatterns: string[];          // 주의해야 할 인지 저하 패턴
+    optimizationTips: string[];         // 집중도 최적화 팁
 }
 
 export const BRAIN_BALANCE_INSIGHTS: Record<CareType, BrainBalanceInsight> = {
     [CareType.BURNOUT]: {
         dominantType: 'THETA',
-        interpretation: `번아웃 상태에서는 Theta파가 증가하고 M-Beta파가 불안정합니다. 뇌가 에너지 고갈로 '셧다운 모드'에 진입하여 집중이 어렵고, H-Beta파가 간헐적으로 높아져 불안과 피로가 공존합니다.`,
-        studyRecommendation: `**딥 워크보다 회복 우선**: 현재 상태에서 억지로 집중하면 뇌에 더 큰 부담을 줍니다. 파워냅 15분 후 Alpha파 상태에서 가벼운 복습만 진행하세요. 새로운 내용 학습은 회복 후로 미루세요.`,
-        warningPatterns: ['H-Beta 급상승 (불안 동반)', 'Theta 지속적 우세 (집중 불가)'],
-        optimizationTips: ['4-7-8 호흡으로 Alpha파 유도', '학습 시간 50% 축소', '15분 파워냅 적극 활용']
+        interpretation: `번아웃 상태에서는 두뇌 피로도가 급증하고 능동 몰입도가 불안정합니다. 뇌가 에너지 고갈로 '보호 모드'에 진입하여 장시간 집중이 어렵고, 불안과 만성 피로가 공존합니다.`,
+        studyRecommendation: `**딥 워크보다 회복 우선**: 현재 상태에서 억지로 집중하면 뇌에 더 큰 인지 부하를 줍니다. 파워냅 15분 후 편안한 안정 상태에서 가벼운 복습만 진행하세요. 새로운 고난도 문항은 회복 후로 미루세요.`,
+        warningPatterns: ['긴장 불안 급상승', '피로 지속 및 멍함 (집중 불가)'],
+        optimizationTips: ['4-7-8 호흡으로 안정 상태 유도', '학습 시간 50% 축소', '15분 파워냅 적극 활용']
     },
     [CareType.ADRENAL]: {
         dominantType: 'THETA',
-        interpretation: `부신피로 상태에서는 코르티솔 리듬 교란으로 아침에 Theta파가 높고, 오후에 불규칙한 Beta파 변동이 나타납니다. 에너지 리듬이 불안정하여 학습 효율의 편차가 큽니다.`,
-        studyRecommendation: `**에너지 있을 때만 집중**: 뇌파가 M-Beta나 Gamma로 전환되는 순간(보통 오전 10-12시, 오후 5-7시)에만 핵심 학습을 배치하세요. 그 외 시간은 복습과 휴식에 할애하세요.`,
-        warningPatterns: ['아침 Theta 지속 (기상 후 2시간)', '오후 불규칙한 H-Beta 급등'],
+        interpretation: `부신피로 상태에서는 코르티솔 리듬 교란으로 아침에 두뇌 각성도가 낮고, 오후에 불규칙한 에너지 변동이 나타납니다. 에너지 리듬이 불안정하여 학습 효율의 편차가 큽니다.`,
+        studyRecommendation: `**에너지 있을 때만 집중**: 인지 몰입도가 극대화되는 순간(보통 오전 10-12시, 오후 5-7시)에만 핵심 학습을 배치하세요. 그 외 시간은 가벼운 복습과 휴식에 할애하세요.`,
+        warningPatterns: ['아침 기상 후 2시간 각성 지연', '오후 불규칙한 피로 급등'],
         optimizationTips: ['햇빛 노출로 각성 유도', '혈당 안정화 식사', '에너지 리듬에 맞춘 유연한 스케줄']
     },
     [CareType.STRESS_OVERLOAD]: {
         dominantType: 'L_BETA_H_BETA',
-        interpretation: `스트레스 과부하 상태에서는 H-Beta파가 과도하게 높아 과각성 상태가 됩니다. 집중은 되지만 불안과 함께하여 실수가 잦고, M-Beta파가 불안정하여 깊은 몰입이 어렵습니다.`,
-        studyRecommendation: `**전략적 인출로 에너지 배출**: 고조된 긴장감을 '빠른 암기'와 '문제 풀이'로 전환하세요. 정적인 독해보다 손을 움직이는 능동적 학습이 효과적입니다. 25분 뽀모도로로 시간을 구조화하세요.`,
-        warningPatterns: ['H-Beta 지속적 과활성 (30% 이상)', 'Alpha파 현저히 부족'],
-        optimizationTips: ['4-7-8 호흡으로 H-Beta 낮추기', '백색소음으로 외부 자극 차단', '카페인 제한']
+        interpretation: `스트레스 과부하 상태에서는 신경계가 과각성 상태가 됩니다. 집중은 시도하지만 불안과 함께하여 계산 실수가 잦고, 깊은 몰입 유지가 어렵습니다.`,
+        studyRecommendation: `**전략적 인출로 에너지 배출**: 고조된 긴장감을 '빠른 암기'와 '스프린트 문제 풀이'로 전환하세요. 정적인 독해보다 손을 움직이는 능동적 학습이 효과적입니다. 25분 뽀모도로로 시간을 구조화하세요.`,
+        warningPatterns: ['지속적 신경계 과각성', '이완 및 회복력 현저히 부족'],
+        optimizationTips: ['4-7-8 호흡으로 긴장 완화', '백색소음으로 외부 자극 차단', '카페인 제한']
     },
     [CareType.SLEEP]: {
         dominantType: 'THETA',
-        interpretation: `수면 부족 상태에서는 낮 시간에도 Theta파가 지속적으로 높게 나타납니다. REM 수면 부족으로 기억 고정이 방해받으며, Beta파가 약해 각성 수준이 낮습니다.`,
+        interpretation: `수면 부족 상태에서는 낮 시간에도 두뇌 피로도가 지속적으로 높게 나타납니다. REM 수면 부족으로 해마 기억 고정이 방해받으며, 두뇌 각성 수준이 낮아집니다.`,
         studyRecommendation: `**각성 유도 학습**: 서서 공부하거나 걸으며 학습하세요. 능동적 학습(문제 풀기, 소리내어 읽기)이 졸음 방지에 효과적입니다. 파워냅 15-20분이 2시간 멍하게 앉아있는 것보다 효율적입니다.`,
-        warningPatterns: ['낮 시간 Theta 우세', 'Beta파 전반적 약화'],
-        optimizationTips: ['찬물 자극으로 교감신경 활성화', '밝은 조명에서 학습', '카페인 냅 활용']
+        warningPatterns: ['낮 시간 인지 둔화 지속', '작업기억력 전반적 약화'],
+        optimizationTips: ['찬물 세안으로 교감신경 자극', '밝은 조명에서 학습', '카페인 냅 활용']
     },
     [CareType.ANXIETY_TENSION]: {
         dominantType: 'L_BETA_H_BETA',
-        interpretation: `불안-긴장 상태에서는 H-Beta파가 과도하게 높아 과각성 상태입니다. 편도체 과활성으로 작은 자극도 위협으로 해석하며, Alpha파가 부족하여 이완된 집중이 어렵습니다.`,
-        studyRecommendation: `**자신감 회복 우선**: 모르는 문제부터 풀면 불안이 급증합니다. 자신 있는 부분부터 시작하여 Alpha파를 높이세요. 4-7-8 호흡으로 H-Beta를 낮추고 시작하세요.`,
-        warningPatterns: ['H-Beta 30% 이상 지속', 'Alpha파 현저히 낮음'],
+        interpretation: `불안-긴장 상태에서는 편도체 과활성으로 신경계가 과각성 상태입니다. 작은 자극도 부담으로 해석하며, 안정된 이완 몰입이 어렵습니다.`,
+        studyRecommendation: `**자신감 회복 우선**: 모르는 문제부터 풀면 불안이 급증합니다. 자신 있는 개념부터 시작하여 두뇌 안정을 유도하세요. 4-7-8 호흡으로 긴장을 낮추고 시작하세요.`,
+        warningPatterns: ['시험 불안 및 과긴장 지속', '심리적 안정감 현저히 저하'],
         optimizationTips: ['그라운딩 기법 활용', '걱정 시간 10분 제한', '익숙한 환경에서 학습']
     },
     [CareType.LOW_ENERGY]: {
         dominantType: 'THETA',
-        interpretation: `저에너지 상태에서는 Theta파가 높고 Beta파가 전반적으로 약합니다. 뇌의 보상 시스템이 둔해져 성취감이 느껴지지 않으며, 각성 수준이 낮아 집중 유지가 어렵습니다.`,
-        studyRecommendation: `**작은 시작, 큰 인정**: 10분만 해보기로 시작 부담을 낮추세요. 단순한 워밍업 과제(단어 암기, 오답 정리)로 Beta파를 높인 후 본 학습에 진입하세요.`,
-        warningPatterns: ['Theta 지속적 우세', 'Gamma/M-Beta 거의 없음'],
+        interpretation: `저에너지 상태에서는 두뇌 활성도가 낮고 작업기억이 둔화됩니다. 뇌의 보상 시스템이 약화되어 성취감이 느껴지지 않으며, 각성 수준이 낮아 집중 유지가 어렵습니다.`,
+        studyRecommendation: `**작은 시작, 큰 인정**: 10분만 해보기로 시작 부담을 낮추세요. 단순한 워밍업 과제(단어 암기, 오답 정리)로 두뇌 활성도를 높인 후 본 학습에 진입하세요.`,
+        warningPatterns: ['무기력 지속', '몰입 지속 시간 10분 미만'],
         optimizationTips: ['시원한 물로 각성 유도', '서서 공부하기', '빠른 템포 음악으로 기분 전환']
     },
     [CareType.DEPRESSION_AMOTIVATION]: {
         dominantType: 'THETA',
-        interpretation: `우울-무동기 상태에서는 전반적 뇌파 활성이 저하되며, 좌측 전두엽 Alpha파 비대칭이 나타날 수 있습니다. 동기 시스템 약화로 학습 시작 자체가 어렵습니다.`,
-        studyRecommendation: `**함께하는 학습**: 혼자 공부보다 스터디 그룹이나 카페에서 사람들 사이에서 공부하세요. 외부 동기를 활용하고, 오늘 딱 하나만 완료해도 스스로 크게 인정하세요.`,
-        warningPatterns: ['전반적 뇌파 활성 저하', '좌측 전두엽 Alpha 비대칭'],
+        interpretation: `우울-무동기 상태에서는 전반적 인지 활성이 저하되며, 전두엽 동기 시스템 약화로 학습 시작 자체가 어렵게 느껴집니다.`,
+        studyRecommendation: `**함께하는 학습**: 혼자 공부보다 스터디 그룹이나 카페에서 사람들의 온기를 느끼며 공부하세요. 외부 환경을 활용하고, 오늘 딱 하나만 완료해도 스스로 크게 인정하세요.`,
+        warningPatterns: ['전반적 인지 활성 저하', '동기 부여 상실'],
         optimizationTips: ['햇빛 노출', '규칙적 운동', '사회적 연결', '작은 성공 경험 쌓기']
     },
     [CareType.BRAIN_FATIGUE]: {
         dominantType: 'THETA',
-        interpretation: `뇌피로 상태에서는 Theta파가 높고 M-Beta파가 불안정합니다. 디지털 기기 과다 사용으로 시각 피질이 과부하되어 정보 처리 속도가 느려집니다.`,
+        interpretation: `뇌피로 상태에서는 시각 피질 및 전두엽이 과부하되어 정보 처리 속도가 급격히 느려집니다. 스마트폰 및 디지털 자극이 주요 원인입니다.`,
         studyRecommendation: `**디지털 디톡스**: 화면 없는 종이 교재 활용, 휴식 시간에 절대 스마트폰 보지 않기. 오전 시간대가 Golden Time이므로 핵심 학습은 오전에 배치하세요.`,
-        warningPatterns: ['Theta 지속 증가', 'Alpha파 불안정'],
+        warningPatterns: ['두뇌 피로 지속 누적', '집중력 안정성 저하'],
         optimizationTips: ['20-20-20 법칙 (20분마다 20초 먼 곳 응시)', '종이 교재 활용', '자연 속 휴식']
     },
     [CareType.HYPERSENSITIVE]: {
         dominantType: 'L_BETA_H_BETA',
-        interpretation: `과민성 상태에서는 H-Beta파가 높고 외부 자극에 민감하게 반응합니다. 작은 소음에도 집중이 깨지며, Alpha파 유지가 어려워 안정된 학습이 힘듭니다.`,
+        interpretation: `과민성 상태에서는 외부 자극에 과도하게 반응하여 작은 소음이나 움직임에도 쉽게 집중이 깨지며 안정된 학습 유지가 힘듭니다.`,
         studyRecommendation: `**환경 통제가 최우선**: 소음 차단 이어폰 필수, 백색 소음으로 불규칙 소음 차단. 같은 장소에서 90% 이상 공부하여 환경 일관성을 유지하세요.`,
-        warningPatterns: ['외부 자극 시 H-Beta 급등', 'Alpha파 유지 실패'],
+        warningPatterns: ['외부 자극 시 집중 붕괴', '안정 상태 유지 실패'],
         optimizationTips: ['노이즈 캔슬링 이어폰', '자연음/백색소음 활용', '환경 변화 최소화']
     },
     [CareType.ATTENTION_DEFICIT]: {
         dominantType: 'THETA',
-        interpretation: `주의력 산만형에서는 Theta파가 높고 L-Beta파가 불안정합니다. 주의 지속 시간이 짧아 25분 집중도 어려울 수 있으며, 외부 자극에 쉽게 분산됩니다.`,
+        interpretation: `주의력 산만형에서는 주의 지속 시간이 짧아 25분 집중도 어려울 수 있으며, 외부 자극에 쉽게 분산됩니다.`,
         studyRecommendation: `**짧은 사이클, 능동적 학습**: 15분 집중-5분 휴식으로 시작하세요. 손을 움직이며 공부(쓰기, 그리기)하고, 외부 구조화 도구(타이머, 체크리스트)를 활용하세요.`,
-        warningPatterns: ['Theta 높음', 'L-Beta/M-Beta 불안정'],
+        warningPatterns: ['주의 분산 빈도 높음', '집중 유지 불안정'],
         optimizationTips: ['15분 단위 학습', '손 움직이는 능동적 활동', '타이머 필수 사용']
     },
     [CareType.CONCENTRATION]: {
         dominantType: 'L_BETA_H_BETA',
-        interpretation: `집중력 저하형에서는 M-Beta파가 약하고 L-Beta와 H-Beta 사이를 오갑니다. 집중이 시작되어도 유지가 어렵고, 잡념에 쉽게 휩쓸립니다.`,
+        interpretation: `집중력 저하형에서는 깊은 몰입 단계 진입이 지연되고, 집중이 시작되어도 유지가 어려워 잡념에 쉽게 휩쓸립니다.`,
         studyRecommendation: `**환경 최적화부터**: 스마트폰을 다른 방에 두는 것만으로 20% 향상됩니다. 수면, 영양, 운동 중 가장 문제되는 영역부터 우선 개선하세요.`,
-        warningPatterns: ['M-Beta 유지 실패', '잦은 뇌파 패턴 변동'],
+        warningPatterns: ['몰입 유지 실패', '잦은 주의 분산'],
         optimizationTips: ['스마트폰 격리', '규칙적 수면', '25분 뽀모도로 기법']
     },
     [CareType.CIRCULATION]: {
         dominantType: 'THETA',
-        interpretation: `순환 저하형에서는 장시간 앉은 뒤 Theta파가 증가합니다. 뇌혈류 감소로 산소 공급이 줄어들어 전반적인 뇌파 활성이 저하됩니다.`,
+        interpretation: `순환 저하형에서는 장시간 좌식 후 뇌혈류 감소로 산소 공급이 줄어들어 전반적인 두뇌 활성도가 저하되고 졸음이 옵니다.`,
         studyRecommendation: `**50분 룰**: 50분 이상 연속 앉아있지 말 것. 휴식 시간에 반드시 일어나서 스트레칭하고, 가능하면 서서 공부하거나 걸으며 암기하세요.`,
-        warningPatterns: ['장시간 좌식 후 Theta 급증', '전반적 뇌파 활성 저하'],
+        warningPatterns: ['장시간 좌식 후 급격한 인지 저하', '두뇌 활성도 저하'],
         optimizationTips: ['50분마다 기립 스트레칭', '서서 공부하기', '물 자주 마시기']
     },
     [CareType.HEALTHY]: {
         dominantType: 'M_BETA_GAMMA',
-        interpretation: `건강 균형형에서는 M-Beta와 Alpha가 적절히 균형을 이루고, 필요시 Gamma까지 올라갑니다. 학습 상황에 맞게 뇌파를 자연스럽게 전환할 수 있는 이상적인 상태입니다.`,
-        studyRecommendation: `**현재 상태 유지**: 딥 워크 시 M-Beta/Gamma 활용, 복습 시 Alpha 모드 활용으로 상황에 맞는 학습을 진행하세요. 과신하여 무리하지 말고 지속가능성에 집중하세요.`,
-        warningPatterns: ['과도한 학습 시 H-Beta 상승 주의'],
-        optimizationTips: ['상황별 뇌파 전환 활용', '규칙적 생활 유지', '간격 반복으로 더 높은 도약']
+        interpretation: `건강 균형형에서는 신체 에너지와 두뇌 인지 기능이 적절히 조화를 이루며 이상적인 몰입 상태를 형성합니다.`,
+        studyRecommendation: `**현재 상태 유지**: 딥 워크 시 수학·과학 킬러 공략, 복습 시 능동 암기 모드 활용으로 상황에 맞는 학습을 진행하세요. 과신하여 무리하지 말고 지속가능성에 집중하세요.`,
+        warningPatterns: ['과도한 학습 시 피로 누적 주의'],
+        optimizationTips: ['컨디션 맞춤 학습 전환', '규칙적 생활 유지', '간격 반복으로 더 높은 도약']
     },
     [CareType.UNASSESSED]: {
         dominantType: 'ALPHA',
-        interpretation: `데이터가 불완전하여 정확한 뇌파 패턴 분석이 어렵습니다. 완전한 검사 완료 시 정밀한 맞춤형 분석이 가능합니다.`,
+        interpretation: `데이터가 불완전하여 맞춤형 인지 패턴 분석이 진행 중입니다. 완전한 검사 완료 시 정밀한 맞춤형 분석이 가능합니다.`,
         studyRecommendation: `**일반적 권장사항**: 25분 집중-5분 휴식의 뽀모도로 기법이 효과적입니다. 피곤할 때는 무리하지 말고, 에너지가 있을 때 핵심 학습을 배치하세요.`,
-        warningPatterns: ['추가 검사 필요'],
+        warningPatterns: ['추가 검사 권장'],
         optimizationTips: ['규칙적 수면', '25분 뽀모도로 기법', '능동적 학습 전략']
     }
 };
 
-// ========== 우세 뇌파 판별 함수 ==========
+// ========== 우세 인지상태 판별 함수 ==========
 export const determineDominantEEGType = (
     gamma: number, hBeta: number, mBeta: number, lBeta: number, alpha: number, theta: number
 ): DominantEEGType => {
@@ -335,7 +335,7 @@ export const getBrainBalanceGuide = (
 
     return `## 🧠 Brain Balance Radar 분석
 
-### 현재 뇌파 패턴
+### 현재 인지 몰입 패턴
 ${insight.interpretation}
 
 ### 추천 학습 모드: ${strategy.titleKr}
@@ -354,7 +354,7 @@ ${strategy.additionalStrategies.map(s => `• ${s}`).join('\n')}
 ### 주의해야 할 패턴
 ${insight.warningPatterns.map(p => `⚠️ ${p}`).join('\n')}
 
-### 뇌파 최적화 팁
+### 집중도 최적화 팁
 ${insight.optimizationTips.map(t => `💡 ${t}`).join('\n')}
 
 ---

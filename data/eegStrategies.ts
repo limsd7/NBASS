@@ -15,7 +15,7 @@ export const EEG_BASED_STRATEGIES: Record<EEGPatternType, EEGStrategy> = {
         careTypes: [CareType.ANXIETY_TENSION, CareType.STRESS_OVERLOAD],
         immediateActions: [
             '4-7-8 호흡법 실시 (교감신경 이완)',
-            '뇌파 정상화 음악 (40Hz Binaural Beats) 청취',
+            '집중 바이노럴 비트 (40Hz) 청취',
             '학습 중단 및 뇌 휴식 시간 강제 설정'
         ],
         workingMemoryTraining: '이완 중심 훈련 (긴장도 하강 유도)'
@@ -47,7 +47,7 @@ export const EEG_BASED_STRATEGIES: Record<EEGPatternType, EEGStrategy> = {
         characteristics: '복합적 상태 (긴장과 이완 혼재)',
         careTypes: [],
         immediateActions: [
-            '가벼운 명상으로 뇌파 정돈',
+            '가벼운 명상으로 인지 피로 정돈',
             '쉬운 난이도의 워밍업 과제 시작'
         ],
         workingMemoryTraining: '균형 맞춤형 기본 훈련'

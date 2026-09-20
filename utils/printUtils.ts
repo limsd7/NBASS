@@ -19,7 +19,7 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
     <!DOCTYPE html>
     <html lang="ko">
       <head>
-        <title>${title}</title>
+        <title>NBASS 정밀 진단 보고서 : 등급표시 - ${title}</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <script src="https://cdn.tailwindcss.com"></script>

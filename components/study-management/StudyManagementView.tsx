@@ -31,7 +31,11 @@ export const StudyManagementView: React.FC<StudyManagementViewProps> = ({
                 <SmartScheduler survey={survey} />
             </PaywallOverlay>
         ), desc: '골든타임 기반 생활 계획표' },
-        { id: 3, title: 'Worry Dump', icon: '🗑️', component: <WorryDump />, desc: '불안 해소 및 멘탈 비우기' },
+        { id: 3, title: 'Worry Dump', icon: '🗑️', component: (
+            <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="mental_management">
+                <WorryDump />
+            </PaywallOverlay>
+        ), desc: '불안 해소 및 멘탈 비우기' },
         { id: 4, title: 'Sound Mixer', icon: '🎧', component: <SoundMixer />, desc: '맞춤형 청각 환경 튜닝' },
     ];
 
@@ -106,7 +110,7 @@ export const StudyManagementView: React.FC<StudyManagementViewProps> = ({
                     <div className="mt-4 bg-indigo-900/5 border border-indigo-100 p-4 rounded-2xl flex items-start gap-3">
                         <span className="text-indigo-500 text-xl">💡</span>
                         <p className="text-sm text-indigo-800 leading-relaxed font-medium">
-                            <span className="font-bold">Expert Note:</span> 이 도구들은 학생의 현재 생체 데이터(HRV)와 성향(Survey)을 기반으로 작동합니다.
+                            <span className="font-bold">Expert Note:</span> 이 도구들은 학생의 현재 자율신경 밸런스와 성향(Survey)을 기반으로 작동합니다.
                             상담 시 학생과 함께 시뮬레이션하며 최적의 설정값을 찾아주세요.
                         </p>
                     </div>

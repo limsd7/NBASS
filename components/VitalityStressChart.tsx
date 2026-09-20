@@ -22,12 +22,11 @@ export const VitalityStressChart: React.FC<VitalityStressChartProps> = memo(({ v
     // 1. Determine Fatigue Value
     // - If we have explicit fatigue (HRV/Medical), use it.
     // - If fatigue is 0, we fallback to physicalStress (Portable).
-    const displayFatigue = (fatigue > 0) ? fatigue : physicalStress;
+    // 1. Determine Fatigue Value
+    const displayFatigue = (fatigue > 0) ? fatigue : (physicalStress > 0 ? physicalStress : 0);
 
     // 2. Determine Vitality Value
-    // - If vitality is > 0, use it.
-    // - If vitality is 0 (common in Portable), default to 50 (Neutral) so the chart isn't empty.
-    const displayVitality = (vitality > 0) ? vitality : 50;
+    const displayVitality = (vitality > 0) ? vitality : 0;
 
     // Data structure for Recharts
     const data = [

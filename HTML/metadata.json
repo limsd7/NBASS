@@ -1,0 +1,6 @@
+{
+  "name": "NBASS 뉴로바이오 학습전략시스템",
+  "description": "뇌파(EEG)·심박변이(HRV)·심리검사로 학습 집중력을 분석하고 맞춤 솔루션을 제공하는 과학적 학습 최적화 시스템",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

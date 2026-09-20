@@ -1,25 +1,22 @@
 {
-  "short_name": "MindBodyConnect",
-  "name": "MindBodyConnect - AI Student Care",
+  "short_name": "NBASS",
+  "name": "NBASS - Neuro-Bio Academic Strategy System",
+  "description": "수험생 뇌-신체 통합 케어 & 맞춤 학습전략 솔루션 웹앱",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "NBASS logo.jpg",
+      "src": "/NBASS logo.jpg",
       "type": "image/jpeg",
       "sizes": "192x192"
     },
     {
-      "src": "NBASS logo.jpg",
+      "src": "/NBASS logo.jpg",
       "type": "image/jpeg",
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
-  "theme_color": "#4f46e5",
-  "background_color": "#ffffff"
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#020617"
 }

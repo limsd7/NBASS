@@ -37,15 +37,15 @@ export const HistoryAnalysisManager: React.FC<HistoryAnalysisManagerProps> = ({
         // Determine student info source
         // Priority: currentResult (if viewing specific result) > historyItem (if selected in history list)
 
-        // Find history item if selectedStudentId is present
+        // Find history item if selectedStudentId is present, or fallback to latest record in history
         const historyItem = (selectedStudentId && Array.isArray(history))
             ? history.find(h => h?.student?.id === selectedStudentId)
-            : null;
+            : (Array.isArray(history) && history.length > 0 ? history[0] : null);
 
         // Resolve props
         const studentName = currentResult?.student?.name || historyItem?.student?.name || "";
         const studentBirthDate = currentResult?.student?.birthDate || historyItem?.student?.birthDate || "";
-        const studentId = currentResult?.student?.id || selectedStudentId || undefined;
+        const studentId = currentResult?.student?.id || selectedStudentId || historyItem?.student?.id || undefined;
 
         // Debug log similar to original implementation for tracing
         console.log("[HistoryManager] Determining props:", {

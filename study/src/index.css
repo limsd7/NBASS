@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+body {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  width: 400px;
+  height: 400px;
+  background: #93c5fd;
+  filter: blur(100px);
+  border-radius: 50%;
+  opacity: 0.4;
+  z-index: 0;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -50px;
+  right: -50px;
+  width: 500px;
+  height: 500px;
+  background: #f9a8d4;
+  filter: blur(120px);
+  border-radius: 50%;
+  opacity: 0.3;
+  z-index: 0;
+  pointer-events: none;
+}
+

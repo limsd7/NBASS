@@ -10,8 +10,10 @@
  * Portable 모드에서는 EEG 관련 항목 제외
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStudyEfficiency, AssessmentType } from '../contexts/StudyEfficiencyContext';
+import { SurveyData } from '../types';
+import { mapSurveyDataToResults } from '../services/studyEfficiencyService';
 import {
     CHRONOTYPE_QUESTIONS,
     CHRONOTYPE_DESCRIPTIONS,
@@ -36,11 +38,17 @@ import {
     CARETYPE_ASSESSMENT_RECOMMENDATIONS
 } from '../data/studyEfficiencyAssessments';
 import { CareType } from '../types';
+import { MembershipTier } from '../utils/featureGate';
 
 interface StudyEfficiencyAssessmentProps {
     careType?: CareType;
     isPortableMode?: boolean;
     isInline?: boolean;  // Step 모드에서는 모달 오버레이 없이 인라인 렌더링
+    isFreeMode?: boolean;
+    membershipTier?: MembershipTier;
+    initialSurveyData?: Partial<SurveyData> | null;
+    initialData?: Partial<StudyEfficiencyResults> | null;
+    onUpgrade?: () => void;
     onComplete: (results: StudyEfficiencyResults) => void;
     onClose?: () => void;  // isInline=true일 때는 선택적
 }
@@ -95,10 +103,17 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
     careType,
     isPortableMode = false,
     isInline = false,
+    isFreeMode,
+    membershipTier = 'free',
+    initialSurveyData,
+    initialData,
+    onUpgrade,
     onComplete,
     onClose
 }) => {
-    const [currentAssessment, setCurrentAssessment] = useState<AssessmentType | null>(null);
+    const isFree = isFreeMode !== undefined ? isFreeMode : (membershipTier === 'free' || membershipTier === 'basic');
+    // FREE 모드에서는 디지털 도파민 검사가 바로 열리도록 기본값 지정
+    const [currentAssessment, setCurrentAssessment] = useState<AssessmentType | null>(isFree ? 'digitalAddiction' : null);
 
     // Global State from Context
     const {
@@ -111,10 +126,55 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
         completedAssessments, setCompletedAssessments
     } = useStudyEfficiency();
 
+    // 기존에 완료된 검사 데이터 복원 및 완료 상태 세팅
+    useEffect(() => {
+        let restored: Partial<StudyEfficiencyResults> = {};
+        if (initialData) {
+            restored = { ...initialData };
+        } else if (initialSurveyData) {
+            restored = mapSurveyDataToResults(initialSurveyData as SurveyData, new Date().toISOString());
+        }
+
+        if (restored && Object.keys(restored).length > 0) {
+            setResults({ ...results, ...restored });
+            setCompletedAssessments(prev => {
+                const updated = new Set(prev);
+                if (restored.chronotype || initialSurveyData?.chronotypeResult || (initialSurveyData?.chronotypeScore !== undefined && initialSurveyData.chronotypeScore !== null)) {
+                    updated.add('chronotype');
+                }
+                if (restored.vark || initialSurveyData?.varkPrimary || initialSurveyData?.varkScores) {
+                    updated.add('vark');
+                }
+                if (restored.testAnxiety || initialSurveyData?.testAnxietyType || (initialSurveyData?.testAnxietyCognitive !== undefined && initialSurveyData.testAnxietyCognitive !== null)) {
+                    updated.add('testAnxiety');
+                }
+                if (restored.digitalAddiction || initialSurveyData?.digitalAddictionLevel || (initialSurveyData?.digitalAddictionScore !== undefined && initialSurveyData.digitalAddictionScore !== null)) {
+                    updated.add('digitalAddiction');
+                }
+                if (restored.metacognition || initialSurveyData?.metacognitionLevel || initialSurveyData?.metacognitionScores) {
+                    updated.add('metacognition');
+                }
+                return updated;
+            });
+        }
+    }, [initialSurveyData, initialData]);
+
     // 추천 검사 목록 (CareType 기반)
     const recommendedAssessments = careType
         ? CARETYPE_ASSESSMENT_RECOMMENDATIONS[careType]?.priority || []
         : ['chronotype', 'vark', 'metacognition'];
+
+    const handleStartAssessment = (type: AssessmentType) => {
+        if (isFree && type !== 'digitalAddiction') {
+            if (onUpgrade) {
+                onUpgrade();
+            } else {
+                alert('🔒 크로노타입, VARK, 시험불안, 메타인지 검사는 PRO 이상 멤버십 전용입니다.\nPRO 이상 유료 결제 시 5종 전체 정밀 진단을 모두 이용하실 수 있습니다.');
+            }
+            return;
+        }
+        setCurrentAssessment(type);
+    };
 
     const handleCompleteAssessment = (type: AssessmentType) => {
         let newResult: Partial<StudyEfficiencyResults> = { ...results };
@@ -140,14 +200,29 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
 
         setResults(newResult);
         setCompletedAssessments(prev => new Set([...prev, type]));
+
+        // FREE 모드에서는 디지털 도파민 검사 완료 시 불필요한 카드 선택창 복귀 없이 즉시 결과 반영 및 다음 단계로 이동
+        if (isFree && type === 'digitalAddiction') {
+            const completedPayload: StudyEfficiencyResults = {
+                ...newResult,
+                digitalAddiction: newResult.digitalAddiction || calculateDigitalAddictionResult(digitalAnswers),
+                completedAt: new Date().toISOString()
+            } as StudyEfficiencyResults;
+            onComplete(completedPayload);
+            return;
+        }
+
         setCurrentAssessment(null);
     };
 
     const handleFinish = () => {
-        onComplete({
+        const digResult = results.digitalAddiction || ((digitalAnswers.some(a => a > 0) || isFree) ? calculateDigitalAddictionResult(digitalAnswers) : undefined);
+        const finalResults: StudyEfficiencyResults = {
             ...results,
+            ...(digResult ? { digitalAddiction: digResult } : {}),
             completedAt: new Date().toISOString()
-        } as StudyEfficiencyResults);
+        } as StudyEfficiencyResults;
+        onComplete(finalResults);
     };
 
     // 선택 화면 렌더링
@@ -158,14 +233,52 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     📊 공부 효율성 정밀 검사
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
-                    아래 검사들을 통해 나만의 최적 학습 전략을 파악하세요.
+                    {isFree 
+                        ? '무료 체험 모드: 디지털 도파민 중독 척도 검사를 진행하실 수 있습니다.' 
+                        : '아래 검사들을 통해 나만의 최적 학습 전략을 파악하세요.'}
                 </p>
-                {careType && careType !== CareType.UNASSESSED && (
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                            💡 <strong>{careType}</strong> 유형에게 권장되는 검사: {' '}
+
+                {/* 전체 설문 참여 / 무료 모드 안내 배너 */}
+                {isFree ? (
+                    <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/40 dark:to-purple-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl text-left shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">🌱</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+                                    FREE 무료 체험 모드
+                                </span>
+                            </div>
+                            {onUpgrade && (
+                                <button
+                                    onClick={onUpgrade}
+                                    className="text-xs font-bold px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 shadow-sm transition-all"
+                                >
+                                    ⚡ PRO 업그레이드 (전체 5종 해금)
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                            무료 체험에서는 <strong>4. 디지털 도파민 중독 척도 검사</strong>만 열려 있습니다. 
+                            <br />
+                            <strong>크로노타입(수면리듬), VARK(학습감각), TAI(시험불안), 메타인지</strong> 4개 심층 정밀 검사는 <strong>PRO 이상 유료 멤버십</strong> 결제 시 전체 해금되어 5종 모두 진행하실 수 있습니다.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="mt-3 p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-left flex items-start gap-2.5 shadow-sm">
+                        <span className="text-xl shrink-0">👑</span>
+                        <div className="text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed">
+                            <strong className="font-bold text-emerald-800 dark:text-emerald-300 block mb-0.5">📢 PRO 정밀 진단: 5종 전체 검사 해금 완료</strong>
+                            5가지 모든 설문 검사(크로노타입, 학습감각 VARK, 시험불안 TAI, 디지털 의존도, 메타인지)가 모두 활성화되어 있습니다. <strong>모든 검사를 완료하실수록 가장 정밀하고 신뢰도 높은 맞춤 처방 진단</strong>을 산출하는 데 도움이 됩니다.
+                        </div>
+                    </div>
+                )}
+
+                {careType && careType !== CareType.UNASSESSED && !isFree && (
+                    <div className="mt-2.5 p-3 bg-blue-50/70 dark:bg-blue-900/30 rounded-xl">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                            🎯 <strong>{careType}</strong> 맞춤 우선 추천 검사: {' '}
                             {recommendedAssessments.map((a, i) => (
-                                <span key={a}>
+                                <span key={a} className="font-bold">
                                     {ASSESSMENT_INFO[a as AssessmentType]?.title.split(' ')[0]}
                                     {i < recommendedAssessments.length - 1 ? ', ' : ''}
                                 </span>
@@ -176,22 +289,51 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
 
                 {/* 상단 완료 버튼 - 항상 보이도록 */}
                 <div className="mt-4">
-                    <button
-                        onClick={handleFinish}
-                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                            }`}
-                        disabled={completedAssessments.size === 0}
-                    >
-                        {completedAssessments.size > 0
-                            ? `✅ ${completedAssessments.size}개 검사 완료! 다음 단계로 →`
-                            : '검사를 시작해 주세요'}
-                    </button>
-                    {completedAssessments.size > 0 && (
-                        <p className="text-xs text-gray-500 mt-2">
-                            ({completedAssessments.size}/{Object.keys(ASSESSMENT_INFO).length} 검사 완료 - 선택적으로 더 진행하거나 다음으로 넘어가세요)
-                        </p>
+                    {isFree ? (
+                        <>
+                            <button
+                                onClick={completedAssessments.has('digitalAddiction') ? handleFinish : () => setCurrentAssessment('digitalAddiction')}
+                                className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.has('digitalAddiction')
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
+                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'
+                                    }`}
+                            >
+                                {completedAssessments.has('digitalAddiction')
+                                    ? '✅ 디지털 도파민 검사 완료! 결과 확인하기 →'
+                                    : '📱 디지털 도파민 중독 검사 시작하기 →'}
+                            </button>
+                            {completedAssessments.has('digitalAddiction') ? (
+                                <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-2">
+                                    (FREE 검사가 완료되었습니다! 상단 또는 하단 버튼을 눌러 리포트를 확인하세요)
+                                </p>
+                            ) : (
+                                <p className="text-xs text-gray-500 mt-2">
+                                    (무료 모드에서는 디지털 도파민 중독 척도 검사 완료 시 리포트가 생성됩니다)
+                                </p>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={handleFinish}
+                                className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                disabled={completedAssessments.size === 0}
+                            >
+                                {completedAssessments.size >= 5
+                                    ? '✅ 5개 전체 검사 완료! 결과 리포트에 즉시 반영하기 →'
+                                    : completedAssessments.size > 0
+                                        ? `✅ ${completedAssessments.size}개 검사 완료! 결과 리포트에 반영하기 (남은 ${5 - completedAssessments.size}개) →`
+                                        : '검사를 시작해 주세요'}
+                            </button>
+                            {completedAssessments.size > 0 && (
+                                <p className="text-xs text-gray-500 mt-2">
+                                    ({completedAssessments.size}/5 검사 완료 {completedAssessments.size < 5 ? `- 더 자세한 분석을 위해 남은 ${5 - completedAssessments.size}개 검사를 완료하거나 바로 리포트에 반영할 수 있습니다` : '- 5종 모든 정밀 검사가 완료되어 결과 리포트에 100% 반영됩니다'})
+                                </p>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -201,39 +343,70 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     const info = ASSESSMENT_INFO[type];
                     const isCompleted = completedAssessments.has(type);
                     const isRecommended = recommendedAssessments.includes(type);
+                    const isLocked = isFree && type !== 'digitalAddiction';
 
                     return (
                         <div
                             key={type}
-                            className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${isCompleted
-                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                                : isRecommended
-                                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:shadow-lg'
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
-                                }`}
-                            onClick={() => !isCompleted && setCurrentAssessment(type)}
+                            className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                                isLocked
+                                    ? 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 hover:border-indigo-300'
+                                    : isCompleted
+                                        ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                                        : isRecommended
+                                            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:shadow-lg'
+                                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
+                            }`}
+                            onClick={() => !isLocked && handleStartAssessment(type)}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <span className="text-3xl">{info.icon}</span>
                                     <div>
-                                        <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                                        <h3 className={`font-semibold flex items-center gap-2 ${
+                                            isLocked ? 'text-slate-600 dark:text-slate-400' : 'text-gray-800 dark:text-white'
+                                        }`}>
                                             {info.title}
-                                            {isRecommended && !isCompleted && (
+                                            {isLocked && (
+                                                <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                    🔒 PRO 전용
+                                                </span>
+                                            )}
+                                            {!isLocked && type === 'digitalAddiction' && isFree && (
+                                                <span className="text-xs bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">
+                                                    FREE 제공
+                                                </span>
+                                            )}
+                                            {isRecommended && !isCompleted && !isLocked && (
                                                 <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">추천</span>
                                             )}
                                             {isCompleted && (
-                                                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">완료</span>
+                                                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">완료 ✓</span>
                                             )}
                                         </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{info.description}</p>
+                                        <p className={`text-sm ${isLocked ? 'text-slate-400 dark:text-slate-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                            {info.description}
+                                        </p>
+                                        {isLocked && (
+                                            <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1">
+                                                ※ PRO 이상 결제 시 전체 해금되는 정밀 검사입니다. (클릭 시 결제/안내)
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right shrink-0 ml-3">
                                     <span className="text-xs text-gray-400">{info.time}</span>
-                                    {!isCompleted && (
-                                        <div className="mt-1 text-blue-500">
+                                    {isLocked ? (
+                                        <div className="mt-1 text-indigo-600 dark:text-indigo-400 font-bold text-xs bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                                            해금하기 🔒
+                                        </div>
+                                    ) : !isCompleted ? (
+                                        <div className="mt-1 text-blue-500 font-bold">
                                             <span className="text-sm">시작 →</span>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs hover:underline">
+                                            <span className="text-xs">재검사 / 수정 ↺</span>
                                         </div>
                                     )}
                                 </div>
@@ -247,7 +420,7 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
             </div>
 
             <div className="flex flex-col gap-3 pt-4 border-t dark:border-gray-700">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                     <button
                         onClick={onClose}
                         className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300"
@@ -255,20 +428,39 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                         ← 이전 단계
                     </button>
                     <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                        완료: {completedAssessments.size}/{Object.keys(ASSESSMENT_INFO).length} 검사
+                        {isFree 
+                            ? `FREE 모드: 1종 검사 중 ${completedAssessments.has('digitalAddiction') ? '1' : '0'}개 완료` 
+                            : `완료: ${completedAssessments.size}/${Object.keys(ASSESSMENT_INFO).length} 검사`}
                     </div>
                 </div>
-                <button
-                    onClick={handleFinish}
-                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
-                        : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
-                        }`}
-                >
-                    {completedAssessments.size > 0
-                        ? `🧠 인지 성능 테스트로 이동`
-                        : '⚠️ 최소 1개 이상의 검사를 완료해 주세요'}
-                </button>
+                {isFree ? (
+                    <button
+                        onClick={completedAssessments.has('digitalAddiction') ? handleFinish : () => setCurrentAssessment('digitalAddiction')}
+                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.has('digitalAddiction')
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'
+                            }`}
+                    >
+                        {completedAssessments.has('digitalAddiction')
+                            ? `✅ 검사 완료 및 리포트 발급 이동 →`
+                            : '📱 디지털 도파민 중독 검사 시작하기 →'}
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleFinish}
+                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
+                            : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
+                            }`}
+                        disabled={completedAssessments.size === 0}
+                    >
+                        {completedAssessments.size >= 5
+                            ? '✅ 5종 전체 정밀 검사 완료! 결과 리포트에 즉시 반영하기 →'
+                            : completedAssessments.size > 0
+                                ? `✅ ${completedAssessments.size}개 완료! 결과 리포트에 즉시 반영하기 (남은 ${5 - completedAssessments.size}개) →`
+                                : '⚠️ 최소 1개 이상의 검사를 완료해 주세요'}
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -491,21 +683,34 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                             {idx + 1}. {q.question}
                         </p>
                     </div>
-                    <div className="flex gap-2">
-                        {[0, 1, 2, 3].map(score => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                            { score: 0, label: '0점', title: '전혀 아님', desc: '거의 느끼지 않음' },
+                            { score: 1, label: '1점', title: '가끔 그럼', desc: '경미한 긴장/불안' },
+                            { score: 2, label: '2점', title: '자주 그럼', desc: '집중에 방해됨' },
+                            { score: 3, label: '3점', title: '항상 그럼', desc: '극심한 불안/신체반응' },
+                        ].map(opt => (
                             <button
-                                key={score}
+                                key={opt.score}
                                 onClick={() => {
                                     const newAnswers = [...taiAnswers];
-                                    newAnswers[idx] = score;
+                                    newAnswers[idx] = opt.score;
                                     setTaiAnswers(newAnswers);
                                 }}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${taiAnswers[idx] === score
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-orange-100'
+                                className={`p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between ${taiAnswers[idx] === opt.score
+                                    ? 'bg-orange-500 text-white border-orange-600 shadow-md scale-[1.02]'
+                                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-orange-300 hover:bg-orange-50/50'
                                     }`}
                             >
-                                {score}
+                                <div className="flex items-center justify-between w-full mb-1">
+                                    <span className="font-bold text-xs">{opt.label}</span>
+                                    <span className={`text-[11px] font-extrabold ${taiAnswers[idx] === opt.score ? 'text-orange-100' : 'text-orange-600 dark:text-orange-400'}`}>
+                                        {opt.title}
+                                    </span>
+                                </div>
+                                <span className={`text-[10px] leading-tight block ${taiAnswers[idx] === opt.score ? 'text-orange-100' : 'text-gray-400 dark:text-gray-400'}`}>
+                                    {opt.desc}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -557,39 +762,52 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                             {idx + 1}. {q.question}
                         </p>
                     </div>
-                    <div className="flex gap-2">
-                        {[0, 1, 2, 3, 4].map(score => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                            { score: 1, label: '전혀 아님', desc: '주 0회 (거의 없음)' },
+                            { score: 2, label: '가끔', desc: '주 1~2회 경험' },
+                            { score: 3, label: '자주', desc: '주 3~4회 경험' },
+                            { score: 4, label: '매우 자주', desc: '매일 / 항상 발생' }
+                        ].map(item => (
                             <button
-                                key={score}
+                                key={item.score}
                                 onClick={() => {
                                     const newAnswers = [...digitalAnswers];
-                                    newAnswers[idx] = score;
+                                    newAnswers[idx] = item.score;
                                     setDigitalAnswers(newAnswers);
                                 }}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${digitalAnswers[idx] === score
-                                    ? 'bg-pink-500 text-white'
-                                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-pink-100'
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${digitalAnswers[idx] === item.score
+                                    ? 'bg-pink-500 text-white border-pink-500 shadow-md scale-[1.02]'
+                                    : 'bg-white dark:bg-gray-700 text-slate-700 dark:text-gray-200 border-slate-200 hover:bg-pink-50 hover:border-pink-300'
                                     }`}
                             >
-                                {score}
+                                <span className="text-base font-black">{item.score}점</span>
+                                <span className={`text-xs font-bold ${digitalAnswers[idx] === item.score ? 'text-white' : 'text-pink-600'}`}>{item.label}</span>
+                                <span className={`text-[10px] mt-0.5 ${digitalAnswers[idx] === item.score ? 'text-pink-100' : 'text-slate-400'}`}>{item.desc}</span>
                             </button>
                         ))}
                     </div>
                 </div>
             ))}
 
-            <div className="flex justify-between pt-4 border-t dark:border-gray-700">
+            <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
                 <button
                     onClick={() => setCurrentAssessment(null)}
-                    className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+                    className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-bold hover:bg-gray-300 transition-colors"
                 >
-                    ← 돌아가기
+                    ← {isFree ? '안내 화면 보기' : '검사 목록으로'}
                 </button>
                 <button
                     onClick={() => handleCompleteAssessment('digitalAddiction')}
-                    className="px-6 py-2 bg-pink-500 text-white rounded-lg font-semibold hover:bg-pink-600"
+                    className={`px-6 py-3 rounded-xl font-black text-sm transition-all shadow-md ${
+                        isFree
+                            ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:shadow-lg active:scale-95'
+                            : 'px-6 py-2 bg-pink-500 text-white rounded-lg font-semibold hover:bg-pink-600'
+                    }`}
                 >
-                    검사 완료
+                    {isFree 
+                        ? '✅ 디지털 도파민 검사 완료 및 진단 리포트 확인 →' 
+                        : '검사 완료'}
                 </button>
             </div>
         </div>
@@ -603,7 +821,7 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     🧠 메타인지 학습 전략 검사
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                    0: 전혀 아니다 ~ 4: 매우 그렇다
+                    1점(전혀 안 함) ~ 4점(항상 실천) 중 나의 실제 공부 습관에 맞는 항목을 선택하세요.
                 </p>
             </div>
 
@@ -623,21 +841,28 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                             {idx + 1}. {q.question}
                         </p>
                     </div>
-                    <div className="flex gap-2">
-                        {[0, 1, 2, 3, 4].map(score => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                            { score: 1, label: '거의 안 함', desc: '전혀 실천하지 않음' },
+                            { score: 2, label: '가끔 실천', desc: '생각날 때 가끔 함' },
+                            { score: 3, label: '자주 실천', desc: '주 3~4회 이상 활용' },
+                            { score: 4, label: '항상 실천', desc: '매 공부마다 습관화' }
+                        ].map(item => (
                             <button
-                                key={score}
+                                key={item.score}
                                 onClick={() => {
                                     const newAnswers = [...metacognitionAnswers];
-                                    newAnswers[idx] = score;
+                                    newAnswers[idx] = item.score;
                                     setMetacognitionAnswers(newAnswers);
                                 }}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${metacognitionAnswers[idx] === score
-                                    ? 'bg-indigo-500 text-white'
-                                    : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-indigo-100'
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${metacognitionAnswers[idx] === item.score
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-[1.02]'
+                                    : 'bg-white dark:bg-gray-700 text-slate-700 dark:text-gray-200 border-slate-200 hover:bg-indigo-50 hover:border-indigo-300'
                                     }`}
                             >
-                                {score}
+                                <span className="text-base font-black">{item.score}점</span>
+                                <span className={`text-xs font-bold ${metacognitionAnswers[idx] === item.score ? 'text-white' : 'text-indigo-600'}`}>{item.label}</span>
+                                <span className={`text-[10px] mt-0.5 ${metacognitionAnswers[idx] === item.score ? 'text-indigo-100' : 'text-slate-400'}`}>{item.desc}</span>
                             </button>
                         ))}
                     </div>
@@ -661,17 +886,19 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
         </div>
     );
 
+    const activeAssessment = (isFree && currentAssessment !== 'digitalAddiction') ? null : currentAssessment;
+
     // 메인 렌더링
     // isInline=true이면 모달 오버레이 없이 렌더링
     if (isInline) {
         return (
             <div className="bg-white dark:bg-gray-900 rounded-2xl w-full">
-                {currentAssessment === null && renderSelectionScreen()}
-                {currentAssessment === 'chronotype' && renderChronotypeAssessment()}
-                {currentAssessment === 'vark' && renderVARKAssessment()}
-                {currentAssessment === 'testAnxiety' && renderTAIAssessment()}
-                {currentAssessment === 'digitalAddiction' && renderDigitalAddictionAssessment()}
-                {currentAssessment === 'metacognition' && renderMetacognitionAssessment()}
+                {activeAssessment === null && renderSelectionScreen()}
+                {activeAssessment === 'chronotype' && renderChronotypeAssessment()}
+                {activeAssessment === 'vark' && renderVARKAssessment()}
+                {activeAssessment === 'testAnxiety' && renderTAIAssessment()}
+                {activeAssessment === 'digitalAddiction' && renderDigitalAddictionAssessment()}
+                {activeAssessment === 'metacognition' && renderMetacognitionAssessment()}
             </div>
         );
     }
@@ -680,12 +907,12 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-                {currentAssessment === null && renderSelectionScreen()}
-                {currentAssessment === 'chronotype' && renderChronotypeAssessment()}
-                {currentAssessment === 'vark' && renderVARKAssessment()}
-                {currentAssessment === 'testAnxiety' && renderTAIAssessment()}
-                {currentAssessment === 'digitalAddiction' && renderDigitalAddictionAssessment()}
-                {currentAssessment === 'metacognition' && renderMetacognitionAssessment()}
+                {activeAssessment === null && renderSelectionScreen()}
+                {activeAssessment === 'chronotype' && renderChronotypeAssessment()}
+                {activeAssessment === 'vark' && renderVARKAssessment()}
+                {activeAssessment === 'testAnxiety' && renderTAIAssessment()}
+                {activeAssessment === 'digitalAddiction' && renderDigitalAddictionAssessment()}
+                {activeAssessment === 'metacognition' && renderMetacognitionAssessment()}
             </div>
         </div>
     );
