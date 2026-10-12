@@ -46,6 +46,14 @@ export const DDayRoadmap: React.FC<DDayRoadmapProps> = ({ student }) => {
     };
 
     const phase = getRoadmapPhase();
+    const PHASE_STYLES: Record<string, { box: string; title: string; desc: string }> = {
+        emerald: { box: 'bg-emerald-50 border-emerald-100', title: 'text-emerald-800', desc: 'text-emerald-700' },
+        blue: { box: 'bg-blue-50 border-blue-100', title: 'text-blue-800', desc: 'text-blue-700' },
+        indigo: { box: 'bg-indigo-50 border-indigo-100', title: 'text-indigo-800', desc: 'text-indigo-700' },
+        rose: { box: 'bg-rose-50 border-rose-100', title: 'text-rose-800', desc: 'text-rose-700' },
+        red: { box: 'bg-red-50 border-red-100', title: 'text-red-800', desc: 'text-red-700' },
+    };
+    const phaseStyle = PHASE_STYLES[phase.color] || PHASE_STYLES.blue;
 
     return (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
@@ -69,11 +77,11 @@ export const DDayRoadmap: React.FC<DDayRoadmapProps> = ({ student }) => {
                     </div>
                 </div>
 
-                <div className={`bg-${phase.color}-50 border border-${phase.color}-100 p-4 rounded-xl mb-6`}>
-                    <h3 className={`font-bold text-${phase.color}-800 flex items-center gap-2 mb-2`}>
+                <div className={`p-4 rounded-xl mb-6 border ${phaseStyle.box}`}>
+                    <h3 className={`font-bold flex items-center gap-2 mb-2 ${phaseStyle.title}`}>
                         <span>🚩</span> 현재 페이즈: {phase.title}
                     </h3>
-                    <p className={`text-sm text-${phase.color}-700`}>{phase.desc}</p>
+                    <p className={`text-sm ${phaseStyle.desc}`}>{phase.desc}</p>
                 </div>
 
                 <div className="space-y-4">

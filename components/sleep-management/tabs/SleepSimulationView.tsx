@@ -12,9 +12,12 @@ interface SleepSimulationViewProps {
 }
 
 export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ records, goal, student, aiModels, currentAssessment }) => {
-  const chronotype = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
-  const initialBed = (chronotype === 'Morning' || chronotype === 'morning') ? '22:30' : (chronotype === 'Evening' || chronotype === 'evening') ? '00:30' : '23:00';
-  const initialWake = (chronotype === 'Morning' || chronotype === 'morning') ? '06:30' : (chronotype === 'Evening' || chronotype === 'evening') ? '08:00' : '07:00';
+  const rawChrono = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+  const chronoStr = typeof rawChrono === 'object' && rawChrono ? String(rawChrono.result || '') : String(rawChrono || '');
+  const isMorning = chronoStr.toLowerCase().includes('morning') || chronoStr.includes('아침') || chronoStr.includes('종달새');
+  const isEvening = chronoStr.toLowerCase().includes('evening') || chronoStr.includes('저녁') || chronoStr.includes('올빼미');
+  const initialBed = isMorning ? '22:30' : isEvening ? '00:30' : '23:00';
+  const initialWake = isMorning ? '06:30' : isEvening ? '08:00' : '07:00';
 
   const [targetBedtime, setTargetBedtime] = useState(goal?.targetBedtime || initialBed);
   const [targetWakeTime, setTargetWakeTime] = useState(goal?.targetWakeTime || initialWake);
@@ -123,7 +126,7 @@ export const SleepSimulationView: React.FC<SleepSimulationViewProps> = ({ record
       const prompt = `
 [수면 스케줄 시뮬레이션 AI 분석]
 - 학생 진단 케어타입: ${careType || '표준형'}
-- 크로노타입: ${chronotype || '표준형'}
+- 크로노타입: ${chronoStr || '표준형'}
 - 가정된 취침시간: ${targetBedtime}, 기상시간: ${targetWakeTime} (총 ${duration.toFixed(1)}시간)
 - D-Day 시험 모드: ${isExamMode ? `활성화 (목표일: ${examDate || '수능/시험'})` : '일반 모드'}
 

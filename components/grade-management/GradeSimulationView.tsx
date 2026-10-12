@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { GradeSimulationEngine, SimulationResult } from '../../services/gradeSimulationEngine';
 import { GradeRecord, GradeGoal, AssessmentResult, StudentInfo, AIModelConfig } from '../../types';
 import { generateAIResponse } from '../../services/aiService';
 import { getCareTypeDetail } from '../../data/careTypesData';
+import { SimulationTrajectoryChart } from './simulation/SimulationTrajectoryChart';
+import { SubjectSimulationCards } from './simulation/SubjectSimulationCards';
+import { SubjectDetailModal } from './simulation/SubjectDetailModal';
+import { ClinicFullscreenModals } from './simulation/ClinicFullscreenModals';
 
 interface GradeSimulationViewProps {
     student: StudentInfo;
@@ -11,10 +14,11 @@ interface GradeSimulationViewProps {
     goals: GradeGoal[];
     assessment?: AssessmentResult;
     aiModels?: AIModelConfig | null;
+    onOpenInputModal?: () => void; // 제외 과목 등급 입력 유도용 (미전달 시 버튼 미표시)
 }
 
-export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ student, records, goals, assessment, aiModels }) => {
-    
+export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ student, records, goals, assessment, aiModels, onOpenInputModal }) => {
+
     const [aiReport, setAiReport] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -24,8 +28,72 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
     const [isGeneratingSubject, setIsGeneratingSubject] = useState<Record<string, boolean>>({});
     const [viewingDate, setViewingDate] = useState<string | null>(null);
     const [availableDates, setAvailableDates] = useState<string[]>([]);
-    
-    const latestDate = records.length > 0 ? records[0].examDate : 'no-date';
+
+    // 과목 전용 AI 클리닉 앱 뷰 상태 (새 창 열기 + 폴백 모달 지원)
+    const [openClinicSubject, setOpenClinicSubject] = useState<{
+        subjectId: string;
+        strategyTag?: string;
+        strategyType?: 'grade_strategy' | 'cognitive_tip';
+        currentGrade?: number;
+        targetGrade?: number;
+    } | null>(null);
+
+    // 최신 시험일 (정렬 보장 + 날짜 정규화 — 미정렬 records[0] 의존 금지)
+    const latestDate = useMemo(() => {
+        const sorted = [...records]
+            .filter(r => r && Number.isFinite(new Date(r.examDate as string).getTime()))
+            .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime());
+        const top = sorted[0]?.examDate;
+        if (typeof top === 'string' && /^\d{4}-\d{2}-\d{2}/.test(top)) return top.slice(0, 10);
+        if (top) {
+            const t = new Date(top).toISOString().slice(0, 10);
+            return t;
+        }
+        return 'no-date';
+    }, [records]);
+
+    const handleOpenClinic = (
+        subjectId: string,
+        strategyTag?: string,
+        strategyType: 'grade_strategy' | 'cognitive_tip' = 'grade_strategy',
+        currentGrade: number = 2,
+        targetGrade: number = 1
+    ) => {
+        // 새 창 열기 시도
+        try {
+            const appName = subjectId === 'math' ? 'math_clinic' : subjectId === 'english' ? 'english_clinic' : 'korean_clinic';
+            const params = new URLSearchParams({
+                view: 'app',
+                app: appName,
+                subjectId,
+                strategyTag: strategyTag || '',
+                strategyType,
+                currentGrade: String(currentGrade),
+                targetGrade: String(targetGrade)
+            });
+            const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            const newWin = window.open(url, '_blank', 'width=1280,height=880,menubar=no,toolbar=no,location=no');
+
+            // 팝업이 브라우저에서 차단되었거나 실패한 경우 내부 풀스크린 모달로 즉시 전환
+            if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+                setOpenClinicSubject({
+                    subjectId,
+                    strategyTag,
+                    strategyType,
+                    currentGrade,
+                    targetGrade
+                });
+            }
+        } catch (e) {
+            setOpenClinicSubject({
+                subjectId,
+                strategyTag,
+                strategyType,
+                currentGrade,
+                targetGrade
+            });
+        }
+    };
 
     const simulationResult = useMemo(() => {
         return GradeSimulationEngine.simulate(
@@ -39,11 +107,36 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
     }, [records, goals, assessment, student]);
 
     if (!simulationResult || simulationResult.projections.length === 0) {
+        const excluded = simulationResult?.excludedSubjects || [];
         return (
             <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm text-center">
                 <div className="text-4xl mb-4">📈</div>
                 <h3 className="text-lg font-bold text-slate-800 mb-2">성적 시뮬레이션 불가</h3>
-                <p className="text-slate-500">시뮬레이션을 실행하려면 최소 1개 이상의 성적 기록이 필요합니다.</p>
+                <p className="text-slate-500">
+                    {excluded.length > 0
+                        ? '모든 과목이 등급 미입력 등으로 제외되었습니다. 아래 과목에 등급을 입력하면 시뮬레이션이 실행됩니다.'
+                        : '시뮬레이션을 실행하려면 최소 1개 이상의 성적 기록이 필요합니다.'}
+                </p>
+                {excluded.length > 0 && (
+                    <div className="mt-4 inline-block text-left text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                        {excluded.map(e => (
+                            <div key={e.subjectId} className="py-0.5">
+                                <span className="font-bold">{e.subjectName}</span>
+                                <span className="text-slate-400"> — {e.reason}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {onOpenInputModal && (
+                    <div className="mt-4">
+                        <button
+                            onClick={onOpenInputModal}
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                        >
+                            성적 입력하기 →
+                        </button>
+                    </div>
+                )}
             </div>
         );
     }
@@ -64,9 +157,18 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
 
         const careDetail = getCareTypeDetail(assessment?.careType);
         const careType = assessment?.careType ? `${careDetail.emoji} ${careDetail.title} (${careDetail.subtitle})` : '알 수 없음';
-        
-        const projectionsText = simulationResult.projections.map(p => 
-            `- ${p.subjectName}: 현재 ${p.currentGrade}등급 -> 목표 ${p.targetGrade}등급 (달성확률: ${p.probability}%)
+
+        const nameOf = (subjectId: string) =>
+            simulationResult.projections.find(p => p.subjectId === subjectId)?.subjectName || subjectId;
+        const commonSection = [
+            ...(simulationResult.commonBottlenecks || []).map(c =>
+                `- (공통 병목) ${c.text} [해당: ${c.subjectIds.map(nameOf).join(', ')}]`),
+            ...(simulationResult.commonRecommendations || []).map(c =>
+                `- (공통 전략) ${c.text} [해당: ${c.subjectIds.map(nameOf).join(', ')}]`),
+        ].join('\n');
+
+        const projectionsText = simulationResult.projections.map(p =>
+            `- ${p.subjectName}: 현재 ${p.currentGrade}등급${p.gradeEstimated ? '(원점수 기반 추정치)' : ''} -> 목표 ${p.targetGrade}등급 (달성확률: ${p.probability}%)
               보완점: ${p.bottlenecks.join(', ')}
               전략: ${p.recommendations.join(' / ')}`
         ).join('\n');
@@ -82,7 +184,7 @@ export const GradeSimulationView: React.FC<GradeSimulationViewProps> = ({ studen
 
 [과목별 예측]
 ${projectionsText}
-
+${commonSection ? `\n[전 과목 공통 분석 (중복 제거됨)]\n${commonSection}\n` : ''}
 위 데이터를 바탕으로 학부모님이 읽기 좋은 '종합 브리핑 리포트'를 3~4문단으로 작성해 주세요. 전문적인 분석과 따뜻한 격려를 포함하고, CareType(현재 상태)을 고려한 맞춤형 조언을 꼭 넣어주세요.`;
 
         const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'free');
@@ -96,13 +198,22 @@ ${projectionsText}
         if (subjectAiReports[subjectId] && !forceRegenerate) return;
 
         setIsGeneratingSubject(prev => ({ ...prev, [subjectId]: true }));
-        
+
         const proj = simulationResult.projections.find(p => p.subjectId === subjectId);
         if (!proj) return;
 
         const careDetail = getCareTypeDetail(assessment?.careType);
         const careType = assessment?.careType ? `${careDetail.emoji} ${careDetail.title} (${careDetail.subtitle})` : '알 수 없음';
-        
+
+        const subjectCommon = [
+            ...(simulationResult.commonBottlenecks || [])
+                .filter(c => c.subjectIds.includes(subjectId))
+                .map(c => `(공통 병목) ${c.text}`),
+            ...(simulationResult.commonRecommendations || [])
+                .filter(c => c.subjectIds.includes(subjectId))
+                .map(c => `(공통 전략) ${c.text}`),
+        ];
+
         const systemContext = `당신은 ${student.name} 학생의 전담 입시/학습 컨설턴트입니다. 항상 따뜻하고 전문적인 어조로 조언해 주세요.`;
         const prompt = `다음은 ${student.name} 학생의 ${proj.subjectName} 과목 분석 결과입니다.
 
@@ -113,6 +224,7 @@ ${projectionsText}
 - ${proj.subjectName} 현재 ${proj.currentGrade}등급 -> 목표 ${proj.targetGrade}등급 (목표 달성 확률: ${proj.probability}%)
 - 기존 앱이 도출한 예상 병목 요인: ${proj.bottlenecks.join(', ')}
 - 기존 앱이 도출한 추천 전략 방향: ${proj.recommendations.join(' / ')}
+${subjectCommon.length > 0 ? `- 전 과목 공통 분석 (해당 과목 포함): ${subjectCommon.join(' / ')}` : ''}
 
 위 분석 결과를 바탕으로, 해당 학생이 당장 실천할 수 있는 가장 효과적이고 구체적인 [${proj.subjectName} 상세 공부법]을 작성해 주세요. 
 반드시 다음 목차를 포함하여 작성해 주세요:
@@ -125,7 +237,7 @@ ${projectionsText}
         const response = await generateAIResponse(prompt, systemContext, aiModels, student.membershipTier || 'free');
         const text = response.text || response.error || '리포트 생성에 실패했습니다.';
         setSubjectAiReports(prev => ({ ...prev, [subjectId]: text }));
-        
+
         // 로컬 스토리지에 캐싱하여 다음에도 바로 볼 수 있도록 저장 (시험 날짜 기준)
         if (!response.error) {
             localStorage.setItem(`ai_plan_${student.id}_${subjectId}_${latestDate}`, text);
@@ -177,6 +289,16 @@ ${projectionsText}
         const cached = localStorage.getItem(`${prefix}${date}`);
         if (cached) {
             setSubjectAiReports(prev => ({ ...prev, [selectedSubjectDetail]: cached }));
+        } else {
+            // 캐시 미스 시 이전 날짜 본문 잔류 금지 — 비우고 AI 설정이 있으면 재생성
+            setSubjectAiReports(prev => {
+                const next = { ...prev };
+                delete next[selectedSubjectDetail];
+                return next;
+            });
+            if (aiModels && (aiModels.localModelUrl || aiModels.geminiKey || aiModels.sonnetKey)) {
+                handleGenerateSubjectReport(selectedSubjectDetail);
+            }
         }
     };
 
@@ -210,6 +332,25 @@ ${projectionsText}
                 <p className="text-blue-100 text-sm">
                     학생의 인지 성능, 학습 효율성, 그리고 목표 설정 데이터를 종합하여 수능까지의 성적 변화를 예측합니다.
                 </p>
+                <p className="text-[11px] text-blue-200/80 mt-1">
+                    ※ 달성 확률(%)은 목표·검사 데이터 기반 추정치이며 실제 결과를 보장하지 않습니다.
+                </p>
+                {simulationResult.excludedSubjects && simulationResult.excludedSubjects.length > 0 && (
+                    <div className="mt-4 bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/20">
+                        <p className="text-xs text-blue-100 leading-relaxed">
+                            <span className="font-bold text-amber-200">📋 시뮬레이션 제외 과목:</span>{' '}
+                            {simulationResult.excludedSubjects.map(e => `${e.subjectName}(${e.reason})`).join(', ')} — 등급이 입력된 과목만 분석됩니다.
+                            {onOpenInputModal && (
+                                <button
+                                    onClick={onOpenInputModal}
+                                    className="ml-2 px-2.5 py-1 bg-white text-blue-700 text-[11px] font-bold rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                                >
+                                    성적 입력하기 →
+                                </button>
+                            )}
+                        </p>
+                    </div>
+                )}
                 <div className="mt-4 bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/20">
                     <p className="font-bold">{simulationResult.overallAdvice}</p>
                 </div>
@@ -226,22 +367,45 @@ ${projectionsText}
                     </div>
                 )}
 
+                {simulationResult.careTypeSummary && (
+                    <div className="mt-4 bg-white/15 rounded-xl p-4 backdrop-blur-md border border-white/30 text-white">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-black text-amber-200 uppercase flex items-center gap-2">
+                                <span>🧠</span> 12대 두뇌·신체 맞춤 케어 처방 (CareType 솔루션)
+                            </h3>
+                            <span className="text-[11px] bg-amber-400/25 text-amber-100 border border-amber-300/40 px-2.5 py-0.5 rounded-full font-bold">
+                                {simulationResult.careTypeSummary.emoji} {simulationResult.careTypeSummary.title}
+                            </span>
+                        </div>
+                        <p className="text-xs text-blue-100 mb-2 font-medium">
+                            {simulationResult.careTypeSummary.subtitle}
+                        </p>
+                        <div className="bg-slate-900/40 rounded-lg p-3 text-xs sm:text-sm text-slate-100 border border-white/10 leading-relaxed">
+                            <strong className="text-amber-300 font-bold">[주요 임상 처방]</strong> {simulationResult.careTypeSummary.prescription}
+                            {simulationResult.careTypeSummary.secondaryTitle && (
+                                <div className="mt-2 pt-2 border-t border-white/10">
+                                    <strong className="text-cyan-300 font-bold">[{simulationResult.careTypeSummary.secondaryEmoji || '🔄'} {simulationResult.careTypeSummary.secondaryTitle} 복합 처방]</strong> {simulationResult.careTypeSummary.secondaryPrescription}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* AI 브리핑 버튼 및 결과 영역 */}
                 <div className="mt-6">
                     {!aiReport && !isGenerating && (
-                        <button 
+                        <button
                             onClick={handleGenerateReport}
                             disabled={!aiModels?.localModelUrl && !aiModels?.geminiKey && !aiModels?.sonnetKey}
-                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition ${
-                                (aiModels?.localModelUrl || aiModels?.geminiKey || aiModels?.sonnetKey) 
-                                ? 'bg-white text-blue-700 hover:bg-blue-50 shadow' 
-                                : 'bg-white/20 text-blue-200 cursor-not-allowed border border-white/20'
-                            }`}
+                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold transition ${(aiModels?.localModelUrl || aiModels?.geminiKey || aiModels?.sonnetKey)
+                                    ? 'bg-white text-blue-700 hover:bg-blue-50 shadow'
+                                    : 'bg-white/20 text-blue-200 cursor-not-allowed border border-white/20'
+                                }`}
                         >
                             <span>🤖</span> 학부모를 위한 AI 종합 브리핑 리포트 생성 (Gemma/LLM)
                         </button>
                     )}
-                    
+
                     {isGenerating && (
                         <div className="flex flex-col items-center justify-center py-8 bg-white/5 rounded-xl border border-white/10">
                             <div className="w-8 h-8 border-4 border-blue-200 border-t-white rounded-full animate-spin mb-4"></div>
@@ -266,310 +430,42 @@ ${projectionsText}
             </div>
 
             {/* Chart */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-800 mb-6">수능까지의 예상 성적 궤적</h3>
-                <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                            <YAxis reversed domain={[1, 9]} ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} label={{ value: '예상 등급', angle: -90, position: 'insideLeft', fill: '#64748b' }} />
-                            <Tooltip 
-                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                formatter={(value: number, name: string) => {
-                                    const proj = simulationResult.projections.find(p => p.subjectId === name);
-                                    return [`${value}등급`, proj?.subjectName || name];
-                                }}
-                            />
-                            <Legend iconType="circle" formatter={(value) => simulationResult.projections.find(p => p.subjectId === value)?.subjectName || value} />
-                            
-                            {simulationResult.projections.map((proj, index) => (
-                                <Line 
-                                    key={proj.subjectId}
-                                    type="monotone" 
-                                    dataKey={proj.subjectId} 
-                                    name={proj.subjectId} 
-                                    stroke={colors[index % colors.length]} 
-                                    strokeWidth={3}
-                                    activeDot={{ r: 6 }}
-                                />
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
+            <SimulationTrajectoryChart chartData={chartData} simulationResult={simulationResult} colors={colors} />
 
             {/* Per-subject Analysis */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {simulationResult.projections.map(proj => (
-                    <div key={proj.subjectId} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
-                        <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
-                            <div>
-                                <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                    {proj.subjectName}
-                                    {(student.focusSubjects || []).includes(proj.subjectId) && (
-                                        <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded uppercase">Focus</span>
-                                    )}
-                                </h4>
-                                <p className="text-sm text-slate-500 mt-1">
-                                    현재 <strong className="text-slate-700">{proj.currentGrade}등급</strong> → 수능 목표 <strong className="text-blue-600">{proj.targetGrade}등급</strong>
-                                </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <button 
-                                    onClick={() => openSubjectDetail(proj.subjectId)}
-                                    className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors"
-                                >
-                                    <span>📘</span> 상세 공부법
-                                </button>
-                                <div className="text-right">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase mb-0.5 block">목표 달성 확률</span>
-                                    <div className="text-xl font-black leading-none" style={{ color: proj.probability >= 80 ? '#10b981' : proj.probability >= 50 ? '#f59e0b' : '#ef4444' }}>
-                                        {proj.probability}%
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 space-y-4">
-                            {proj.bottlenecks.length > 0 && (
-                                <div className="space-y-2">
-                                    <h5 className="text-xs font-bold text-rose-500 uppercase flex items-center gap-1">
-                                        <span>⚠️</span> 예상 병목 요인
-                                    </h5>
-                                    <ul className="text-sm text-slate-600 space-y-1 ml-4 list-disc marker:text-rose-300">
-                                        {proj.bottlenecks.map((b, i) => <li key={i}>{b}</li>)}
-                                    </ul>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <h5 className="text-xs font-bold text-blue-500 uppercase flex items-center gap-1">
-                                    <span>💡</span> AI 맞춤 추천 전략
-                                </h5>
-                                <ul className="text-sm text-slate-600 space-y-1 ml-4 list-disc marker:text-blue-300">
-                                    {proj.recommendations.map((r, i) => <li key={i}>{r}</li>)}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <SubjectSimulationCards
+                simulationResult={simulationResult}
+                student={student}
+                handleOpenClinic={handleOpenClinic}
+                onOpenSubjectDetail={openSubjectDetail}
+            />
 
             {/* 과목 상세 공부법 모달 */}
             {selectedSubjectDetail && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                        {(() => {
-                            const proj = simulationResult.projections.find(p => p.subjectId === selectedSubjectDetail);
-                            if (!proj) return null;
-                            const isGeneratingThis = isGeneratingSubject[selectedSubjectDetail];
-                            const reportData = subjectAiReports[selectedSubjectDetail];
-                            const hasAiConfig = aiModels && (aiModels.localModelUrl || aiModels.geminiKey || aiModels.sonnetKey);
-
-                            const handlePrint = () => {
-                                // Import printElement dynamically or assume it's imported (need to add import at top)
-                                // Actually better to just use window.print on a new window for pure text or import printElement
-                                // Let's just import printElement at the top.
-                            };
-
-                            return (
-                                <>
-                                    <div id="subject-detail-modal-content" className="flex flex-col flex-1 min-h-0">
-                                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-xl font-black">
-                                                    📘
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2">
-                                                        [{proj.subjectName}] 상세 공부법
-                                                        {availableDates.length > 0 && (
-                                                            <select 
-                                                                value={viewingDate || latestDate}
-                                                                onChange={(e) => handleViewingDateChange(e.target.value)}
-                                                                className="text-xs ml-2 font-normal border border-slate-200 rounded-md bg-white px-2 py-1 text-slate-600 focus:outline-none focus:border-blue-400"
-                                                            >
-                                                                {availableDates.map(d => (
-                                                                    <option key={d} value={d}>
-                                                                        {d === 'no-date' ? '기본 (날짜 없음)' : d}
-                                                                        {d === latestDate ? ' (최신)' : ' (과거)'}
-                                                                    </option>
-                                                                ))}
-                                                                {!availableDates.includes(latestDate) && (
-                                                                    <option value={latestDate}>{latestDate} (최신)</option>
-                                                                )}
-                                                            </select>
-                                                        )}
-                                                    </h3>
-                                                    <p className="text-sm text-slate-500 mt-0.5">현재 {proj.currentGrade}등급 → 수능 목표 {proj.targetGrade}등급 달성을 위한 맞춤 플랜</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {reportData && !isGeneratingThis && viewingDate === latestDate && (
-                                                    <button 
-                                                        onClick={() => {
-                                                            const printWindow = window.open('', '_blank');
-                                                            if (printWindow) {
-                                                                const todayStr = new Date().toISOString().slice(0,10);
-                                                                const diagnosisCode = `ID-${todayStr.replace(/-/g,'')}-ID-${student.id.slice(0,4)}`;
-                                                                
-                                                                printWindow.document.write(`
-                                                                    <html><head><title>${proj.subjectName} 성적 향상 솔루션</title>
-                                                                    <meta charset="utf-8">
-                                                                    <style>
-                                                                        \${Array.from(document.styleSheets).map(s => { try { return Array.from(s.cssRules).map(r => r.cssText).join(''); } catch(e) { return ''; } }).join('\\n')}
-                                                                    </style>
-                                                                    <style>
-                                                                        @media print {
-                                                                            @page { margin: 10mm; }
-                                                                            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                                                                        }
-                                                                        .markdown-body p { margin-bottom: 0.75em; line-height: 1.6; }
-                                                                        .markdown-body strong { font-weight: 800; background-color: #eff6ff; padding: 2px 6px; border-radius: 4px; color: #1e40af; }
-                                                                    </style>
-                                                                    </head><body class="bg-slate-100 p-8">
-                                                                    
-                                                                    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200">
-                                                                        <!-- Header -->
-                                                                        <div class="p-8 border-b-4 border-blue-800">
-                                                                            <div class="flex justify-between items-start mb-6">
-                                                                                <div>
-                                                                                    <h4 class="text-blue-600 font-bold tracking-widest text-xs mb-1 uppercase">Neuro-Bio Academic Strategy System</h4>
-                                                                                    <h1 class="text-3xl font-black text-slate-900">NBASS 정밀 진단 보고서</h1>
-                                                                                    <p class="text-slate-400 text-sm italic mt-1 font-serif">Official Diagnostic & Neuro-Insight Report</p>
-                                                                                </div>
-                                                                                <div class="text-right">
-                                                                                    <span class="bg-slate-100 text-slate-600 text-[11px] px-2 py-1 rounded font-mono">Ver 2.5.0-Precision</span>
-                                                                                    <p class="text-sm font-bold text-slate-700 mt-2">분석책임자: <span class="text-blue-600">Dr. Lim</span></p>
-                                                                                </div>
-                                                                            </div>
-                                                                            
-                                                                            <!-- Info Box -->
-                                                                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 flex justify-between">
-                                                                                <div>
-                                                                                    <p class="text-[11px] text-slate-400 font-bold mb-1">피검자 성명</p>
-                                                                                    <p class="text-lg font-black text-slate-800">${student.name} <span class="text-xs text-slate-400 font-normal">(${student.gender === 'Male' ? 'M' : 'F'} / ${student.age}세)</span></p>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <p class="text-[11px] text-slate-400 font-bold mb-1">진단 코드</p>
-                                                                                    <p class="text-sm font-mono text-slate-700 font-bold">${diagnosisCode}</p>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <p class="text-[11px] text-slate-400 font-bold mb-1">기준 시험 일시</p>
-                                                                                    <p class="text-sm text-slate-700 font-bold">${viewingDate === 'no-date' ? todayStr : viewingDate}</p>
-                                                                                </div>
-                                                                                <div>
-                                                                                    <p class="text-[11px] text-slate-400 font-bold mb-1">중점 분석 분야</p>
-                                                                                    <p class="text-sm text-blue-600 font-bold">${proj.subjectName} (학습 최적화)</p>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <!-- Body Title -->
-                                                                        <div class="bg-slate-900 text-white px-8 py-4 flex justify-between items-center">
-                                                                            <h2 class="text-lg font-bold flex items-center gap-2"><span>🧠</span> Brain-Body 통합 진단 기반 상세 플랜</h2>
-                                                                            <span class="bg-slate-800 text-slate-300 text-[10px] px-2 py-1 rounded-md font-mono border border-slate-700">3-Layer Verification</span>
-                                                                        </div>
-                                                                        
-                                                                        <!-- Content -->
-                                                                        <div class="p-8">
-                                                                            <div class="flex items-center gap-4 border-b border-slate-100 pb-5 mb-6">
-                                                                                <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-2xl">📘</div>
-                                                                                <div>
-                                                                                    <h3 class="text-2xl font-black text-slate-800">${proj.subjectName} 성적 향상 솔루션</h3>
-                                                                                    <p class="text-slate-500 mt-1 text-sm">현재 <strong class="text-slate-800 font-bold">${proj.currentGrade}등급</strong>에서 목표 <strong class="text-blue-600 font-bold">${proj.targetGrade}등급</strong> 달성을 위한 맞춤형 인지/학습 플랜</p>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div class="markdown-body text-slate-700 text-sm">
-                                                                                ${reportData.split('\n').map(line => {
-                                                                                    if (line.trim() === '') return '<div class="h-2"></div>';
-                                                                                    let htmlLine = line;
-                                                                                    // Bold
-                                                                                    htmlLine = htmlLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                                                                                    // Lists
-                                                                                    if (htmlLine.trim().startsWith('- ')) {
-                                                                                        return `<li class="ml-4 mb-1">${htmlLine.substring(2)}</li>`;
-                                                                                    }
-                                                                                    if (htmlLine.trim().match(/^\d+\./)) {
-                                                                                        return `<div class="font-bold text-slate-800 mt-4 mb-2 text-base">${htmlLine}</div>`;
-                                                                                    }
-                                                                                    return `<p>${htmlLine}</p>`;
-                                                                                }).join('')}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <!-- Footer -->
-                                                                        <div class="bg-slate-50 p-6 text-center border-t border-slate-200">
-                                                                            <p class="text-[11px] text-slate-400">💡 본 상세 공부법 리포트는 차후 유료 회원 전용 프리미엄 기능으로 제공될 예정입니다.</p>
-                                                                            <p class="text-[10px] text-slate-300 mt-1">Generated by NBASS AI Engine</p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <script>window.onload = () => { setTimeout(() => { window.print(); }, 800); }</script>
-                                                                    </body></html>
-                                                                `);
-                                                                printWindow.document.close();
-                                                            }
-                                                        }}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors"
-                                                        title="인쇄 및 PDF 저장 (추후 유료회원 전용)"
-                                                    >
-                                                        <span>🖨️</span> 인쇄
-                                                    </button>
-                                                )}
-                                                <button 
-                                                    onClick={() => setSelectedSubjectDetail(null)}
-                                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-                                        {!hasAiConfig && !reportData ? (
-                                            <div className="text-center py-12">
-                                                <p className="text-slate-500 mb-4">설정에서 AI 모델을 먼저 연동해주세요.</p>
-                                            </div>
-                                        ) : isGeneratingThis ? (
-                                            <div className="flex flex-col items-center justify-center py-16">
-                                                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
-                                                <p className="text-lg font-bold text-slate-700">AI가 학생 데이터를 바탕으로</p>
-                                                <p className="text-lg font-bold text-slate-700 mb-2">상세 공부법을 작성 중입니다...</p>
-                                                <p className="text-sm text-slate-400">약 10~20초 정도 소요될 수 있습니다.</p>
-                                            </div>
-                                        ) : reportData ? (
-                                            <div className="text-slate-700 leading-relaxed space-y-4">
-                                                {renderSimpleMarkdown(reportData)}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-12">
-                                                <button 
-                                                    onClick={() => handleGenerateSubjectReport(selectedSubjectDetail)}
-                                                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors"
-                                                >
-                                                    상세 공부법 생성하기
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {reportData && !isGeneratingThis && (
-                                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
-                                            <p className="text-xs text-slate-400">💡 본 상세 공부법 인쇄 기능은 차후 <strong className="text-indigo-500">유료 회원 전용</strong>으로 제공될 예정입니다.</p>
-                                            <button 
-                                                onClick={() => handleGenerateSubjectReport(selectedSubjectDetail, true)}
-                                                className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2"
-                                            >
-                                                <span>🔄</span> 다시 생성
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                </>
-                            );
-                        })()}
-                    </div>
-                </div>
+                <SubjectDetailModal
+                    selectedSubjectDetail={selectedSubjectDetail}
+                    simulationResult={simulationResult}
+                    isGeneratingSubject={isGeneratingSubject}
+                    subjectAiReports={subjectAiReports}
+                    aiModels={aiModels}
+                    availableDates={availableDates}
+                    viewingDate={viewingDate}
+                    latestDate={latestDate}
+                    student={student}
+                    onViewingDateChange={handleViewingDateChange}
+                    onGenerateSubjectReport={handleGenerateSubjectReport}
+                    renderSimpleMarkdown={renderSimpleMarkdown}
+                    onClose={() => setSelectedSubjectDetail(null)}
+                />
             )}
+
+            {/* 국어/수학/영어 과목 전용 AI 클리닉 앱 풀스크린 모달 */}
+            <ClinicFullscreenModals
+                openClinicSubject={openClinicSubject}
+                student={student}
+                aiModels={aiModels}
+                onClose={() => setOpenClinicSubject(null)}
+            />
         </div>
     );
 };

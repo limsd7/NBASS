@@ -281,6 +281,27 @@ export function getAdaptiveTimerConfig(careType: string): AdaptiveTimerConfig {
 }
 
 /**
+ * 컨셉체크 선지 셔플 (정답 1번 고정 악용 방지)
+ * - correctIndex를 함께 재매핑하므로 판정 로직 변경 없음
+ * - 모달 진입 시 1회만 적용하고 풀이 중에는 순서 고정
+ */
+export function shuffleConceptCheckOptions(items: ConceptCheckItem[]): ConceptCheckItem[] {
+  return (items || []).map(item => {
+    if (!item || !Array.isArray(item.options) || item.options.length < 2) return item;
+    const order = item.options.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return {
+      ...item,
+      options: order.map(i => item.options[i]),
+      correctIndex: order.indexOf(item.correctIndex),
+    };
+  });
+}
+
+/**
  * 단원별 "기본적으로 꼭 알아야 하는 핵심 개념/공식" 3문항 메타인지 자가진단 생성기
  */
 export function getMetacognitiveConceptCheck(unitName: string, subjectId: string = 'math'): ConceptCheckItem[] {
@@ -551,6 +572,53 @@ export function getMetacognitiveConceptCheck(unitName: string, subjectId: string
         ],
         correctIndex: 0,
         explanation: '완전제곱식 y = a(x + b/(2a))² - (b²-4ac)/(4a) 로 표준형을 바꾸면 대칭축은 x = -b/(2a) 입니다.'
+      }
+    ];
+  }
+
+  // 탐구(사탐/과탐/한국사) 특화 개념 점검 (문제은행 없이 AI 사다리와 병행)
+  const normLower = `${subjectId} ${uName}`.toLowerCase();
+  const isInquiryUnit = ['탐구', '물리', '화학', '생명', '지구', '윤리', '지리', '역사', '경제', '정치', '사회', '한국사', '한문', '외국어'].some(k => normLower.includes(k.toLowerCase()));
+  if (isInquiryUnit) {
+    return [
+      {
+        id: 'chk_inq_1',
+        conceptName: `${uName}의 핵심 개념 구조화`,
+        question: `'${uName}' 단원의 핵심 개념과 용어 정의를 머릿속으로 구조화할 수 있나요?`,
+        options: [
+          '핵심 개념의 정의와 하위 요소들을 말로 설명하고 서로 연결할 수 있다.',
+          '용어는 알지만 개념 간의 인과·포함 관계를 설명하기 어렵다.',
+          '비슷한 개념들과 헷갈려서 문제에서 보기를 봐야 구분된다.',
+          '개념 정리가 전혀 되어 있지 않아 교과서 정독이 필요하다.'
+        ],
+        correctIndex: 0,
+        explanation: '탐구 고득점의 출발점은 용어의 정확한 정의입니다. 정의를 말로 설명할 수 있어야 자료 해석 단계에서 오개념 함정을 피할 수 있습니다.'
+      },
+      {
+        id: 'chk_inq_2',
+        conceptName: '자료·도표 해석의 축과 단위 판독',
+        question: `'${uName}' 관련 도표·그래프·실험 자료를 볼 때 가장 먼저 확인해야 할 것은?`,
+        options: [
+          '그래프의 x축·y축과 단위, 실험의 조작·통제 변인과 발문의 조건 [가]·[나]를 먼저 확인한다.',
+          '그래프의 모양만 보고 감으로 답을 고른다.',
+          '자료는 건너뛰고 선지만 읽고 찍는다.',
+          '단위를 확인하지 않고 숫자만 비교한다.'
+        ],
+        correctIndex: 0,
+        explanation: '탐구 킬러의 70%는 "축·단위·변인" 함정입니다. 자료를 보기 전 축과 단위, 실험 변인을 먼저 확정하는 습관이 오답률을 절반으로 줄입니다.'
+      },
+      {
+        id: 'chk_inq_3',
+        conceptName: '매력적 오답(함정 선지) 소거 원리',
+        question: `'${uName}' 문제를 풀 때 보기 중 정답이 아닌데 정답처럼 보이는 선지의 공통적인 특징은?`,
+        options: [
+          '자료의 일부만 맞거나 조건을 살짝 비튼 부분적 참, 과도한 일반화, 단위·부호 착각이다.',
+          '항상 가장 긴 문장의 선지가 오답이다.',
+          '숫자가 포함된 선지는 무조건 오답이다.',
+          '처음 본 용어가 들어간 선지가 정답이다.'
+        ],
+        correctIndex: 0,
+        explanation: '탐구 오답 선지는 대부분 "부분적 참 + 조건 비틀기" 구조입니다. 선지의 모든 조건이 자료·개념과 동시에 성립하는지 끝까지 검증하세요.'
       }
     ];
   }

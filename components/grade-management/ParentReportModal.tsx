@@ -101,19 +101,23 @@ export const ParentReportModal: React.FC<ParentReportModalProps> = ({
                                     const info = SUNEUNG_SUBJECTS.find(s => s.id === subjectId);
                                     if (!info) return null;
                                     const currentGrade = latestGrades.get(subjectId);
-                                    if (!currentGrade) return null;
-                                    
                                     const examCount = records.filter(r => r.subjects.some(s => s.subjectId === subjectId)).length;
-                                    
+
                                     return (
                                         <tr key={subjectId}>
                                             <td className="p-3 border border-slate-200 font-bold text-slate-700">{info.name}</td>
-                                            <td className="p-3 border border-slate-200 font-black text-blue-600 text-lg">{currentGrade}</td>
+                                            <td className="p-3 border border-slate-200 font-black text-lg">
+                                                {currentGrade ? (
+                                                    <span className="text-blue-600">{currentGrade}</span>
+                                                ) : (
+                                                    <span className="text-slate-400 text-sm font-bold">— (미입력)</span>
+                                                )}
+                                            </td>
                                             <td className="p-3 border border-slate-200 text-slate-500">{examCount}회</td>
                                         </tr>
                                     );
                                 })}
-                                {selectedSubjectIds.filter(id => latestGrades.has(id)).length === 0 && (
+                                {selectedSubjectIds.filter(id => SUNEUNG_SUBJECTS.some(s => s.id === id)).length === 0 && (
                                     <tr>
                                         <td colSpan={3} className="p-6 text-slate-500">입력된 성적 기록이 없습니다.</td>
                                     </tr>

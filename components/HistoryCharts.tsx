@@ -10,9 +10,19 @@ import type { HistoryRecord } from '../services/database';
 
 // === 1. SummaryView (종합 성장 스코어보드) ===
 export const SummaryView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <span className="text-3xl block mb-2">📊</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">누적된 성장 트렌드 데이터가 없습니다.</p>
+                <p className="text-xs text-slate-400">정밀 진단 검사를 진행하시면 종합 성장 스코어보드와 추세선이 자동 생성됩니다.</p>
+            </div>
+        );
+    }
+
     const latest = data[data.length - 1];
     const previous = data.length > 1 ? data[data.length - 2] : null;
-    const scoreDiff = previous ? latest.score - previous.score : 0;
+    const scoreDiff = previous ? (latest?.score ?? 0) - (previous?.score ?? 0) : 0;
 
     return (
         <div className="space-y-6">
@@ -20,7 +30,7 @@ export const SummaryView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
                     <div className="text-xs font-bold text-slate-400 uppercase mb-2">현재 진단 유형 (Care Type)</div>
                     <div className="text-xl font-black text-blue-600 dark:text-blue-400">
-                        {latest.careType}
+                        {latest?.careType || '미지정'}
                     </div>
                     {previous && (
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1">
@@ -76,6 +86,16 @@ export const SummaryView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
 
 // === 2. CognitiveView (인지 & 두뇌 테스트 추이) ===
 export const CognitiveView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <span className="text-3xl block mb-2">🧠</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">작업 기억 및 인지 반응 데이터가 없습니다.</p>
+                <p className="text-xs text-slate-400">N-Back 인지 능력 테스트를 진행하시면 추세 곡선이 표시됩니다.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -126,6 +146,16 @@ export const CognitiveView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) =>
 
 // === 3. SurveyView (심리 & 5대 기질 설문 추이) ===
 export const SurveyView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <span className="text-3xl block mb-2">📋</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">설문 및 심리 지표 추이 데이터가 없습니다.</p>
+                <p className="text-xs text-slate-400">정밀 설문을 진행하시면 시험불안, 수면, 자율신경 변화 추이가 기록됩니다.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -208,6 +238,15 @@ export const SurveyView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
 
 // === 4. AcademicView (학습 효율 & 순공 관리 추이) ===
 export const AcademicView: React.FC<{ data: TrendDataPoint[] }> = ({ data }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <span className="text-3xl block mb-2">📚</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">순공 및 학습 지속도 데이터가 없습니다.</p>
+                <p className="text-xs text-slate-400">학습 매니지먼트 데이터를 기록하시면 효율 곡선이 생성됩니다.</p>
+            </div>
+        );
+    }
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

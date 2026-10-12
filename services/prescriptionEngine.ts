@@ -125,7 +125,7 @@ const generateCounselorScript = (student: StudentInfo, tags: string[], products:
     let script = `${studentName}님, 현재 검사 결과를 종합해보면 '${translateTag(tags[0])}' 개선이 최우선 과제입니다. `;
 
     if (tags.includes('BRAIN_FATIGUE') || tags.includes('MEMORY_LOSS')) {
-        script += `학업 집중력과 기억력 유지를 위해 뇌 혈류를 개선하고 신경 세포막을 보호하는 [엔오카디/오메가3] 처방을 구성했습니다. `;
+        script += `학업 집중력과 기억력 유지를 위해 뇌 혈류를 개선하고 신경 세포막을 보호하는 [오메가-3/은행잎 추출물] 영양 루틴을 구성했습니다. `;
     } else if (tags.includes('LIVER_DYSFUNCTION') || tags.includes('FATIGUE_CHRONIC')) {
         script += `간 기능 저하로 인한 피로 누적이 관찰되어, 해독과 에너지 대사를 돕는 [리버마린/아르기닌]을 추천드립니다. `;
     } else if (tags.includes('ADRENAL_FATIGUE')) {
@@ -208,7 +208,7 @@ export const generateNutritionalPrescription = (data: AssessmentResult, matchedP
         healthScore: data.score || 70, // 기본값
         counselorScript: script,
         lifestyleGuide: [
-            '처방된 영양제는 물과 함께 섭취하며, 차나 커피와 함께 드시지 마세요.',
+            '권장된 영양 성분은 물과 함께 섭취하며, 차나 커피와 함께 드시지 마세요.',
             '위장 장애 발생 시 식사 직후 섭취로 변경하세요.',
             '3개월 섭취 후 재검사를 통해 용량을 조절하는 것이 좋습니다.'
         ]

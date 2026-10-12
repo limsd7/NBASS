@@ -1,30 +1,35 @@
 import React, { useState } from 'react';
 import { UserProfile, MembershipTier } from '../../types';
-import { TIER_BADGE_STYLES, TIER_NAMES } from '../../services/featureGate';
+import { TIER_BADGE_STYLES, TIER_NAMES, TIER_PRICES } from '../../services/featureGate';
 import { authService } from '../../services/authService';
+import { dataSyncService } from '../../services/dataSyncService';
 import { MOCK_NUTRITION_PRODUCTS } from '../../services/mockData';
-import { Coffee, Award, Sparkles, ExternalLink, Clock, Droplets, Flame, Check, X } from 'lucide-react';
+import { Coffee, Award, Sparkles, ExternalLink, Clock, Droplets, Flame, Check, X, RefreshCw, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   user: UserProfile;
   onUserUpdated: (user: UserProfile) => void;
+  onLogout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated, onLogout }) => {
   const [showHlModal, setShowHlModal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const hlCoffee = MOCK_NUTRITION_PRODUCTS.find(p => p.isHlCoffee)!;
   const tiers: MembershipTier[] = ['free', 'pro', 'premium', 'premium_plus', 'vip', 'expert'];
 
-  const handleTierChange = (newTier: MembershipTier) => {
-    const updated = authService.updateTier(newTier);
-    onUserUpdated(updated);
-    setShowTierModal(false);
+  // 등급 변경은 PC 오너 승인(실시간 동기화)으로만 적용됩니다. 앱에서는 안내만 표시합니다.
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await dataSyncService.syncAllFromCloud(user.studentId);
+    setTimeout(() => setIsSyncing(false), 600);
   };
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shadow-xs">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 py-2.5 flex items-center justify-between shadow-xs select-none">
         {/* Left: Brand */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-sm">
@@ -32,12 +37,21 @@ export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated }) => {
           </div>
           <div>
             <h1 className="text-xs font-black tracking-tight text-slate-900 leading-none">NBASS Mobile</h1>
-            <p className="text-[9px] text-slate-400 font-medium mt-0.5">MindBody Connect</p>
+            <p className="text-[9px] text-slate-400 font-medium mt-0.5">Mind-Body Connect</p>
           </div>
         </div>
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Cloud Sync Button */}
+          <button
+            onClick={handleManualSync}
+            title="PC 클라우드 데이터 동기화"
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition active:scale-95"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+          </button>
+
           {/* ☕ HL Coffee Quick Button */}
           <button
             onClick={() => setShowHlModal(true)}
@@ -57,6 +71,16 @@ export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated }) => {
               {TIER_NAMES[user.tier].split(' ')[0]}
             </span>
           </button>
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              title="로그아웃"
+              className="p-1.5 rounded-full hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -100,39 +124,21 @@ export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated }) => {
                   <span>희석법: 500ml 이상 시원한 물 필수</span>
                 </p>
                 <p className="text-slate-700 leading-snug text-[11px]">
-                  1포를 <strong>냉수 500ml 이상</strong>에 타서 연하게 아이스티처럼 마십니다.
-                  <br />
-                  <strong className="text-rose-600">⚠️ 60℃ 이상 뜨거운 물은 유효성분이 파괴되므로 피하세요.</strong>
+                  고농도 아르기닌과 시트룰린의 흡수를 극대화하기 위해 <strong>시원한 물 500ml 이상</strong>에 타서 천천히 마십니다.
                 </p>
               </div>
-
-              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
-                <p className="font-bold text-emerald-900 flex items-center gap-1 mb-1">
-                  <Flame className="w-3.5 h-3.5" />
-                  <span>수험생 효과: 저자극 각성 &amp; 체지방 분해</span>
-                </p>
-                <p className="text-slate-700 leading-snug text-[11px]">
-                  두근거림 없는 맑은 각성과 함께 장시간 좌식 생활 중 체지방 대사를 돕습니다.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={() => setShowHlModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs"
-              >
-                닫기
-              </button>
-              <a
-                href={hlCoffee.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs text-center shadow-xs flex items-center justify-center gap-1"
-              >
-                <span>공식몰 가기</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              <p className="text-[10px] leading-relaxed text-slate-500 bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
+                ※ 건강기능식품은 질병의 진단·치료 목적이 아니며, 안내 내용은 도움을 줄 수 있음 수준입니다. (전문가 검수 진행 중)
+              </p>
+              {hlCoffee.url && (
+                <button
+                  onClick={() => window.open(hlCoffee.url, '_blank', 'noopener')}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-95 transition"
+                >
+                  <span>공식몰에서 보기 (외부 사이트)</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -153,28 +159,42 @@ export const Header: React.FC<HeaderProps> = ({ user, onUserUpdated }) => {
             </div>
 
             <p className="text-xs text-slate-500 mb-3">
-              원하는 등급을 선택하면 앱의 모든 권한이 즉시 전환됩니다.
+              현재 등급이，请选择 아래 이용권 안내를 확인하세요. 등급 변경은 PC 오너 승인 후 실시간으로 적용됩니다.
             </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               {tiers.map((t) => {
                 const isSelected = user.tier === t;
+                const priceInfo = TIER_PRICES[t];
                 return (
-                  <button
+                  <div
                     key={t}
-                    onClick={() => handleTierChange(t)}
-                    className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition flex items-center justify-between active:scale-95 ${
+                    className={`w-full p-3 rounded-2xl text-left flex items-center justify-between ${
                       isSelected
-                        ? 'bg-indigo-600 text-white font-black shadow-md'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-slate-50 text-slate-800 border border-slate-200'
                     }`}
                   >
-                    <span>{t.toUpperCase()}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                  </button>
+                    <div className="flex-1 pr-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-black">{TIER_NAMES[t]}</span>
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                          {priceInfo.billing}
+                        </span>
+                      </div>
+                      <p className={`text-[10px] mt-1 line-clamp-1 ${isSelected ? 'text-indigo-100' : 'text-slate-500'}`}>
+                        {priceInfo.desc}
+                      </p>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 shrink-0 stroke-[3]" />}
+                  </div>
                 );
               })}
             </div>
+
+            <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+              온라인 결제는 준비 중입니다. 1회권·정기권 이용을 원하시면 PC 오너에게 등급 승인을 요청하세요.
+            </p>
           </div>
         </div>
       )}

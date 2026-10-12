@@ -14,11 +14,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, index }) => {
     return (
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow duration-200">
             <div className="w-full md:w-32 h-32 flex-shrink-0 bg-slate-50 rounded-lg border border-slate-100 p-2 flex items-center justify-center overflow-hidden">
-                <img
-                    src={product.image}
-                    alt={product.name}
-                    className="max-w-full max-h-full object-contain mix-blend-multiply"
-                />
+                {product.image ? (
+                    <img
+                        src={product.image}
+                        alt={product.name}
+                        className="max-w-full max-h-full object-contain mix-blend-multiply"
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fb = e.currentTarget.parentElement?.querySelector('.fallback-icon');
+                            if (fb) fb.classList.remove('hidden');
+                        }}
+                    />
+                ) : null}
+                <span className={`text-4xl fallback-icon ${product.image ? 'hidden' : ''}`}>💊</span>
             </div>
 
             <div className="flex-1 flex flex-col justify-between">

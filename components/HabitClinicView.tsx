@@ -1,7 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { AssessmentResult, CareType } from '../types';
-import { MembershipTier } from '../utils/featureGate';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AssessmentResult, CareType, WrongNote } from '../types';
+import { unifiedSyncService } from '../services/unifiedSyncService';
+import { MembershipTier, normalizeTier, canAccess } from '../utils/featureGate';
 import { Brain, AlertOctagon, Sparkles, CheckCircle2, Play, Pause, Flame, Clock, RotateCcw, ArrowRight, Lock, Check, Printer, X, FileText, ShieldAlert, Award, Download, Wind, Mic, Zap, HeartPulse, Send, BookOpen, CheckSquare, Bell, EyeOff, Moon, Coffee, ShieldCheck, Smartphone } from 'lucide-react';
+import {
+    BAD_HABITS_LIST,
+    HABIT_SCIENCE_SOURCES,
+    PROTOCOL_META,
+    PATTERN_BY_CARETYPE,
+    pipelineMap,
+    HABIT_PATTERN_MAP,
+} from './habit/habitClinicData';
+import type { ClinicalPattern, ProtocolId } from './habit/habitClinicData';
+import { useHabitToasts, HabitToastStack } from './habit/HabitToasts';
+import { shareHabitToKakao, buildHabitShareText, copyTextToClipboard } from './habit/kakaoShare';
 
 interface HabitClinicViewProps {
     student?: { id?: string; name?: string; grade?: string };
@@ -9,202 +21,75 @@ interface HabitClinicViewProps {
     membershipTier?: MembershipTier;
     onUpgradeClick?: () => void;
     onBack?: () => void;
+    onSaveWrongNote?: (note: WrongNote) => void;
+    isPrivileged?: boolean; // 오너·전문가 등 등급 우회 권한 (App의 currentUserRole 기반)
 }
 
-interface BadHabitItem {
-    id: string;
-    title: string;
-    description: string;
-    category: string;
-    wastedMinutesPerDay: number;
-    brainCause: string;
-    impact: string;
-    expectedScoreBoost: string;
-    prescription: string;
-}
-
-const BAD_HABITS_LIST: BadHabitItem[] = [
-    {
-        id: 'habit-01',
-        title: '모르는 문제 나오면 1~2분 만에 해설지/답지 보기',
-        description: '스스로 고민하지 않고 즉시 해설을 보며 "알았다"고 뇌를 속이는 가짜 공부 (Fake Study)',
-        category: '가짜 공부 (Fake Study)',
-        wastedMinutesPerDay: 35,
-        brainCause: '전두엽 배외측피질(DLPFC)의 포도당 대사 고갈로 인해 발생하는 고통 회피 기제입니다. 스스로 풀리지 않는 문제를 마주했을 때 뇌는 이를 신체적 통증과 유사한 스트레스로 감지합니다. 이때 해설지를 즉각 열람하면 복측 선조체에서 도파민이 순간적으로 분비되며 "문제를 이해했다"는 착각(Fluency Illusion)을 유발하고, 정작 스스로 기억을 끄집어내는 인출(Retrieval) 시냅스는 완전히 퇴화됩니다.',
-        impact: '실전 수능 시험장에는 해설지가 없기 때문에 생소한 신유형이나 킬러 문항을 마주하는 순간 극심한 패닉(Brain Freeze)에 빠지게 됩니다. 혼자 힘으로 실마리를 찾는 뉴런 네트워크가 굳어져 시험장에서 1~2등급 진입이 원천 봉쇄됩니다.',
-        expectedScoreBoost: '🎯 수능 수학/과학 킬러 2~3문항 해결 가능 (+8~12점 상승, 1~2등급 도약)',
-        prescription: '「3단계 점진적 차단 프로토콜 (Scaffolding Rx)」: ①답지를 반드시 책상에서 3m 이상 떨어진 곳에 물리적으로 격리합니다. ②막혔을 때 최소 5분간 빈 종이에 [주어진 조건 3가지]와 [관련 공식 2개]를 손으로 강제 인출해 적어봅니다. ③도저히 안 풀릴 때만 해설지의 첫 줄(시작 아이디어)만 가림판으로 살짝 확인한 후, 즉시 덮고 남은 과정을 스스로 완주합니다.'
-    },
-    {
-        id: 'habit-02',
-        title: '안 풀리는 1문제를 25~30분 이상 멍하니 잡고 늘어지기',
-        description: '오기나 불안감으로 인해 진도를 나가지 못하고 시간만 흘려보내는 집착형 지연',
-        category: '집착 지연 (Over-stuck)',
-        wastedMinutesPerDay: 45,
-        brainCause: '전대상피질(ACC)의 오류 감지 회로가 과열되고 편도체가 불안에 휩싸이면서 나타나는 인지적 경직(Cognitive Inflexibility)입니다. "이것도 못 풀면 망한다"는 공포로 인해 다른 문제로 넘어가는 실행 전환(Task Switching) 능력이 마비되고, 뇌의 제한된 일일 글루코스(뇌 에너지)를 1문항에 60% 이상 낭비하게 됩니다.',
-        impact: '시험 전체의 시간 배분이 완전히 파탄 납니다. 뒤쪽에 배치된 충분히 맞힐 수 있는 중급 배점 문항 4~5개를 읽지도 못하고 찍어버리게 되어 어처구니없는 대량 실점으로 이어집니다.',
-        expectedScoreBoost: '🎯 시간 부족으로 날리던 후반부 문항 100% 확보 (+10~15점 상승)',
-        prescription: '「10분 강제 타임아웃 & 마킹 룰」: ①타이머를 켜고 10분 동안 풀이 방향이 2갈래 이상 잡히지 않으면 즉시 문제 번호 위에 [별표 3개]를 치고 손을 뗍니다. ②심호흡 3회 후 다음 번호로 강제 점프합니다. ③전체 시험지/세션 1회독 완료 후 남은 시간(골든 버퍼)에 맑아진 뇌로 다시 돌아와 접근합니다.'
-    },
-    {
-        id: 'habit-03',
-        title: '공부 시작 전 책상 정리, 필통 정리, 플래너 꾸미기로 30분 쓰기',
-        description: '어려운 공부를 시작하기 두려워 사소한 정리에 몰두하는 회피성 완벽주의',
-        category: '회피 행동 (Avoidance)',
-        wastedMinutesPerDay: 30,
-        brainCause: '공부 착수 직전 작업기억 과부하에 대한 공포로 인해 발생하는 "생산적 회피(Productive Procrastination)" 현상입니다. 책상 청소나 펜 정리는 손쉬운 정리 작업을 통해 즉각적인 소소한 성취감(도파민)을 주기 때문에, 무의식적으로 고통스러운 진짜 공부를 뒤로 미루는 뇌의 방어 반응입니다.',
-        impact: '가장 뇌가 맑고 집중력이 높은 착석 골든타임 30~40분을 비생산적 행동으로 허비하며, 정작 책을 펼쳤을 때는 이미 시작 관성(Inertia)에 지쳐 학습 의지가 꺾입니다.',
-        expectedScoreBoost: '🎯 일일 순공 시간 +45분 즉시 확보, 월 22시간 추가 공부량 창출',
-        prescription: '「2분 착수 트리거 (Zero-Friction Rx)」: ①전날 밤 취침 전, 내일 아침 풀 문제집을 펼쳐놓고 펜 뚜껑까지 열어둔 채 퇴실합니다. ②착석 즉시 정리·플래너 일체 금지, 타이머를 2분 누르고 첫 문제의 첫 문장 1줄만 무조건 읽고 쓰기 시작합니다. ③두뇌 시동이 걸리면 자연스럽게 몰입 상태로 전이됩니다.'
-    },
-    {
-        id: 'habit-04',
-        title: '인강 들으며 음악/유튜브 틀어놓고 멀티태스킹하기',
-        description: '뇌의 도파민을 채우려다 작업기억 용량을 반토막 내는 집중력 분산',
-        category: '도파민 분산 (Distraction)',
-        wastedMinutesPerDay: 40,
-        brainCause: '만성적인 D2 도파민 수용체 둔화로 인해 단일한 공부 자극에 만족하지 못하고 복합적인 감각 자극을 갈망하는 신경학적 주의 분산증입니다. 인간의 작업기억(Working Memory)은 단일 채널 음운 루프(Phonological Loop)를 공유하므로, 음악 가사나 배경 영상이 뇌로 유입되는 순간 공부 정보의 부호화(Encoding)가 70% 이상 차단됩니다.',
-        impact: '인강을 3시간 들었어도 뇌에는 30분 분량만 조각나 저장됩니다. 장기기억화(LTP)가 차단되어 3일만 지나면 개념이 백지상태가 되며 실전 응용력이 전무해집니다.',
-        expectedScoreBoost: '🎯 개념 암기 기억 유지율 3배 증가, 탐구 영역 백분위 +15%p 상승',
-        prescription: '「감각 단일화 & 비행기 모드 격리」: ①인강 수강 시 스마트폰은 전원 종료 후 가방 깊숙이 넣거나 다른 방에 둡니다. ②BGM은 일체 차단하며, 주변 소음이 심할 경우 핑크 노이즈(Pink Noise) 또는 무음 귀마개만 허용합니다. ③강의 1강 종료 후 5분간 화면을 끄고 강사가 말한 핵심 뼈대를 빈 종이에 인출합니다.'
-    },
-    {
-        id: 'habit-05',
-        title: '침대나 소파에 엎드려서 책 보거나 인강 듣기',
-        description: '자세 이완으로 인해 뇌 각성도가 떨어져 20분 내로 졸음과 브레인포그 유발',
-        category: '각성도 저하 (Low Arousal)',
-        wastedMinutesPerDay: 50,
-        brainCause: '신체 자세가 이완되면 상행망상활성계(ARAS)를 통한 뇌간의 상향식 각성 신호가 급감합니다. 뇌는 엎드린 자세를 수면 준비 상태로 인식하여 멜라토닌 분비를 촉진하고 두뇌의 집중 몰입도를 급격한 졸음과 피로 상태로 떨어뜨립니다.',
-        impact: '책상 앞 공부 시간 대비 실제 흡수율이 30% 이하로 급락합니다. "공부했다"는 자기만족만 남고 실질적인 두뇌 연산은 멈춘 브레인포그(Brain Fog) 상태로 시간이 낭비됩니다.',
-        expectedScoreBoost: '🎯 졸음/멍때림 시간 제로화, 모의고사 전 과목 평균 +6~10점 상승',
-        prescription: '「직각 착석 & 시야각 15도 유지」: ①공부는 오직 허리를 90도로 세울 수 있는 정규 독서실/책상 의자에서만 진행합니다. ②독서대를 사용하여 시야각을 15~20도 상향 고정하여 뇌 각성도를 물리적으로 자극합니다. ③졸음 전조 증상 발생 시 즉시 기립하여 3분 스트레칭 및 시원한 냉수를 음용합니다.'
-    },
-    {
-        id: 'habit-06',
-        title: '어려운 수학/국어 제쳐두고 쉬운 과목만 먼저 하기',
-        description: '전두엽 에너지가 가장 맑은 골든타임을 쉬운 과목으로 낭비하는 편식 공부',
-        category: '골든타임 낭비 (Misplacement)',
-        wastedMinutesPerDay: 30,
-        brainCause: '자아 고갈(Ego Depletion)을 피하려는 무의식적 편식 학습입니다. 전두엽 에너지가 가장 충만하고 신경전달물질이 맑은 오전 시간대에 인지 부하가 높은 킬러 과목을 회피하고, 뇌가 편안함을 느끼는 단순 암기나 좋아하는 쉬운 과목으로 도피하는 현상입니다.',
-        impact: '진짜 등급을 결정짓는 취약 킬러 과목의 공부량이 절대적으로 부족해져, 아무리 하루 10시간을 앉아있어도 수능 당일 불수능 시험지를 받는 순간 치명적인 등급 폭락을 맞이합니다.',
-        expectedScoreBoost: '🎯 취약 과목 3~4등급 ➡️ 안정적 1~2등급 도약 (+15~20점 수직 상승)',
-        prescription: '「Eat That Frog: 오전 90분 킬러 블록」: ①기상 후 두뇌 각성 골든타임(식사 30분 후 첫 착석)에는 무조건 가장 취약하고 피하고 싶은 1순위 킬러 과목(수학 킬러/국어 독서)만 배치합니다. ②이 90분이 끝나기 전까지는 탐구나 쉬운 과목 책을 가방에서 꺼내지도 않는 철칙을 수립합니다.'
-    },
-    {
-        id: 'habit-07',
-        title: '형광펜 밑줄만 예쁘게 긋고 "다 외웠다"고 착각하기',
-        description: '책을 읽으며 줄만 치고 스스로 인출(Recall)해보지 않는 수동적 눈공부',
-        category: '수동적 착각 (Passive Reading)',
-        wastedMinutesPerDay: 35,
-        brainCause: '시각적 친숙함(Recognition)을 뇌의 인출(Recall) 능력으로 오인하는 메타인지(Metacognition) 오류입니다. 텍스트에 색칠할 때 시각 피질은 정보를 보았기 때문에 "안다"고 착각하지만, 해마와 대뇌피질 사이의 시냅스 연결 고리는 전혀 형성되지 않은 수동적 소비에 불과합니다.',
-        impact: '문제를 풀 때는 선지가 헷갈려 정답률이 50% 밑으로 떨어지고, "공부할 땐 다 알았는데 시험장 가면 머리가 하얘진다"는 만성적 시험 불안을 유발합니다.',
-        expectedScoreBoost: '🎯 수능 탐구/한국사/영어 빈칸추론 오답률 40% 감소 (+6~10점 상승)',
-        prescription: '「블라인드 백지 인출(Active Recall) Rx」: ①형광펜 사용을 1페이지당 최대 3단어로 제한합니다. ②1개 소단원을 읽은 즉시 책을 완전히 덮습니다. ③빈 A4 용지에 방금 읽은 내용의 [핵심 개념 3가지]와 [인과관계 화살표]를 기억만으로 손으로 직접 써내려간 뒤 책과 대조합니다.'
-    },
-    {
-        id: 'habit-08',
-        title: '오답노트에 문제와 해설을 예쁘게 옮겨 적기만 하기',
-        description: '사고 과정의 오류를 짚지 않고 글씨를 베껴 쓰며 만족하는 장식적 노동',
-        category: '필사 노동 (Decorative Writing)',
-        wastedMinutesPerDay: 40,
-        brainCause: '전두엽의 고차원적 오류 분석 사고를 차단하고, 손가락 소근육의 단순 반복 운동으로 뇌를 달래는 가짜 성취감 추구 기제입니다. 글씨를 반듯하게 적는 행위는 시각적 만족감을 주어 뇌가 실질적인 사고의 고통을 건너뛰게 만듭니다.',
-        impact: '오답 정리에 1시간을 쏟아부어도, 일주일 뒤 숫자나 조건만 바꾼 유사 변형 문제를 주면 85% 이상의 확률로 똑같이 다시 틀리게 됩니다.',
-        expectedScoreBoost: '🎯 유사 변형 문제 오답률 0% 수렴, 수학/과탐 2등급 안정 확보',
-        prescription: '「3줄 메타인지 오답노트 (No-Copying Rx)」: ①문제와 해설 베껴 쓰기 절대 금지. ②오답 상단에 딱 3줄만 기록합니다: 1줄-내가 시험장에서 착각한 잘못된 사고 경로, 2줄-출제자가 판 함정 키워드, 3줄-다음에 이 유형을 볼 때 떠올릴 첫 번째 행동 수칙. ③3일 후 백지 상태에서 재풀이 1회 실시.'
-    },
-    {
-        id: 'habit-09',
-        title: '인강만 하루 5~6시간 연속으로 들으며 스스로 푸는 자습 건너뛰기',
-        description: '스타 강사의 유려한 풀이를 보며 내가 이해했다고 믿는 인강 중독증',
-        category: '대리 만족 (Lecture Addiction)',
-        wastedMinutesPerDay: 60,
-        brainCause: '일타 강사의 명쾌한 설명을 보며 거울 뉴런(Mirror Neurons)이 활성화되어, 강사의 수학적 문제 해결력이 마치 자신의 능력인 양 뇌가 착각하는 "대리 이해 착시"입니다. 신경망의 시냅스 강화(LTP)는 스스로 오답과 씨름하며 뇌가 땀을 흘릴 때만 형성됩니다.',
-        impact: '혼자 모의고사를 풀 때 1번 문제부터 조건 해석이 막히며 심각한 인지 마비(Cognitive Freezing)를 겪게 되고, 강의 러닝타임만 채우는 만년 수험생 루프에 갇힙니다.',
-        expectedScoreBoost: '🎯 실전 수능 100분 시험 운용 체력 완성, 전 과목 백분위 종합 +12%p 상승',
-        prescription: '「1:2 인강·순공 절대 보존 법칙」: ①인강 1시간을 수강했다면 무조건 그날 해당 과목의 [혼자 문제 풀고 씹어먹는 자습 시간 2시간]이 확보되지 않으면 다음 인강 재생을 금지합니다. ②강의 수강 직후 강의창을 닫고, 강사가 풀어준 예제를 빈 화면에서 스스로 끝까지 풀어냅니다.'
-    },
-    {
-        id: 'habit-10',
-        title: '모르는 개념 검색하려다 SNS·쇼츠·커뮤니티로 탈선하기',
-        description: '공부 목적으로 폰을 켰다가 알고리즘 추천 영상과 피드로 빠져 시간 낭비',
-        category: '디지털 탈선 (Digital Derailment)',
-        wastedMinutesPerDay: 45,
-        brainCause: '모르는 개념에 부딪혔을 때 발생하는 뇌의 인지적 마찰(Friction)을 해소하기 위해 스마트폰을 켜는 순간, 복측 선조체(Ventral Striatum)가 알고리즘의 강력한 가변 보상(Variable Reward)에 중독되어 전두엽 억제 제동력이 즉각 마비되는 현상입니다.',
-        impact: '단 5분만 보려던 쇼츠가 30~40분으로 이어지고, 스마트폰에서 빠져나온 후에도 도파민 여운(Attention Residue)으로 인해 깊은 몰입(Flow) 상태로 재진입하는 데 최소 23분의 뇌 재부팅 시간이 낭비됩니다.',
-        expectedScoreBoost: '🎯 주의 집중력 지속시간 2.5배 연장, 킬러 고난도 문항 몰입 유지력 극대화',
-        prescription: '「아날로그 의문 파킹 랏(Parking Lot) 메모법」: ①공부 중 모르는 단어나 개념이 나와도 실시간 스마트폰 검색 절대 금지. ②책상 옆 노란색 포스트잇에 [궁금한 단어/페이지]만 1줄 메모해두고 즉시 다음 진도를 나갑니다. ③당일 모든 자습이 끝난 마지막 20분에만 몰아서 일괄 검색하여 해결합니다.'
-    },
-    {
-        id: 'habit-11',
-        title: '새벽 2~3시까지 졸면서 억지로 책상에 붙어있기',
-        description: '수면 부족으로 인해 뇌 회로가 반쯤 잠든 상태에서 시간만 채우는 비효율 공부',
-        category: '수면 부채 (Sleep Deprivation)',
-        wastedMinutesPerDay: 60,
-        brainCause: '뇌의 림프계(Glymphatic System)를 통한 피로 부산물(베타 아밀로이드, 아데노신) 청소 메커니즘을 차단하고, 해마에서 대뇌피질로 기억을 전송하는 수면 공고화(Memory Consolidation) 단계를 스스로 파괴하는 행위입니다. 수면이 박탈된 뇌는 혈중 알코올 농도 0.08%(면허 취소 수준)와 동일한 전두엽 처리 지연을 겪습니다.',
-        impact: '새벽에 3시간을 억지로 버텨봤자 다음 날 학교나 학원 수업 시간 전체를 멍때리며 날리게 되어, 3시간 얻고 8시간을 잃는 최악의 마이너스 학습 손실이 발생합니다.',
-        expectedScoreBoost: '🎯 두뇌 연산 처리 속도 40% 개선, 시험 당일 어이없는 계산 실수 90% 제거',
-        prescription: '「서카디안 골든 6.5시간 락인」: ①수험생의 취침 한계선은 무조건 자정(24:00)으로 고정합니다. ②아무리 공부가 덜 끝났어도 24:00에는 소등하고 최소 6.5시간의 연속 수면을 보장해야 해마가 낮에 공부한 지식을 장기기억으로 압축 저장합니다. ③새벽 공부 대신 오전 6:30 기상 후 맑은 뇌로 공부합니다.'
-    },
-    {
-        id: 'habit-12',
-        title: '계획만 하루 12시간 빽빽하게 세우고 1개 틀어지면 하루 통째로 포기하기',
-        description: '비현실적인 계획을 세우고 작은 차질에도 올-오어-낫싱(All or Nothing)으로 자포자기',
-        category: '완벽주의 번아웃 (Planning Burnout)',
-        wastedMinutesPerDay: 50,
-        brainCause: '계획 오류(Planning Fallacy)와 완벽주의적 흑백논리(All-or-Nothing) 인지 왜곡이 결합된 상태입니다. 오전 계획이 단 15분만 지연되어도 편도체는 극심한 자기 비난과 죄책감을 분비하고, 이를 방어하기 위해 "오늘은 망했으니 내일부터 새로 시작하자"는 식의 학습 파업(회피)을 선택합니다.',
-        impact: '한 달 중 실제로 계획대로 공부하는 날은 2~3일에 불과하며, 만성적인 자책감과 학습된 무기력(Learned Helplessness)에 빠져 수험 생활 전반의 자존감이 붕괴됩니다.',
-        expectedScoreBoost: '🎯 주간 학습 완수율 30% ➡️ 85% 달성, 슬럼프 없는 안정적 수험 페이스 유지',
-        prescription: '「70% 탄력 버퍼 스케줄링 & 10분 마감 룰」: ①하루 계획은 최대 집중 가용 시간의 70%만 채우고, 나머지 30%는 무조건 비어있는 [완충 버퍼(Buffer Zone)]로 편성합니다. ②계획이 밀렸을 땐 포기하지 말고 밀린 분량을 버퍼 시간에 흡수시킵니다. ③"완벽한 하루"가 아니라 "70% 완주한 날들의 연속"이 수능 1등급을 만든다는 마인드셋을 확립합니다.'
-    }
-];
 
 export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
     student,
+    history,
     membershipTier = 'free',
     onUpgradeClick,
-    onBack
+    onBack,
+    onSaveWrongNote,
+    isPrivileged = false
 }) => {
     const tier = membershipTier || 'free';
-    const isPremiumOrAbove = tier === 'premium' || tier === 'premium_plus' || tier === 'vip' || tier === 'expert';
-    const isPlusOrAbove = tier === 'premium_plus' || tier === 'vip' || tier === 'expert';
+    // habit_clinic 접근 판정 단일화 (레거시 등급 정규화 포함)
+    const isPremiumOrAbove = canAccess(normalizeTier(tier), 'habit_clinic') || isPrivileged;
+
+    // Habit 진행 상태 영속화 (학생별 localStorage, 새로고침·기기 변경 대비는 계정 동기화와 별도)
+    const progressKey = `nbass_habit_progress_${student?.id || student?.name || 'default'}`;
+    // 서버 동기화 키 (unifiedSyncService 경유, student_id 단일 행)
+    const habitServerId = student?.id || student?.name || '';
+    // 필드별 LWW 기준 시각 보관 (pull 병합 결과, push 시 변경분만 at 갱신)
+    const habitFieldsRef = useRef<Record<string, { v: unknown; at: string }>>({});
+    const [habitPulled, setHabitPulled] = useState(false);
+    // 블로킹 alert() 대체용 인라인 토스트
+    const { toasts, pushToast, dismissToast } = useHabitToasts();
+    // SOS 자동 해제 타이머 (언마운트 시 정리)
+    const sosTimeoutRef = useRef<any>(null);
+    useEffect(() => () => { if (sosTimeoutRef.current) clearTimeout(sosTimeoutRef.current); }, []);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const loadStored = <T,>(k: string, fallback: T): T => {
+        try {
+            const raw = localStorage.getItem(progressKey);
+            if (!raw) return fallback;
+            const v = (JSON.parse(raw) as any)?.[k];
+            return v === undefined ? fallback : v as T;
+        } catch { return fallback; }
+    };
+    const storedLastActiveDate: string = (() => {
+        try {
+            return (JSON.parse(localStorage.getItem(progressKey) || '{}') as any)?.lastActiveDate || '';
+        } catch { return ''; }
+    })();
 
     // 체크된 습관 목록
-    const [checkedIds, setCheckedIds] = useState<string[]>(['habit-01', 'habit-04']);
-    const [isDiagnosisSaved, setIsDiagnosisSaved] = useState(false);
+    const [checkedIds, setCheckedIds] = useState<string[]>(() => loadStored('checkedIds', []));
     const [showReportModal, setShowReportModal] = useState(false);
 
     // 실시간 행동 교정기 (PLUS+ 전용) 10대 뇌신경 프로토콜 상태
-    type ProtocolId = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'p7' | 'p8' | 'p9' | 'p10';
-
-    const PROTOCOL_META: Record<ProtocolId, { no: number; group: 'core' | 'boost'; step: string; name: string; fullTitle: string; icon: string }> = {
-        p1: { no: 1, group: 'core', step: '1번', name: '물리 차단', fullTitle: '실전 3단계 물리 행동 교정기 (자극 제어 & 서약)', icon: '🔒' },
-        p2: { no: 2, group: 'core', step: '2번', name: 'IF-THEN', fullTitle: 'IF-THEN 신경망 조건반사 스위치 (이행 의도 실행기)', icon: '🧠' },
-        p3: { no: 3, group: 'core', step: '3번', name: '60초 리콜', fullTitle: '60초 마이크로 리콜 & 파인만 보이스 인출기 (능동 회상)', icon: '🎙️' },
-        p4: { no: 4, group: 'boost', step: '4번', name: '도파민 스트릭', fullTitle: '도파민 연속 스트릭 & 손실 회피(Loss Aversion) 금고', icon: '🔥' },
-        p5: { no: 5, group: 'boost', step: '5번', name: '학부모 안심', fullTitle: '학부모 안심 동기화 & 잔소리 제로(Zero) 세이프가드', icon: '📲' },
-        p6: { no: 6, group: 'core', step: '6번', name: '3분 한숨', fullTitle: '3분 생리학적 한숨(Physiological Sigh) & 자율신경 리셋', icon: '🫁' },
-        p7: { no: 7, group: 'core', step: '7번', name: '3색 오답', fullTitle: '3색 뇌신경 오답 메타인지 분해기 (착각 지점 분해)', icon: '🎯' },
-        p8: { no: 8, group: 'boost', step: '8번', name: '시각 터널링', fullTitle: '시각 터널링 & 모노태스킹 블랙아웃 (주의 잔류물 0%)', icon: '🌑' },
-        p9: { no: 9, group: 'boost', step: '9번', name: '울트라디안', fullTitle: '울트라디안 90분 피크-딥(Peak-Dip) 과목 매칭', icon: '⚡' },
-        p10: { no: 10, group: 'boost', step: '10번', name: '수면 고착', fullTitle: '취침 직전 15분 해마 수면 고착 (Sleep Memory Replay)', icon: '🌙' },
-    };
 
     const [protocolCategory, setProtocolCategory] = useState<'all' | 'core' | 'boost'>('all');
     const [activeProtocolTab, setActiveProtocolTab] = useState<ProtocolId>('p1');
     const [selectedTargetHabit, setSelectedTargetHabit] = useState<string>('habit-01');
     const [isRoutineRunning, setIsRoutineRunning] = useState(false);
     const [timerSeconds, setTimerSeconds] = useState(25 * 60);
-    const [successStreak, setSuccessStreak] = useState(7);
-    const [todayCompleted, setTodayCompleted] = useState(false);
+    const [successStreak, setSuccessStreak] = useState(() => loadStored('successStreak', 0));
+    const [todayCompleted, setTodayCompleted] = useState(
+        () => loadStored('todayCompleted', false) && storedLastActiveDate === todayStr
+    );
 
     // [프로토콜 1] 물리 차단 & 점진 힌트
-    const [pledgeChecked, setPledgeChecked] = useState(false);
-    const [distanceChecked, setDistanceChecked] = useState(false);
+    const [pledgeChecked, setPledgeChecked] = useState(() => loadStored('pledgeChecked', false));
+    const [distanceChecked, setDistanceChecked] = useState(() => loadStored('distanceChecked', false));
     const [hintLevel, setHintLevel] = useState<1 | 2 | 3>(1);
 
     // [프로토콜 2] IF-THEN 조건반사 스위치
-    const [ifSituation, setIfSituation] = useState('수학/과탐 난문에서 3분간 막혀 답지를 열고 싶을 때');
-    const [thenReaction, setThenReaction] = useState('즉시 샤프를 내려놓고 이면지에 문제 핵심 조건 3가지를 동그라미 치며 2분간 말로 설명한다');
+    const [ifSituation, setIfSituation] = useState('');
+    const [thenReaction, setThenReaction] = useState('');
     const [sosTriggered, setSosTriggered] = useState(false);
 
     // [프로토콜 3] 60초 마이크로 리콜 & 파인만 인출기
@@ -213,43 +98,307 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
     const [isAnalyzingRecall, setIsAnalyzingRecall] = useState(false);
 
     // [프로토콜 4] 도파민 연속 스트릭 & 손실 회피 금고
-    const [dopamineStreak, setDopamineStreak] = useState(7);
-    const [dopaminePoints, setDopaminePoints] = useState(1450);
-    const [isStreakProtected, setIsStreakProtected] = useState(true);
+    const [dopamineStreak, setDopamineStreak] = useState(() => loadStored('dopamineStreak', 0));
+    const [dopaminePoints, setDopaminePoints] = useState(() => loadStored('dopaminePoints', 0));
+    const [isStreakProtected, setIsStreakProtected] = useState(() => loadStored('isStreakProtected', false));
+    const [streakFrozen, setStreakFrozen] = useState(() => loadStored('streakFrozen', false));
     const [streakNotice, setStreakNotice] = useState(false);
 
     // [프로토콜 5] 학부모 실시간 안심 동기화 루프
-    const [parentSyncSent, setParentSyncSent] = useState(false);
+    const [parentSyncSent, setParentSyncSent] = useState(() => loadStored('parentSyncSent', false));
+    const [parentSyncLog, setParentSyncLog] = useState<{ at: string; text: string }[]>(() => loadStored('parentSyncLog', []));
     const [parentNoticeToast, setParentNoticeToast] = useState(false);
 
     // [프로토콜 6] 3분 생리학적 한숨 & HRV 리셋
     const [isSighRunning, setIsSighRunning] = useState(false);
     const [sighSeconds, setSighSeconds] = useState(180);
     const [sighPhase, setSighPhase] = useState<'inhale1' | 'inhale2' | 'exhale'>('inhale1');
-    const [hrvStatus, setHrvStatus] = useState<number>(55); // 55% -> 98%
+    const [hrvStatus, setHrvStatus] = useState<number>(0); // 타이머 진행률 표시용 (생체 측정값 아님)
 
     // [프로토콜 7] 3색 뇌신경 오답 분해기
     const [redTrap, setRedTrap] = useState('');
     const [yellowMissing, setYellowMissing] = useState('');
     const [greenAction, setGreenAction] = useState('');
-    const [savedErrorCount, setSavedErrorCount] = useState(2);
+    const [p7Subject, setP7Subject] = useState('공통');
+    const [savedErrorCount, setSavedErrorCount] = useState(() => loadStored('savedErrorCount', 0));
     const [errorSavedNotice, setErrorSavedNotice] = useState(false);
 
     // [프로토콜 8] 시각 터널링 & 모노태스킹 블랙아웃
     const [isBlackoutActive, setIsBlackoutActive] = useState(false);
-    const [blackoutDeskChecked, setBlackoutDeskChecked] = useState(false);
+    const [blackoutDeskChecked, setBlackoutDeskChecked] = useState(() => loadStored('blackoutDeskChecked', false));
     const [blackoutTimer, setBlackoutTimer] = useState(25 * 60);
     const [isBlackoutRunning, setIsBlackoutRunning] = useState(false);
     const [blackoutConcept, setBlackoutConcept] = useState('');
 
     // [프로토콜 9] 울트라디안 90분 피크-딥 과목 매칭
-    const [chronotype, setChronotype] = useState<'LARK' | 'OWL'>('LARK');
-    const [isUltradianApplied, setIsUltradianApplied] = useState(false);
+    const [chronotype, setChronotype] = useState<'LARK' | 'OWL'>(() => loadStored('chronotype', 'LARK'));
+    const [isUltradianApplied, setIsUltradianApplied] = useState(() => loadStored('isUltradianApplied', false));
 
     // [프로토콜 10] 취침 직전 15분 해마 수면 고착
-    const [sleepPledgeChecked, setSleepPledgeChecked] = useState(true);
+    const [sleepPledgeChecked, setSleepPledgeChecked] = useState(() => loadStored('sleepPledgeChecked', false));
     const [sleepReplayActive, setSleepReplayActive] = useState(false);
     const [replayCardIndex, setReplayCardIndex] = useState(0);
+    // p10 리플레이: 저장된 오답노트 최신순 (없으면 일반 가이드 카드)
+    const [replayNotes, setReplayNotes] = useState<{ title: string; text: string }[]>([]);
+    useEffect(() => {
+        try {
+            const notes = unifiedSyncService.getWrongNotes<any>([], student?.id) || [];
+            const mapped = notes.slice(0, 5).map((n: any) => ({
+                title: `[${n.subject || '공통'}] ${n.questionTitle || '오답 복습'}`,
+                text: n.metacognitiveNote?.actionRule || n.explanation || '핵심 조건을 다시 확인하고 백지에서 재풀이해보세요.'
+            }));
+            setReplayNotes(mapped);
+            setReplayCardIndex(0);
+        } catch { /* 조회 실패 무시 */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [student?.id]);
+
+    // Habit 진행 상태 저장 (학생별, 새로고침·재방문 연속성 보장)
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(progressKey);
+            const prev = raw ? (JSON.parse(raw) as any) : {};
+            localStorage.setItem(progressKey, JSON.stringify({
+                checkedIds,
+                successStreak,
+                todayCompleted,
+                pledgeChecked,
+                distanceChecked,
+                dopamineStreak,
+                dopaminePoints,
+                isStreakProtected,
+                parentSyncSent,
+                savedErrorCount,
+                blackoutDeskChecked,
+                chronotype,
+                isUltradianApplied,
+                sleepPledgeChecked,
+                lastActiveDate: todayStr,
+                adherenceRecorded: prev?.adherenceRecorded || [],
+                parentSyncLog,
+                streakFrozen,
+                savedAt: new Date().toISOString()
+            }));
+        } catch { /* 저장 실패 무시 */ }
+    }, [progressKey, checkedIds, successStreak, todayCompleted, pledgeChecked, distanceChecked, dopamineStreak, dopaminePoints, isStreakProtected, streakFrozen, parentSyncSent, parentSyncLog, savedErrorCount, blackoutDeskChecked, chronotype, isUltradianApplied, sleepPledgeChecked]);
+
+    // 학생 전환 시 해당 학생의 저장 상태로 재로드
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(progressKey);
+            const s = raw ? JSON.parse(raw) : {};
+            const isToday = (s.lastActiveDate || '') === todayStr;
+            if (Array.isArray(s.checkedIds)) setCheckedIds(s.checkedIds);
+            if (typeof s.successStreak === 'number') setSuccessStreak(s.successStreak);
+            setTodayCompleted(s.todayCompleted === true && isToday);
+            if (typeof s.pledgeChecked === 'boolean') setPledgeChecked(s.pledgeChecked);
+            if (typeof s.distanceChecked === 'boolean') setDistanceChecked(s.distanceChecked);
+            if (typeof s.dopamineStreak === 'number') setDopamineStreak(s.dopamineStreak);
+            if (typeof s.dopaminePoints === 'number') setDopaminePoints(s.dopaminePoints);
+            if (typeof s.isStreakProtected === 'boolean') setIsStreakProtected(s.isStreakProtected);
+            if (typeof s.streakFrozen === 'boolean') setStreakFrozen(s.streakFrozen);
+            if (typeof s.parentSyncSent === 'boolean') setParentSyncSent(s.parentSyncSent);
+            if (typeof s.savedErrorCount === 'number') setSavedErrorCount(s.savedErrorCount);
+            if (typeof s.blackoutDeskChecked === 'boolean') setBlackoutDeskChecked(s.blackoutDeskChecked);
+            if (s.chronotype === 'LARK' || s.chronotype === 'OWL') setChronotype(s.chronotype);
+            if (Array.isArray(s.parentSyncLog)) setParentSyncLog(s.parentSyncLog.filter((e: any) => e && typeof e.at === 'string').slice(-30));
+            if (typeof s.isUltradianApplied === 'boolean') setIsUltradianApplied(s.isUltradianApplied);
+            if (typeof s.sleepPledgeChecked === 'boolean') setSleepPledgeChecked(s.sleepPledgeChecked);
+        } catch { /* 저장 읽기 실패 무시 */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [progressKey]);
+
+    // Habit 서버 동기화 (게이미피케이션 패턴 재사용: 서버 우선·로컬 미러 폴백 + 필드별 LWW)
+    // - 진입 시 pull 1회, 변경 시 push (Realtime 제외)
+    // - 페이로드는 {값, 시각} 형태, pull 시 필드별 최신 승리
+    useEffect(() => {
+        let cancelled = false;
+        setHabitPulled(false);
+        if (!habitServerId) { setHabitPulled(true); return; }
+        (async () => {
+            try {
+                const remote = await unifiedSyncService.getHabitProgress(habitServerId);
+                if (cancelled) return;
+                let localRaw: any = {};
+                try { localRaw = JSON.parse(localStorage.getItem(progressKey) || '{}'); } catch { localRaw = {}; }
+                const savedAt = typeof localRaw.savedAt === 'string' ? localRaw.savedAt : new Date(0).toISOString();
+                const stamp = (v: unknown): { v: unknown; at: string } => ({ v, at: savedAt });
+                const localFields: Record<string, { v: unknown; at: string }> = {
+                    checkedIds: stamp(Array.isArray(localRaw.checkedIds) ? localRaw.checkedIds : []),
+                    successStreak: stamp(typeof localRaw.successStreak === 'number' ? localRaw.successStreak : 0),
+                    todayCompleted: stamp(localRaw.todayCompleted === true),
+                    pledgeChecked: stamp(localRaw.pledgeChecked === true),
+                    distanceChecked: stamp(localRaw.distanceChecked === true),
+                    dopamineStreak: stamp(typeof localRaw.dopamineStreak === 'number' ? localRaw.dopamineStreak : 0),
+                    dopaminePoints: stamp(typeof localRaw.dopaminePoints === 'number' ? localRaw.dopaminePoints : 0),
+                    isStreakProtected: stamp(localRaw.isStreakProtected === true),
+                    streakFrozen: stamp(localRaw.streakFrozen === true),
+                    parentSyncSent: stamp(localRaw.parentSyncSent === true),
+                    parentSyncLog: stamp(Array.isArray(localRaw.parentSyncLog) ? localRaw.parentSyncLog : []),
+                    savedErrorCount: stamp(typeof localRaw.savedErrorCount === 'number' ? localRaw.savedErrorCount : 0),
+                    blackoutDeskChecked: stamp(localRaw.blackoutDeskChecked === true),
+                    chronotype: stamp(localRaw.chronotype === 'OWL' ? 'OWL' : 'LARK'),
+                    isUltradianApplied: stamp(localRaw.isUltradianApplied === true),
+                    sleepPledgeChecked: stamp(localRaw.sleepPledgeChecked === true),
+                    lastActiveDate: stamp(typeof localRaw.lastActiveDate === 'string' ? localRaw.lastActiveDate : ''),
+                    adherenceRecorded: stamp(Array.isArray(localRaw.adherenceRecorded) ? localRaw.adherenceRecorded : []),
+                };
+                const merged = unifiedSyncService.mergeHabitProgress(localFields, remote || {});
+                habitFieldsRef.current = merged;
+                const val = <T,>(k: string, fallback: T): T => {
+                    const e = merged[k];
+                    return (e && 'v' in e && e.v !== undefined ? e.v : fallback) as T;
+                };
+                const mergedLastActive = val<string>('lastActiveDate', '');
+                const isToday = mergedLastActive === todayStr;
+                setCheckedIds(val<string[]>('checkedIds', []));
+                setSuccessStreak(val<number>('successStreak', 0));
+                setTodayCompleted(val<boolean>('todayCompleted', false) && isToday);
+                setPledgeChecked(val<boolean>('pledgeChecked', false));
+                setDistanceChecked(val<boolean>('distanceChecked', false));
+                setDopamineStreak(val<number>('dopamineStreak', 0));
+                setDopaminePoints(val<number>('dopaminePoints', 0));
+                setIsStreakProtected(val<boolean>('isStreakProtected', false));
+                setStreakFrozen(val<boolean>('streakFrozen', false));
+                setParentSyncSent(val<boolean>('parentSyncSent', false));
+                const logs = val<{ at: string; text: string }[]>('parentSyncLog', []);
+                setParentSyncLog(Array.isArray(logs) ? logs.filter(e => e && typeof e.at === 'string').slice(-30) : []);
+                setSavedErrorCount(val<number>('savedErrorCount', 0));
+                setBlackoutDeskChecked(val<boolean>('blackoutDeskChecked', false));
+                const chrono = val<string>('chronotype', 'LARK');
+                setChronotype(chrono === 'OWL' ? 'OWL' : 'LARK');
+                setIsUltradianApplied(val<boolean>('isUltradianApplied', false));
+                setSleepPledgeChecked(val<boolean>('sleepPledgeChecked', false));
+                try {
+                    const raw = localStorage.getItem(progressKey);
+                    const prev = raw ? (JSON.parse(raw) as any) : {};
+                    localStorage.setItem(progressKey, JSON.stringify({
+                        ...prev,
+                        checkedIds: val('checkedIds', prev.checkedIds || []),
+                        successStreak: val('successStreak', prev.successStreak || 0),
+                        todayCompleted: val('todayCompleted', prev.todayCompleted || false) && isToday,
+                        pledgeChecked: val('pledgeChecked', prev.pledgeChecked || false),
+                        distanceChecked: val('distanceChecked', prev.distanceChecked || false),
+                        dopamineStreak: val('dopamineStreak', prev.dopamineStreak || 0),
+                        dopaminePoints: val('dopaminePoints', prev.dopaminePoints || 0),
+                        isStreakProtected: val('isStreakProtected', prev.isStreakProtected || false),
+                        streakFrozen: val('streakFrozen', prev.streakFrozen || false),
+                        parentSyncSent: val('parentSyncSent', prev.parentSyncSent || false),
+                        parentSyncLog: val('parentSyncLog', prev.parentSyncLog || []),
+                        savedErrorCount: val('savedErrorCount', prev.savedErrorCount || 0),
+                        blackoutDeskChecked: val('blackoutDeskChecked', prev.blackoutDeskChecked || false),
+                        chronotype: val('chronotype', prev.chronotype || 'LARK'),
+                        isUltradianApplied: val('isUltradianApplied', prev.isUltradianApplied || false),
+                        sleepPledgeChecked: val('sleepPledgeChecked', prev.sleepPledgeChecked || false),
+                        adherenceRecorded: val('adherenceRecorded', prev.adherenceRecorded || []),
+                    }));
+                } catch { /* 미러 갱신 실패 무시 */ }
+            } catch { /* pull 실패 시 로컬 유지 */ }
+            if (!cancelled) setHabitPulled(true);
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [progressKey, habitServerId]);
+
+    // Habit 변경 시 push (pull 완료 후, 800ms 디바운스, 변경 필드만 at 갱신)
+    useEffect(() => {
+        if (!habitPulled || !habitServerId) return;
+        const same = (a: unknown, b: unknown): boolean => {
+            try { return JSON.stringify(a) === JSON.stringify(b); } catch { return a === b; }
+        };
+        const timer = setTimeout(() => {
+            try {
+                const now = new Date().toISOString();
+                const prev = habitFieldsRef.current || {};
+                const next: Record<string, { v: unknown; at: string }> = {};
+                const put = (k: string, v: unknown) => {
+                    const old = prev[k];
+                    next[k] = (old && 'v' in old && same(old.v, v)) ? old : { v, at: now };
+                };
+                let rawAdherence: unknown = [];
+                try { rawAdherence = (JSON.parse(localStorage.getItem(progressKey) || '{}') as any)?.adherenceRecorded || []; } catch { rawAdherence = []; }
+                put('checkedIds', checkedIds);
+                put('successStreak', successStreak);
+                put('todayCompleted', todayCompleted);
+                put('pledgeChecked', pledgeChecked);
+                put('distanceChecked', distanceChecked);
+                put('dopamineStreak', dopamineStreak);
+                put('dopaminePoints', dopaminePoints);
+                put('isStreakProtected', isStreakProtected);
+                put('streakFrozen', streakFrozen);
+                put('parentSyncSent', parentSyncSent);
+                put('parentSyncLog', parentSyncLog);
+                put('savedErrorCount', savedErrorCount);
+                put('blackoutDeskChecked', blackoutDeskChecked);
+                put('chronotype', chronotype);
+                put('isUltradianApplied', isUltradianApplied);
+                put('sleepPledgeChecked', sleepPledgeChecked);
+                put('lastActiveDate', todayStr);
+                put('adherenceRecorded', rawAdherence);
+                let changed = false;
+                for (const k of Object.keys(next)) {
+                    if (next[k] !== prev[k]) { changed = true; break; }
+                }
+                if (!changed) return;
+                habitFieldsRef.current = next;
+                unifiedSyncService.saveHabitProgress(habitServerId, next).catch(() => {});
+            } catch { /* push 실패 무시 (로컬 유지) */ }
+        }, 800);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [habitPulled, habitServerId, progressKey, checkedIds, successStreak, todayCompleted, pledgeChecked, distanceChecked, dopamineStreak, dopaminePoints, isStreakProtected, streakFrozen, parentSyncSent, parentSyncLog, savedErrorCount, blackoutDeskChecked, chronotype, isUltradianApplied, sleepPledgeChecked]);
+
+    // Habit 실천 → 진단 이행률(completedExpertGuideItems) 기록 (대시보드 %와 연결)
+    // - 최신 진단 1건에만 'habit:pN' 태그 추가, 중복 방지 (새로고침·재방문 시 1회만)
+    const recordHabitAdherence = (key: string) => {
+        try {
+            if (!history || history.length === 0) return;
+            const sorted = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const latest: any = sorted[0];
+            if (!latest) return;
+            const items: string[] = Array.isArray(latest.completedExpertGuideItems) ? [...latest.completedExpertGuideItems] : [];
+            const tag = `habit:${key}`;
+            if (items.includes(tag)) return false;
+            items.push(tag);
+            unifiedSyncService.updateHistory({ ...latest, completedExpertGuideItems: items }).catch(() => {});
+            return true;
+        } catch { return false; }
+    };
+
+    const habitCompletionKeys = useMemo(() => {
+        const keys: string[] = [];
+        if (pledgeChecked || distanceChecked) keys.push('p1');
+        if (sosTriggered) keys.push('p2');
+        if (recallScore !== null) keys.push('p3');
+        if (todayCompleted) keys.push('p4');
+        if (parentSyncSent) keys.push('p5');
+        if (sighSeconds < 180) keys.push('p6');
+        if (savedErrorCount > 0) keys.push('p7');
+        if (blackoutDeskChecked || isBlackoutActive) keys.push('p8');
+        if (isUltradianApplied) keys.push('p9');
+        if (sleepPledgeChecked) keys.push('p10');
+        return keys;
+    }, [pledgeChecked, distanceChecked, sosTriggered, recallScore, todayCompleted, parentSyncSent, sighSeconds, savedErrorCount, blackoutDeskChecked, isBlackoutActive, isUltradianApplied, sleepPledgeChecked]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(progressKey);
+            const recorded: string[] = (raw ? (JSON.parse(raw) as any)?.adherenceRecorded : undefined) || [];
+            const pending = habitCompletionKeys.filter(k => !recorded.includes(k));
+            if (pending.length === 0) return;
+            let wrote = false;
+            for (const k of pending) {
+                if (recordHabitAdherence(k)) {
+                    recorded.push(k);
+                    wrote = true;
+                }
+            }
+            if (wrote && raw) {
+                localStorage.setItem(progressKey, JSON.stringify({ ...(JSON.parse(raw) as any), adherenceRecorded: recorded }));
+            }
+        } catch { /* 기록 실패 무시 */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [habitCompletionKeys]);
 
     // 10대 프로토콜 가동 개수 및 기대 점수 계산
     const activeProtocolsCount = 
@@ -265,95 +414,60 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
         (sleepPledgeChecked ? 1 : 0);
 
     const boostMap: Record<number, { score: string; hours: string; tierBenefit: string }> = {
-        0: { score: '+4~6점', hours: '+1.5시간', tierBenefit: '1개 등급 상승 기반 확보' },
-        1: { score: '+6~8점', hours: '+1.8시간', tierBenefit: '가짜 공부 차단, 1개 등급 상승' },
-        2: { score: '+10~13점', hours: '+2.2시간', tierBenefit: '시험장 당황 방지, 1.5개 등급 상승' },
-        3: { score: '+14~17점', hours: '+2.6시간', tierBenefit: '장기기억 고착 회로 가동, 1.5개 등급 도약' },
-        4: { score: '+18~21점', hours: '+3.0시간', tierBenefit: '작심삼일 탈피, 2개 등급 수직 상승' },
-        5: { score: '+22~25점', hours: '+3.4시간', tierBenefit: '시험 불안 60% 차단, 준킬러 정복' },
-        6: { score: '+25~28점', hours: '+3.7시간', tierBenefit: '자율신경 평정심, 킬러 2문항 추가 확보' },
-        7: { score: '+28~31점', hours: '+4.0시간', tierBenefit: '오답 변형 완전 정복, 최상위권 안착' },
-        8: { score: '+30~33점', hours: '+4.2시간', tierBenefit: '시각 노이즈 제로, 독해 속도 20% 단축' },
-        9: { score: '+32~35점', hours: '+4.5시간', tierBenefit: '두뇌 생체리듬 극대화, 전 과목 1등급' },
-        10: { score: '+35~38점 수직 상승!', hours: '+5.0시간 이상', tierBenefit: '전 과목 만점/의치한약수·SKY 합격선 돌파' }
+        0: { score: '+4~6점 목표', hours: '+1.5시간', tierBenefit: '1개 등급 상승 기반 마련' },
+        1: { score: '+6~8점 목표', hours: '+1.8시간', tierBenefit: '가짜 공부 줄이기, 1개 등급 상승 기대' },
+        2: { score: '+10~13점 목표', hours: '+2.2시간', tierBenefit: '시험장 당황 줄이기, 등급 향상 기대' },
+        3: { score: '+14~17점 목표', hours: '+2.6시간', tierBenefit: '장기기억 고착 돕기, 등급 향상 기대' },
+        4: { score: '+18~21점 목표', hours: '+3.0시간', tierBenefit: '작심삼일 줄이기, 등급 향상 기대' },
+        5: { score: '+22~25점 목표', hours: '+3.4시간', tierBenefit: '시험 불안 완화 돕기, 준킬러 도전' },
+        6: { score: '+25~28점 목표', hours: '+3.7시간', tierBenefit: '자율신경 안정 돕기, 킬러 추가 정답 기대' },
+        7: { score: '+28~31점 목표', hours: '+4.0시간', tierBenefit: '오답 변형 줄이기, 상위권 안정 기대' },
+        8: { score: '+30~33점 목표', hours: '+4.2시간', tierBenefit: '시각 노이즈 줄이기, 독해 속도 개선 기대' },
+        9: { score: '+32~35점 목표', hours: '+4.5시간', tierBenefit: '두뇌 생체리듬 돕기, 전 과목 1등급 기대' },
+        10: { score: '+35~38점 목표', hours: '+5.0시간 이상', tierBenefit: '전 과목 고득점 기대' }
     };
     const currentBoost = boostMap[activeProtocolsCount] || boostMap[10];
 
-    // 12대 CareType 종합진단 연계 파이프라인 분석 및 AI 추천 매칭 엔진
-    const latestAssessment = history && history.length > 0 ? history[history.length - 1] : null;
-    const rawCareTypeStr = (latestAssessment?.careType || latestAssessment?.dominantCareType || 'Brain Fatigue').toString();
 
-    type ClinicalPattern = 'FATIGUE' | 'DISTRACTION' | 'ANXIETY' | 'SURFACE_STUDY';
-    let pattern: ClinicalPattern = 'FATIGUE';
-    let careTypeDisplay = '두뇌 피로형 (Brain Fatigue)';
-
-    if (rawCareTypeStr.includes('Attention') || rawCareTypeStr.includes('Hypersensitive') || rawCareTypeStr.includes('산만')) {
-        pattern = 'DISTRACTION';
-        careTypeDisplay = '주의력 산만 & 도파민 갈망형';
-    } else if (rawCareTypeStr.includes('Anxiety') || rawCareTypeStr.includes('Stress') || rawCareTypeStr.includes('긴장') || rawCareTypeStr.includes('불안')) {
-        pattern = 'ANXIETY';
-        careTypeDisplay = '불안-긴장 과민형 (Anxiety-Tension)';
-    } else if (rawCareTypeStr.includes('Depression') || rawCareTypeStr.includes('Concentration') || rawCareTypeStr.includes('Amotivation') || rawCareTypeStr.includes('무기력')) {
-        pattern = 'SURFACE_STUDY';
-        careTypeDisplay = '가짜 공부 & 표면 처리형 (Surface Study)';
-    } else {
-        pattern = 'FATIGUE';
-        careTypeDisplay = '두뇌 피로 & 에너지 방전형 (Brain Fatigue)';
-    }
-
-    interface PipelineRecommendation {
-        primaryId: ProtocolId;
-        primaryTitle: string;
-        primaryGain: string;
-        primaryScore: string;
-        secondaryIds: ProtocolId[];
-        secondaryTitle: string;
-        secondaryCumulativeGain: string;
-        secondaryScore: string;
-    }
-
-    const pipelineMap: Record<ClinicalPattern, PipelineRecommendation> = {
-        FATIGUE: {
-            primaryId: 'p6',
-            primaryTitle: '방법 6: 🫁 3분 생리학적 한숨 & 자율신경 리셋',
-            primaryGain: '전두엽 포도당 대사 고갈로 인한 만성 인지 방전 즉각 차단. 멍때리는 가짜 공부 45분 회복 및 시험장 뇌 정지(Brain Freeze) 80% 차단',
-            primaryScore: '+6~8점 확보 (1개 등급 상승 발판)',
-            secondaryIds: ['p9', 'p10', 'p1'],
-            secondaryTitle: '방법 9(울트라디안 피크-딥) + 방법 10(수면 리플레이) + 방법 1(물리 차단)',
-            secondaryCumulativeGain: '두뇌 바이오리듬 최적화 + 밤사이 해마 장기기억 고착으로 일일 순공 3.5시간 이상 순도 100% 회복',
-            secondaryScore: '총 +22~26점 수직 상승! (2개 등급 도약, 목표 대학 합격선 돌파)'
-        },
-        DISTRACTION: {
-            primaryId: 'p1',
-            primaryTitle: '방법 1: 🔒 3단계 물리적 차단 & 점진적 힌트 오픈',
-            primaryGain: '시각 자극 3m 격리로 충동적 도파민 열람 70% 억제. 답지 확인 욕구 원천 봉쇄 및 킬러 문항 사유 지구력 2배 증대',
-            primaryScore: '+6~8점 확보 (킬러 1~2문항 추가 정답)',
-            secondaryIds: ['p8', 'p4', 'p2'],
-            secondaryTitle: '방법 8(시각 터널링 블랙아웃) + 방법 4(도파민 스트릭) + 방법 2(IF-THEN)',
-            secondaryCumulativeGain: '시각 피질 분산 0% 통제 + 손실 회피 심리로 작심삼일 영구 박멸, 일일 낭비 시간 3시간 즉각 회수',
-            secondaryScore: '총 +24~28점 수직 상승! (1~2등급 도약)'
-        },
-        ANXIETY: {
-            primaryId: 'p2',
-            primaryTitle: '방법 2: 🧠 IF-THEN 신경망 조건반사 스위치',
-            primaryGain: '난문 마주할 때 편도체 공포 반응 및 멘탈 붕괴 85% 차단. 무의식적 10초 대체 행동 자동 실행으로 당황 실수 완벽 방어',
-            primaryScore: '+6~8점 확보 (시간 부족·마킹 실수 0건)',
-            secondaryIds: ['p6', 'p5', 'p7'],
-            secondaryTitle: '방법 6(자율신경 호흡) + 방법 5(학부모 안심 동기화) + 방법 7(3색 오답)',
-            secondaryCumulativeGain: '시험 당일 긴장성 복통/두통 제로화 및 가정 내 잔소리 갈등 80% 감소로 심리적 평정심 극대화',
-            secondaryScore: '총 +22~27점 수직 상승! (최상위권 안정 진입)'
-        },
-        SURFACE_STUDY: {
-            primaryId: 'p3',
-            primaryTitle: '방법 3: 🎙️ 60초 마이크로 리콜 & 파인만 인출기',
-            primaryGain: '눈으로 보는 가짜 숙달 효과(Fluency Illusion) 파괴. 30분 공부 후 60초 인출로 해마 LTP 가동하여 개념 혼동 실수 완벽 제거',
-            primaryScore: '+7~9점 확보 (신유형 문항 완벽 격파)',
-            secondaryIds: ['p7', 'p10', 'p1'],
-            secondaryTitle: '방법 7(3색 오답 분해) + 방법 10(수면 리플레이) + 방법 1(물리 차단)',
-            secondaryCumulativeGain: '단순 베껴 쓰기 영구 박멸, 3색 메타인지 & 밤샘 수면 고착으로 장기기억 보존율 8배 증폭',
-            secondaryScore: '총 +24~30점 수직 상승! (2개 등급 수직 점프)'
+    // 12대 CareType 종합진단 연계 + 1단계 체크 습관 반영 추천
+    // - 최신 진단 1건 선택 (날짜 내림차순, classificationResult.primary 우선)
+    const latestAssessment = useMemo(() => {
+        if (!history || history.length === 0) return null;
+        const sorted = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return sorted.find(r => r.classificationResult?.primary && r.classificationResult.primary !== CareType.UNASSESSED)
+            || sorted.find(r => r.careType && (r.careType as string) !== CareType.UNASSESSED)
+            || sorted[0];
+    }, [history]);
+    const resolvedCareType: string =
+        latestAssessment?.classificationResult?.primary?.toString()
+        || latestAssessment?.careType?.toString()
+        || latestAssessment?.dominantCareType?.toString()
+        || 'Brain Fatigue';
+    const carePattern: ClinicalPattern = PATTERN_BY_CARETYPE[resolvedCareType] || 'FATIGUE';
+    // 1단계에서 체크한 나쁜 습관의 다수결 패턴 (체크가 있으면 진단 패턴보다 우선)
+    const habitVotedPattern = useMemo<ClinicalPattern | null>(() => {
+        if (checkedIds.length === 0) return null;
+        const votes: Record<ClinicalPattern, number> = { FATIGUE: 0, DISTRACTION: 0, ANXIETY: 0, SURFACE_STUDY: 0 };
+        for (const id of checkedIds) {
+            const p = HABIT_PATTERN_MAP[id];
+            if (p) votes[p] += 1;
         }
-    };
+        let best: ClinicalPattern = carePattern;
+        let bestCount = 0;
+        (Object.keys(votes) as ClinicalPattern[]).forEach(k => {
+            if (votes[k] > bestCount) { bestCount = votes[k]; best = k; }
+        });
+        return bestCount > 0 ? best : null;
+    }, [checkedIds, carePattern]);
+    const pattern: ClinicalPattern = habitVotedPattern || carePattern;
+    const habitBased = habitVotedPattern !== null;
+    const careTypeDisplay = pattern === 'DISTRACTION'
+        ? '주의력 산만 & 도파민 갈망형'
+        : pattern === 'ANXIETY'
+            ? '불안-긴장 과민형 (Anxiety-Tension)'
+            : pattern === 'SURFACE_STUDY'
+                ? '가짜 공부 & 표면 처리형 (Surface Study)'
+                : '두뇌 피로 & 에너지 방전형 (Brain Fatigue)';
 
     const currentRec = pipelineMap[pattern];
 
@@ -363,70 +477,99 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
         }
     }, [pattern]);
 
-    // 생리학적 한숨 (Physiological Sigh) 3분 타이머
+    // 생리학적 한숨 (Physiological Sigh) 3분 타이머 (종료시각 기준, 백그라운드 throttle 영향 없음)
+    const sighEndRef = useRef<number>(0);
     useEffect(() => {
-        let sighInterval: any = null;
-        if (isSighRunning && sighSeconds > 0) {
-            sighInterval = setInterval(() => {
-                setSighSeconds(prev => {
-                    const next = prev - 1;
-                    const elapsed = 180 - next;
-                    const cycleSec = elapsed % 9;
-                    if (cycleSec < 2) {
-                        setSighPhase('inhale1');
-                    } else if (cycleSec < 3) {
-                        setSighPhase('inhale2');
-                    } else {
-                        setSighPhase('exhale');
-                    }
-                    setHrvStatus(h => Math.min(99, Math.round((h + 0.3) * 10) / 10));
-                    return next;
-                });
-            }, 1000);
-        } else if (sighSeconds === 0) {
-            setIsSighRunning(false);
-            setHrvStatus(99);
-            alert('🫁 3분 생리학적 한숨 리셋 완료! 자율신경계가 안정화되고 전두엽 혈류가 30% 복원되었습니다.');
-        }
-        return () => clearInterval(sighInterval);
-    }, [isSighRunning, sighSeconds]);
+        if (!isSighRunning) return;
+        if (sighSeconds <= 0) { setIsSighRunning(false); return; }
+        sighEndRef.current = Date.now() + sighSeconds * 1000;
+        const iv = setInterval(() => {
+            const left = Math.max(0, Math.round((sighEndRef.current - Date.now()) / 1000));
+            const elapsed = 180 - left;
+            const cycleSec = elapsed % 9;
+            setSighPhase(cycleSec < 2 ? 'inhale1' : cycleSec < 3 ? 'inhale2' : 'exhale');
+            setHrvStatus(Math.min(100, Math.round((elapsed / 180) * 1000) / 10));
+            setSighSeconds(left);
+            if (left <= 0) {
+                clearInterval(iv);
+                setIsSighRunning(false);
+                setHrvStatus(100);
+                pushToast('🫁 3분 생리학적 한숨 리셋 완료! 수고하셨습니다.');
+            }
+        }, 500);
+        return () => clearInterval(iv);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSighRunning]);
 
-    // [프로토콜 8] 시각 터널링 블랙아웃 타이머
+    // [프로토콜 8] 시각 터널링 블랙아웃 타이머 (종료시각 기준)
+    const blackoutEndRef = useRef<number>(0);
     useEffect(() => {
-        let bInterval: any = null;
-        if (isBlackoutRunning && blackoutTimer > 0) {
-            bInterval = setInterval(() => {
-                setBlackoutTimer(prev => prev - 1);
-            }, 1000);
-        } else if (blackoutTimer === 0) {
-            setIsBlackoutRunning(false);
-            alert('🌑 시각 터널링 25분 초집중 완료! 시각 피질 주의 잔류물 0% 통제에 성공했습니다.');
-        }
-        return () => clearInterval(bInterval);
-    }, [isBlackoutRunning, blackoutTimer]);
+        if (!isBlackoutRunning) return;
+        if (blackoutTimer <= 0) { setIsBlackoutRunning(false); return; }
+        blackoutEndRef.current = Date.now() + blackoutTimer * 1000;
+        const iv = setInterval(() => {
+            const left = Math.max(0, Math.round((blackoutEndRef.current - Date.now()) / 1000));
+            setBlackoutTimer(left);
+            if (left <= 0) {
+                clearInterval(iv);
+                setIsBlackoutRunning(false);
+                pushToast('🌑 시각 터널링 25분 초집중 완료! 수고하셨습니다.');
+            }
+        }, 500);
+        return () => clearInterval(iv);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isBlackoutRunning]);
 
     const handleAnalyzeRecall = () => {
         if (!recallInput.trim()) {
-            alert('인출할 핵심 개념이나 요약 내용을 작성해주세요.');
+            pushToast('인출할 핵심 개념이나 요약 내용을 작성해주세요.');
             return;
         }
         setIsAnalyzingRecall(true);
         setTimeout(() => {
             setIsAnalyzingRecall(false);
-            const words = recallInput.trim().split(/\s+/).length;
-            const calculated = Math.min(98, Math.max(82, 75 + words * 2));
-            setRecallScore(calculated);
+            const words = recallInput.trim().split(/\s+/).filter(Boolean).length;
+            // 단어 수 기반 정확도 산출 금지 — 작성 완료 여부와 분량만 기록
+            setRecallScore(words);
         }, 600);
     };
 
     const handleSaveErrorNote = () => {
         if (!redTrap.trim() || !yellowMissing.trim() || !greenAction.trim()) {
-            alert('착각 지점(Red), 인출 실패(Yellow), 초동 조치(Green) 3가지를 모두 입력해주세요.');
+            pushToast('착각 지점(Red), 인출 실패(Yellow), 초동 조치(Green) 3가지를 모두 입력해주세요.');
             return;
+        }
+        // p7 → 정식 오답노트 연계 (복습 스케줄·AI플랜 파이프라인에 편입)
+        if (onSaveWrongNote) {
+            try {
+                const now = new Date();
+                const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+                onSaveWrongNote({
+                    id: `habit_p7_${Date.now()}`,
+                    subject: p7Subject,
+                    questionTitle: `[Habit 3색 분석] ${redTrap.trim().slice(0, 40)}`,
+                    wrongAnswer: redTrap.trim(),
+                    correctAnswer: greenAction.trim(),
+                    explanation: `[착각] ${redTrap.trim()}\n[놓친 단서] ${yellowMissing.trim()}\n[다음 행동] ${greenAction.trim()}`,
+                    difficulty: '중',
+                    errorType: 'CONCEPT',
+                    reviewStage: 0,
+                    nextReviewDate: tomorrow,
+                    isResolved: false,
+                    createdAt: now.toISOString(),
+                    metacognitiveNote: {
+                        misconception: redTrap.trim(),
+                        trapKeyword: yellowMissing.trim(),
+                        actionRule: greenAction.trim()
+                    }
+                });
+            } catch { /* 오답노트 저장 실패해도 카운터는 유지 */ }
         }
         setErrorSavedNotice(true);
         setTimeout(() => setErrorSavedNotice(false), 3000);
         setSavedErrorCount(prev => prev + 1);
+        // 동결 구제 티켓: 오답 1건 작성 시 동결 해제
+        if (streakFrozen) setStreakFrozen(false);
         setRedTrap('');
         setYellowMissing('');
         setGreenAction('');
@@ -444,31 +587,48 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
         return sum + (found?.wastedMinutesPerDay || 0);
     }, 0);
 
-    // 뽀모도로 타이머 카운트다운 (25분)
+    // 뽀모도로 타이머 카운트다운 (25분, 종료시각 기준)
+    const pomEndRef = useRef<number>(0);
     useEffect(() => {
-        let timer: any = null;
-        if (isRoutineRunning && timerSeconds > 0) {
-            timer = setInterval(() => setTimerSeconds(prev => prev - 1), 1000);
-        } else if (timerSeconds === 0) {
-            setIsRoutineRunning(false);
-            alert('🎉 25분 집중 교정 세션 완료! 나쁜 습관을 성공적으로 참아내셨나요?');
-        }
-        return () => clearInterval(timer);
-    }, [isRoutineRunning, timerSeconds]);
+        if (!isRoutineRunning) return;
+        if (timerSeconds <= 0) { setIsRoutineRunning(false); return; }
+        pomEndRef.current = Date.now() + timerSeconds * 1000;
+        const iv = setInterval(() => {
+            const left = Math.max(0, Math.round((pomEndRef.current - Date.now()) / 1000));
+            setTimerSeconds(left);
+            if (left <= 0) {
+                clearInterval(iv);
+                setIsRoutineRunning(false);
+                pushToast('🎉 25분 집중 교정 세션 완료! 나쁜 습관을 성공적으로 참아내셨나요?');
+            }
+        }, 500);
+        return () => clearInterval(iv);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isRoutineRunning]);
 
     const handleRunDiagnosis = () => {
         if (checkedIds.length === 0) {
-            alert('최소 1개 이상의 나쁜 습관을 선택해주세요.');
+            pushToast('최소 1개 이상의 나쁜 습관을 선택해주세요.');
             return;
         }
-        setIsDiagnosisSaved(true);
         setShowReportModal(true);
     };
 
     const handleSuccessCheck = () => {
+        // 일자별 1회 (중복 클릭·재호출 방어)
+        if (todayCompleted) return;
+        if (streakFrozen) {
+            pushToast('❄️ 현재 스트릭이 동결 중입니다. p7에서 오답 분석 1건을 저장하면 해제됩니다.');
+            return;
+        }
+        // 최소 1개 프로토콜 실천 검증 (보상-행동 일치)
+        if (activeProtocolsCount < 1) {
+            pushToast('먼저 10대 프로토콜 중 1개 이상을 실천한 뒤 완료를 기록해 주세요.');
+            return;
+        }
         setSuccessStreak(prev => prev + 1);
         setTodayCompleted(true);
-        alert('🏆 대단합니다! 오늘의 나쁜 습관을 성공적으로 봉인하여 전두엽 자제력이 한 단계 강화되었습니다!');
+        pushToast('🏆 오늘의 실천을 기록했습니다. 내일도 이어가 보세요!');
     };
 
     const handlePrintReport = () => {
@@ -499,16 +659,17 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px;">
                             <div style="font-size: 10px; font-weight: 800; color: #4338ca; margin-bottom: 2px;">🧠 뇌과학적 원인</div>
                             <div style="color: #475569; line-height: 1.4;">${h.brainCause}</div>
+                            ${(HABIT_SCIENCE_SOURCES[h.id] || []).length > 0 ? `<div style="font-size: 9px; color: #94a3b8; margin-top: 3px;">📚 관련 대표 연구: ${HABIT_SCIENCE_SOURCES[h.id].join(' · ')}</div>` : ''}
                         </div>
                         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px;">
                             <div style="font-size: 10px; font-weight: 800; color: #e11d48; margin-bottom: 2px;">⚡ 수능/성적 악영향</div>
                             <div style="color: #475569; line-height: 1.4; margin-bottom: 4px;">${h.impact}</div>
                             ${h.expectedScoreBoost ? `<div style="font-size: 9.5px; font-weight: 800; color: #d97706; background: #fef3c7; padding: 3px 6px; border-radius: 4px; border: 1px solid #fde68a;">${h.expectedScoreBoost}</div>` : ''}
                         </div>
-                        <div style="background: ${isPlusOrAbove ? '#f0fdf4' : '#fdf4ff'}; border: 1px solid ${isPlusOrAbove ? '#bbf7d0' : '#f0abfc'}; border-radius: 8px; padding: 7px;">
-                            <div style="font-size: 10px; font-weight: 800; color: ${isPlusOrAbove ? '#15803d' : '#86198f'}; margin-bottom: 2px;">💊 임상 교정 처방 (Rx) ${isPlusOrAbove ? '' : '[PLUS+ 전용]'}</div>
-                            <div style="color: ${isPlusOrAbove ? '#166534' : '#701a75'}; line-height: 1.4;">
-                                ${isPlusOrAbove ? h.prescription : '🔒 본 습관의 정밀 임상 처방전(Rx) 및 3단계 힌트 프로토콜은 PREMIUM PLUS 등급 전용입니다.'}
+                        <div style="background: ${isPremiumOrAbove ? '#f0fdf4' : '#fdf4ff'}; border: 1px solid ${isPremiumOrAbove ? '#bbf7d0' : '#f0abfc'}; border-radius: 8px; padding: 7px;">
+                            <div style="font-size: 10px; font-weight: 800; color: ${isPremiumOrAbove ? '#15803d' : '#86198f'}; margin-bottom: 2px;">💊 임상 교정 처방 (Rx) ${isPremiumOrAbove ? '' : '[PREMIUM 전용]'}</div>
+                            <div style="color: ${isPremiumOrAbove ? '#166534' : '#701a75'}; line-height: 1.4;">
+                                ${isPremiumOrAbove ? h.prescription : '🔒 본 습관의 정밀 임상 처방전(Rx) 및 3단계 힌트 프로토콜은 PREMIUM 등급 전용입니다.'}
                             </div>
                         </div>
                     </div>
@@ -574,9 +735,9 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                 <div style="font-size: 8.5px; color: #94a3b8;">한 달에 3~4일치 순공 증발</div>
                             </div>
                             <div style="background: rgba(255,255,255,0.06); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                                <div style="font-size: 9.5px; color: #cbd5e1;">수능 예측 등급 손실</div>
-                                <div style="font-size: 20px; font-weight: 900; color: #ef4444; font-family: monospace; margin: 2px 0;">-1.8 ~ -2.2등급</div>
-                                <div style="font-size: 8.5px; color: #94a3b8;">킬러문항 인출 실패 위험</div>
+                                <div style="font-size: 9.5px; color: #cbd5e1;">수능 예측 등급 영향</div>
+                                <div style="font-size: 20px; font-weight: 900; color: #ef4444; font-family: monospace; margin: 2px 0;">하락 위험</div>
+                                <div style="font-size: 8.5px; color: #94a3b8;">교정 실천으로 개선 기대 (개인차 있음)</div>
                             </div>
                         </div>
                     </div>
@@ -585,10 +746,10 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                     <div class="avoid-break" style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px;">
                         <div style="font-size: 11px; font-weight: 900; color: #312e81; margin-bottom: 3px;">✨ 12대 Care Type 신경계 메커니즘 연계 정밀 분석</div>
                         <p style="margin: 0; color: #334155; line-height: 1.45;">
-                            현재 수험생의 신경계는 <strong>[두뇌 피로형 &amp; 도파민 갈망 루프]</strong>에 진입해 있습니다.
-                            전두엽 배외측피질(DLPFC)의 글루코스(포도당) 대사가 급격히 떨어지면, 뇌는 생존을 위해 사고의 고통을 피하려는 방어 기제로
-                            <strong>"즉각적인 답지 열람"</strong>이나 <strong>"책상 정리 회피"</strong>, <strong>"숏폼·음악 멀티태스킹"</strong>을 유발합니다.
-                            이는 단순한 의지 부족이 아닌 <strong>신경생리학적 뇌 에너지 방전 신호</strong>입니다.
+                            현재 수험생의 신경계는 <strong>[두뇌 피로형 &amp; 도파민 갈망 루프]</strong>에 진입해 있을 수 있습니다.
+                            전두엽 배외측피질(DLPFC)의 에너지가 떨어지면, 뇌는 사고의 부담을 피하려는 방어 기제로
+                            <strong>"즉각적인 답지 열람"</strong>이나 <strong>"책상 정리 회피"</strong>, <strong>"숏폼·음악 멀티태스킹"</strong>을 택할 수 있습니다.
+                            이는 단순한 의지 부족이 아닌 <strong>신체·인지 피로 신호일 수 있습니다.</strong>
                         </p>
                     </div>
 
@@ -615,11 +776,9 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
         printWindow.document.close();
     };
 
-    const minutes = Math.floor(timerSeconds / 60);
-    const seconds = timerSeconds % 60;
-
     return (
         <div className="w-full max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 py-6 px-4 sm:px-6">
+            <HabitToastStack toasts={toasts} onDismiss={dismissToast} />
             {/* 인쇄 최적화 전용 스타일: 인쇄 시 모달 외 모든 요소 숨김 및 다중 페이지 중복 방지 */}
             <style>{`
                 @media print {
@@ -687,7 +846,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                             <span>12대 Care Type 신경계 연동 클리닉</span>
                         </span>
                         <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-full text-xs font-black">
-                            골든 2단계 수익화 모델
+                            진단 + 실천 2단계 프로그램
                         </span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
@@ -737,10 +896,12 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                             {BAD_HABITS_LIST.map(habit => {
                                 const isChecked = checkedIds.includes(habit.id);
                                 return (
-                                    <div
+                                    <button
                                         key={habit.id}
+                                        type="button"
                                         onClick={() => toggleHabitCheck(habit.id)}
-                                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                                        aria-pressed={isChecked}
+                                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between text-left w-full ${
                                             isChecked
                                                 ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 shadow-sm'
                                                 : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
@@ -751,12 +912,14 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-900/40 px-2 py-0.5 rounded-md">
                                                     {habit.category}
                                                 </span>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => {}}
-                                                    className="w-4 h-4 accent-rose-600 rounded"
-                                                />
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                                                        isChecked ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'
+                                                    }`}
+                                                >
+                                                    {isChecked && <Check className="w-3 h-3" />}
+                                                </span>
                                             </div>
                                             <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
                                                 {habit.title}
@@ -769,14 +932,14 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <span>하루 낭비 손실:</span>
                                             <span>-{habit.wastedMinutesPerDay}분 / 일</span>
                                         </div>
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
 
                         <button
                             onClick={handleRunDiagnosis}
-                            className="w-full py-3.5 rounded-2xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-black text-sm shadow-md active:scale-98 transition flex items-center justify-center gap-2"
+                            className="w-full py-3.5 rounded-2xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white font-black text-sm shadow-md active:scale-95 transition flex items-center justify-center gap-2"
                         >
                             <Brain className="w-4 h-4 text-amber-400" />
                             <span>나쁜 습관 뇌과학 진단 리포트 생성하기</span>
@@ -829,7 +992,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     나쁜 습관 충격 진단 &amp; 낭비 시간 분석 잠금
                                 </h4>
                                 <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto mt-1 leading-relaxed">
-                                    내가 하루에 몇 분의 '가짜 공부'를 하며 시간을 버리고 있는지 정밀 팩트폭행 리포트를 확인하려면 <strong>PREMIUM 등급</strong>이 필요합니다.
+                                    내가 하루에 몇 분의 '가짜 공부'를 하며 시간을 버리고 있는지 정밀 팩트폭행 리포트를 확인하려면 <strong>정기결제 회원</strong> 등록이 필요합니다.
                                 </p>
                             </div>
                             {onUpgradeClick && (
@@ -837,7 +1000,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     onClick={onUpgradeClick}
                                     className="px-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95"
                                 >
-                                    PREMIUM(월 ₩9,900)으로 충격 리포트 열기
+                                    정기결제(월 ₩19,900)로 충격 리포트 열기
                                 </button>
                             )}
                         </div>
@@ -859,12 +1022,12 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     </span>
                                 </div>
                             </div>
-                            <span className="text-xs bg-purple-100 text-purple-800 font-black px-2.5 py-0.5 rounded-full border border-purple-300">
-                                👑 PLUS+ 전용
+                            <span className="text-xs bg-indigo-100 text-indigo-800 font-black px-2.5 py-0.5 rounded-full border border-indigo-300">
+                                💎 PREMIUM 전용
                             </span>
                         </div>
 
-                        {isPlusOrAbove ? (
+                        {isPremiumOrAbove ? (
                             <div className="space-y-4">
                                 {/* 1. 상단: 📈 5대 행동 교정 시너지 & 기대 성적 향상 시뮬레이터 */}
                                 <div className="bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 text-white p-4 rounded-2xl border border-purple-500/30 space-y-2.5 shadow-md">
@@ -874,7 +1037,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <span>프로토콜 시너지 기대 성적 예측기</span>
                                         </span>
                                         <span className="text-[11px] font-black bg-white/10 px-2 py-0.5 rounded-md text-amber-300 font-mono">
-                                            {activeProtocolsCount}/5 프로토콜 가동
+                                            {activeProtocolsCount}/10 프로토콜 가동
                                         </span>
                                     </div>
                                     <div className="flex items-baseline justify-between pt-0.5">
@@ -893,9 +1056,12 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
                                         <div 
                                             className="bg-gradient-to-r from-amber-400 via-rose-400 to-purple-400 h-full transition-all duration-500 rounded-full"
-                                            style={{ width: `${Math.max(20, (activeProtocolsCount / 5) * 100)}%` }}
+                                            style={{ width: `${Math.max(10, (activeProtocolsCount / 10) * 100)}%` }}
                                         />
                                     </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        ※ 표시 수치는 꾸준히 실천했을 때의 목표치이며 개인차가 있습니다.
+                                    </p>
                                 </div>
 
                                 {/* 2. Streak Badge */}
@@ -910,7 +1076,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         </div>
                                     </div>
                                     <span className="text-xs font-black text-purple-700 dark:text-purple-300 font-mono bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-purple-200">
-                                        Top 5%
+                                        누적 {successStreak}일 실천
                                     </span>
                                 </div>
 
@@ -927,6 +1093,11 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             {careTypeDisplay}
                                         </span>
                                     </div>
+                                    {habitBased && (
+                                        <p className="text-[10px] text-indigo-300 leading-relaxed">
+                                            🎯 1단계에서 체크한 습관 {checkedIds.length}개 기반 맞춤 추천입니다.
+                                        </p>
+                                    )}
 
                                     {/* Step 1: AI 1순위 핵심 1가지 완수 시 실질적 도움 */}
                                     <div className="p-3 bg-amber-400/10 rounded-xl border border-amber-400/30 space-y-1.5">
@@ -944,7 +1115,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         </p>
                                         <button
                                             onClick={() => setActiveProtocolTab(currentRec.primaryId)}
-                                            className="mt-1 w-full py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg text-[11px] flex items-center justify-center gap-1 transition active:scale-98 cursor-pointer"
+                                            className="mt-1 w-full py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg text-[11px] flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
                                         >
                                             <span>👉 지금 바로 AI 1순위 프로토콜 실행하기</span>
                                             <ArrowRight className="w-3.5 h-3.5" />
@@ -1064,7 +1235,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 자극 제어(Stimulus Control) &amp; 인지적 진입 장벽 구축</span>
                                             </span>
                                             <p className="leading-snug">
-                                                자극원(답지·스마트폰)이 3m 이상 떨어지면 전두엽 배외측피질(DLPFC)의 충동 도파민 반응이 70% 감소합니다. 3단계 점진적 힌트로 스스로의 인출 회로를 보존합니다.
+                                                자극원(답지·스마트폰)이 3m 이상 떨어지면 충동적인 확인 욕구를 다스리는 데 도움이 됩니다. 3단계 점진적 힌트로 스스로의 인출 회로를 보존합니다.
                                             </p>
                                         </div>
 
@@ -1092,7 +1263,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                     className="accent-purple-600 rounded w-4 h-4"
                                                 />
                                                 <span className="font-bold text-slate-800 dark:text-slate-200">
-                                                    1단계 서약: 오늘 해설지 즉시 확인을 완벽히 봉인한다.
+                                                    1단계 서약: 오늘 해설지 즉시 확인을 자제한다.
                                                 </span>
                                             </label>
                                             <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer">
@@ -1152,7 +1323,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         {/* 25분 뽀모도로 타이머 */}
                                         <div className="bg-slate-900 text-white p-4 rounded-2xl text-center space-y-2">
                                             <span className="text-[10px] text-slate-400 font-bold block">
-                                                25분 동안 위 습관 완전 봉인하기 (단독 교정 시 +4~8점 상승)
+                                                25분 동안 위 습관 줄이기 (단독 교정 시 점수 개선 기대)
                                             </span>
                                             <div className="text-3xl sm:text-4xl font-black font-mono tracking-widest text-emerald-400">
                                                 {String(Math.floor(timerSeconds / 60)).padStart(2, '0')}:{String(timerSeconds % 60).padStart(2, '0')}
@@ -1160,7 +1331,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <div className="flex items-center justify-center gap-2 pt-0.5">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setIsRoutineRunning(!isRoutineRunning)}
+                                                    onClick={() => { if (!isRoutineRunning && timerSeconds <= 0) setTimerSeconds(25 * 60); setIsRoutineRunning(!isRoutineRunning); }}
                                                     className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
                                                         isRoutineRunning ? 'bg-amber-400 text-slate-950' : 'bg-emerald-500 text-white'
                                                     }`}
@@ -1189,7 +1360,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 뉴욕대 골위처 교수 '실행 의도(Implementation Intentions)'</span>
                                             </span>
                                             <p className="leading-snug">
-                                                의지력은 20분 만에 고갈되지만, 뇌 기저핵(Basal Ganglia)에 '만약(IF) ➡️ 그때(THEN)'의 조건반사를 각인해두면 무의식적으로 행동이 전환되어 뇌 정지(Brain Freeze)를 85% 차단합니다.
+                                                의지력만으로는 흔들리기 쉬우나, 뇌 기저핵(Basal Ganglia)에 '만약(IF) ➡️ 그때(THEN)'의 조건반사를 새겨두면 무의식적으로 행동이 전환되어 뇌 정지(Brain Freeze) 완화에 도움이 됩니다.
                                             </p>
                                         </div>
 
@@ -1203,6 +1374,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                     onChange={(e) => setIfSituation(e.target.value)}
                                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200"
                                                 >
+                                                    <option value="">위기 상황을 선택하세요</option>
                                                     <option value="수학/과탐 난문에서 3분간 막혀 답지를 열고 싶을 때">수학/과탐 난문에서 3분간 막혀 답지를 열고 싶을 때</option>
                                                     <option value="공부 도중 스마트폰을 집어 들고 싶을 때">공부 도중 스마트폰을 집어 들고 싶을 때</option>
                                                     <option value="집중이 풀리고 잡생각(DMN)으로 멍때릴 때">집중이 풀리고 잡생각(DMN)으로 멍때릴 때</option>
@@ -1218,20 +1390,22 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                     type="text"
                                                     value={thenReaction}
                                                     onChange={(e) => setThenReaction(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200"
+                                                    placeholder="예: 샤프를 내려놓고 문제 조건 3가지를 동그라미 치며 2분간 말로 설명한다"
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 placeholder:text-slate-400 placeholder:font-normal"
                                                 />
                                             </div>
                                         </div>
 
                                         <div className="p-3 bg-rose-50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-800 text-center space-y-2">
                                             <span className="text-[11px] font-bold text-rose-800 dark:text-rose-300 block">
-                                                지금 충동이 일어났나요? SOS 브레이크를 발동하세요! (+5~8점 방어)
+                                                지금 충동이 일어났나요? SOS 브레이크를 발동하세요!
                                             </span>
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setSosTriggered(true);
-                                                    setTimeout(() => setSosTriggered(false), 6000);
+                                                    if (sosTimeoutRef.current) clearTimeout(sosTimeoutRef.current);
+                                                    sosTimeoutRef.current = setTimeout(() => setSosTriggered(false), 6000);
                                                 }}
                                                 className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition cursor-pointer"
                                             >
@@ -1259,7 +1433,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: '가짜 숙달 효과(Fluency Illusion)' 박멸 &amp; 해마 LTP 장기기억화</span>
                                             </span>
                                             <p className="leading-snug">
-                                                눈으로 보는 형광펜 공부는 기억률 10%에 불과합니다. 스스로 소리 내어 말하거나 요약할 때만 해마의 장기강화(LTP) 회로가 형성되어 기억 보존율이 8배(80% 이상) 고착됩니다.
+                                                눈으로 훑는 것만으로는 오래 기억되기 어렵습니다. 스스로 소리 내어 설명하거나 요약하면 핵심이 오래 남는 데 도움이 될 수 있습니다.
                                             </p>
                                         </div>
 
@@ -1281,18 +1455,18 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
                                             >
                                                 <Sparkles className="w-3.5 h-3.5" />
-                                                <span>{isAnalyzingRecall ? '해마 인출 신경망 분석 중...' : '✨ AI 해마 LTP 인출 정확도 점수 분석 (+6~10점 상승)'}</span>
+                                                <span>{isAnalyzingRecall ? '기록 저장 중...' : '인출 기록 저장하기'}</span>
                                             </button>
                                         </div>
 
                                         {recallScore !== null && (
                                             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs space-y-1">
                                                 <div className="flex justify-between items-center font-black">
-                                                    <span className="text-emerald-900 dark:text-emerald-200">🧠 뇌신경 인출 정확도 점수</span>
-                                                    <span className="text-base text-emerald-600 font-mono">{recallScore}점 / 100점</span>
+                                                    <span className="text-emerald-900 dark:text-emerald-200">🧠 인출 기록 완료</span>
+                                                    <span className="text-base text-emerald-600 font-mono">{recallScore}단어 작성</span>
                                                 </div>
                                                 <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                                                    훌륭합니다! 핵심 키워드가 언어 피질을 거쳐 해마에 고착되었습니다. 망각 곡선상 7일 이상 보존됩니다.
+                                                    핵심 내용을 말로 풀어썼습니다. 정확한지는 해설지와 직접 대조해 확인하세요.
                                                 </p>
                                             </div>
                                         )}
@@ -1308,7 +1482,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 행동경제학 '손실 회피 편향(Loss Aversion)'</span>
                                             </span>
                                             <p className="leading-snug">
-                                                인간은 얻는 이익보다 '이미 쌓아둔 것을 잃는 고통'에 2.5배 더 강하게 반응합니다. 누적 스트릭을 볼모로 삼아 나쁜 습관 타협을 원천 봉쇄합니다.
+                                                인간은 얻는 이익보다 '이미 쌓아둔 것을 잃는 고통'에 더 강하게 반응합니다. 누적 스트릭을 볼모로 삼아 나쁜 습관 타협을 줄여봅니다.
                                             </p>
                                         </div>
 
@@ -1335,11 +1509,17 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                     <span>손실 회피 금고 경고:</span>
                                                 </span>
                                                 <p className="text-[11px] text-slate-300 leading-snug">
-                                                    오늘 해설지 조기 열람 등 12대 나쁜 습관을 1회라도 타협하면 누적 <strong>{dopamineStreak}일 연속 스트릭과 {dopaminePoints} DP가 즉시 동결(Freeze)</strong> 위험에 처합니다!
+                                                    오늘 나쁜 습관에 타협한 날로 기록하면 누적 <strong>{dopamineStreak}일 연속 스트릭과 {dopaminePoints} DP가 동결</strong>됩니다.
+                                                    동결 중에는 서약·완료 체크가 잠기며, 「3색 오답 재구성」 1건 작성 시 해제됩니다.
                                                 </p>
                                                 <div className="pt-1 text-[10.5px] text-amber-300">
-                                                    🛡️ <strong>동결 구제 티켓</strong>: 「3색 뇌신경 오답 재구성」 1건 작성 시 100% 즉시 복구
+                                                    🛡️ <strong>동결 구제 티켓</strong>: 「3색 뇌신경 오답 재구성」 1건 작성 시 복구를 시작합니다
                                                 </div>
+                                                {streakFrozen && (
+                                                    <div className="p-2 bg-rose-500/20 border border-rose-400/50 rounded-lg text-rose-200 font-bold text-[11px]">
+                                                        ❄️ 현재 동결 중입니다. p7에서 오답 분석 1건을 저장하면 해제됩니다.
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center gap-2">
@@ -1350,16 +1530,32 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                         setStreakNotice(true);
                                                         setTimeout(() => setStreakNotice(false), 3500);
                                                     }}
-                                                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                                                    disabled={streakFrozen}
+                                                    className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-400 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer disabled:cursor-not-allowed"
                                                 >
                                                     <ShieldCheck className="w-4 h-4" />
-                                                    <span>오늘 나쁜 습관 타협 0건 수호 서약 (스트릭 잠금)</span>
+                                                    <span>{streakFrozen ? '동결 중 (p7 오답 작성 시 해제)' : '오늘 나쁜 습관 타협 0건 수호 서약 (스트릭 잠금)'}</span>
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (!streakFrozen) {
+                                                            setStreakFrozen(true);
+                                                            setIsStreakProtected(false);
+                                                        }
+                                                    }}
+                                                    disabled={streakFrozen}
+                                                    className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800/50 disabled:text-slate-500 text-slate-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:cursor-not-allowed"
+                                                >
+                                                    <span>😞 오늘 타협했어요 (스트릭 동결 기록)</span>
                                                 </button>
                                             </div>
 
-                                            {streakNotice && (
+                                            {streakNotice && !streakFrozen && (
                                                 <div className="p-2 bg-emerald-500/20 border border-emerald-400 text-emerald-300 rounded-lg text-center text-xs font-bold">
-                                                    🎉 오늘 스트릭이 안전하게 금고에 봉인되었습니다! (습관 형성 지속률 92%)
+                                                    🎉 오늘 스트릭이 금고에 봉인되었습니다!
                                                 </div>
                                             )}
                                         </div>
@@ -1375,7 +1571,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 사회적 책임감(Social Accountability) &amp; 심리적 안전지대 구축</span>
                                             </span>
                                             <p className="leading-snug">
-                                                부모의 의심과 잔소리는 수험생 편도체(불안 중추)를 자극해 코르티솔을 분비하고 공부 기억을 지웁니다. 과학적 노력 지표를 실시간 동기화하여 가정 내 잔소리를 0으로 만듭니다.
+                                                부모의 의심과 잔소리는 수험생의 불안을 키워 공부 기억에 방해가 될 수 있습니다. 노력 지표를 공유하면 가정 내 잔소리를 줄이는 데 도움이 될 수 있습니다.
                                             </p>
                                         </div>
 
@@ -1383,40 +1579,56 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         <div className="p-3.5 bg-amber-50 dark:bg-slate-900 rounded-2xl border-2 border-amber-300 dark:border-amber-600/60 text-slate-900 dark:text-slate-100 space-y-2.5">
                                             <div className="flex items-center justify-between pb-2 border-b border-amber-200 dark:border-slate-800 text-xs">
                                                 <span className="font-black text-amber-900 dark:text-amber-400 flex items-center gap-1">
-                                                    <span>🔔 [학부모 알림톡 자동 생성 미리보기]</span>
+                                                    <span>🔔 [학부모 공유 미리보기]</span>
                                                 </span>
-                                                <span className="text-[10px] text-slate-500">실시간 연동</span>
+                                                <span className="text-[10px] text-slate-500">실천 기록</span>
                                             </div>
 
                                             <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-xs space-y-2 border border-slate-200 dark:border-slate-700">
                                                 <div className="font-bold text-slate-900 dark:text-slate-100">
-                                                    [NBASS 뇌신경 안심 리포트]
+                                                    [NBASS 노력 리포트]
                                                 </div>
                                                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-[11px]">
-                                                    "{student?.name || '학생'} 님이 오늘 [해설지 조기 열람] 충동을 <strong>4회 극복</strong>하고 <strong>75분의 순수 사유 시간</strong>을 지켜냈습니다! 현재 뇌 에너지가 소모된 상태이니 '공부했니?' 대신 따뜻한 격려와 휴식을 권장해 주세요."
+                                                    "{student?.name || '학생'} 님이 {successStreak > 0 ? `연속 ${successStreak}일` : '오늘'} 실천을 기록했습니다.
+                                                    {savedErrorCount > 0 ? ` 오답 분석 ${savedErrorCount}건을 누적했습니다.` : ''} 결과보다 과정을 칭찬해 주세요."
                                                 </p>
-                                                <div className="flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-700">
-                                                    <span>순수 사유 지킴률: <strong className="text-emerald-600 font-mono">94%</strong></span>
-                                                    <span>가정 잔소리 감소: <strong className="text-blue-600 font-mono">-80%</strong></span>
-                                                </div>
                                             </div>
 
                                             <button
                                                 type="button"
-                                                onClick={() => {
+                                                onClick={async () => {
+                                                    const content = {
+                                                        studentName: student?.name || '학생',
+                                                        dateLabel: new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' }),
+                                                        streakDays: successStreak,
+                                                        protocolCount: activeProtocolsCount,
+                                                        errorCount: savedErrorCount,
+                                                    };
                                                     setParentSyncSent(true);
+                                                    setParentSyncLog(prev => [...prev.slice(-29), {
+                                                        at: new Date().toISOString(),
+                                                        text: `${content.studentName} 연속 ${successStreak}일 실천, 오답 분석 ${savedErrorCount}건 누적`
+                                                    }]);
+                                                    // Phase 0: 학생 주도 카카오 공유 (SDK 미준비 시 복사 폴백)
+                                                    const res = shareHabitToKakao(content);
+                                                    if (res === 'shared') {
+                                                        pushToast('📲 카카오톡 공유 화면을 열었습니다.');
+                                                    } else {
+                                                        const ok = await copyTextToClipboard(buildHabitShareText(content));
+                                                        pushToast(ok ? '📋 공유 내용이 복사되었습니다. 카톡에 붙여넣으세요.' : '공유에 실패했습니다. 다시 시도해 주세요.');
+                                                    }
                                                     setParentNoticeToast(true);
                                                     setTimeout(() => setParentNoticeToast(false), 4000);
                                                 }}
                                                 className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
                                             >
                                                 <Send className="w-3.5 h-3.5" />
-                                                <span>📲 오늘 노력 지표 학부모님께 즉시 안심 전송</span>
+                                                <span>📲 오늘 실천 내용 공유하기</span>
                                             </button>
 
                                             {parentNoticeToast && (
                                                 <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 rounded-xl text-center text-xs font-bold">
-                                                    ✅ 학부모님께 안심 리포트가 성공적으로 전송되었습니다! 잔소리 없는 평화로운 저녁이 보장됩니다.
+                                                    ✅ 노력 리포트가 기록되었습니다 (누적 {parentSyncLog.length}건)
                                                 </div>
                                             )}
                                         </div>
@@ -1432,14 +1644,14 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 생리학적 한숨(Physiological Sigh) &amp; 미주신경 자율신경 리셋</span>
                                             </span>
                                             <p className="leading-snug">
-                                                스탠퍼드대 앤드류 후버만 연구: '두 번 연속 들이마시고 길게 내쉬는 한숨'은 폐포를 팽창시켜 3분 만에 심박수를 낮추고 전두엽 혈류를 30% 복원하여 뇌 정지(Brain Freeze)를 해소합니다.
+                                                '두 번 연속 들이마시고 길게 내쉬는 한숨'은 실시간 진정에 활용되는 호흡 기법으로, 짧은 시간에 마음을 가라앉히는 데 도움이 될 수 있다는 연구 보고가 있습니다.
                                             </p>
                                         </div>
 
                                         <div className="p-4 bg-slate-900 text-white rounded-2xl text-center space-y-3">
                                             <div className="flex items-center justify-between text-[11px] text-slate-400">
-                                                <span>자율신경 안정도:</span>
-                                                <span className="font-mono font-bold text-teal-400">{hrvStatus}% (안정화 진행)</span>
+                                                <span>세션 진행률:</span>
+                                                <span className="font-mono font-bold text-teal-400">{hrvStatus}%</span>
                                             </div>
 
                                             {/* 호흡 가이드 서클 애니메이션 */}
@@ -1458,16 +1670,16 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <div className="flex items-center justify-center gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setIsSighRunning(!isSighRunning)}
+                                                    onClick={() => { if (!isSighRunning && sighSeconds <= 0) setSighSeconds(180); setIsSighRunning(!isSighRunning); }}
                                                     className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
                                                         isSighRunning ? 'bg-amber-400 text-slate-950' : 'bg-teal-500 text-white'
                                                     }`}
                                                 >
-                                                    {isSighRunning ? '일시정지' : '3분 신경계 리셋 시작 (+4~7점 방어)'}
+                                                    {isSighRunning ? '일시정지' : '3분 신경계 리셋 시작'}
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => { setIsSighRunning(false); setSighSeconds(180); setHrvStatus(55); }}
+                                                    onClick={() => { setIsSighRunning(false); setSighSeconds(180); setHrvStatus(0); }}
                                                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 cursor-pointer"
                                                 >
                                                     <RotateCcw className="w-3.5 h-3.5" />
@@ -1486,11 +1698,25 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 전대상피질(dACC) 오류 감지 회로 자극 (오답 베껴 쓰기 박멸)</span>
                                             </span>
                                             <p className="leading-snug">
-                                                해설지를 베끼는 단순 노동을 중단하고 [착각-누락-초동행동]의 3색 메타인지로 분석할 때 동일 유형 오답 재발률이 95% 차단됩니다.
+                                                해설지를 베끼는 단순 노동을 중단하고 [착각-누락-초동행동]의 3색 메타인지로 분석하면 동일 유형 오답이 줄어드는 데 도움이 됩니다.
                                             </p>
                                         </div>
 
                                         <div className="space-y-2 text-xs">
+                                            <div>
+                                                <span className="font-black text-slate-600 dark:text-slate-300 block mb-0.5">
+                                                    📚 관련 과목 (오답노트 분류용):
+                                                </span>
+                                                <select
+                                                    value={p7Subject}
+                                                    onChange={(e) => setP7Subject(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-200"
+                                                >
+                                                    {['공통', '국어', '수학', '영어', '탐구'].map(s => (
+                                                        <option key={s} value={s}>{s}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                             <div>
                                                 <span className="font-black text-rose-600 block mb-0.5">
                                                     🔴 Red (나의 착각 지점):
@@ -1535,12 +1761,12 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
                                         >
                                             <Check className="w-3.5 h-3.5" />
-                                            <span>💾 3색 뇌신경 오답 처방 저장하기 (누적 {savedErrorCount}건, +8~12점 상승)</span>
+                                            <span>💾 3색 뇌신경 오답 처방 저장하기 (누적 {savedErrorCount}건)</span>
                                         </button>
 
                                         {errorSavedNotice && (
                                             <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-center text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                                                ✅ 뇌신경 오답 처방이 저장되었습니다! 다음 모평 변형 문항 완벽 방어.
+                                                ✅ 뇌신경 오답 처방이 저장되었습니다! 다음 모평 변형 문항 대비에 활용해 보세요.
                                             </div>
                                         )}
                                     </div>
@@ -1552,10 +1778,10 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         <div className="p-3 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-300 dark:border-zinc-700 text-[11px] text-slate-700 dark:text-slate-300 space-y-1">
                                             <span className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1 text-xs">
                                                 <EyeOff className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                                                <span>뇌과학적 원리: 시각 피질 주의 잔류물(Attention Residue) 0% 통제</span>
+                                                <span>뇌과학적 원리: 시각 주의 분산 줄이기</span>
                                             </span>
                                             <p className="leading-snug">
-                                                뇌 정보 수용의 80%는 시각 피질을 거칩니다. 책상 주변 물건과 잡다한 화면 메뉴는 무의식적 시선 분산을 유발합니다. 화면과 책상을 블랙아웃시켜 몰입 속도를 2배로 만듭니다.
+                                                뇌 정보 수용의 상당 부분은 시각을 거칩니다. 책상 주변 물건과 잡다한 화면 메뉴는 무의식적 시선 분산을 유발할 수 있습니다. 화면과 책상을 정리하면 몰입에 도움이 될 수 있습니다.
                                             </p>
                                         </div>
 
@@ -1564,7 +1790,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span className="text-xs font-black text-slate-200 flex items-center gap-1">
                                                     <span>🌑 [블랙아웃 Zen 모노태스킹 모드]</span>
                                                 </span>
-                                                <span className="text-[10px] text-emerald-400 font-mono">시각 노이즈 0%</span>
+                                                <span className="text-[10px] text-emerald-400 font-mono">시각 노이즈 줄이기</span>
                                             </div>
 
                                             <label className="flex items-center gap-2 p-2.5 bg-slate-900 rounded-xl border border-slate-800 cursor-pointer text-xs">
@@ -1602,12 +1828,12 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <div className="flex items-center justify-center gap-2 pt-1">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setIsBlackoutRunning(!isBlackoutRunning)}
+                                                    onClick={() => { if (!isBlackoutRunning && blackoutTimer <= 0) setBlackoutTimer(25 * 60); setIsBlackoutRunning(!isBlackoutRunning); }}
                                                     className={`flex-1 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
                                                         isBlackoutRunning ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-950 hover:bg-white'
                                                     }`}
                                                 >
-                                                    {isBlackoutRunning ? '일시정지' : '🌑 시각 터널링 시작 (+5~8점 독해 속도 단축)'}
+                                                    {isBlackoutRunning ? '일시정지' : '🌑 시각 터널링 시작 (25분 집중)'}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -1696,15 +1922,18 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
 
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setIsUltradianApplied(true);
-                                                    alert('⚡ 울트라디안 바이오리듬이 학습 계획에 적용되었습니다! (8시간 공부로 12시간 효과 증폭, +6~10점 상승)');
-                                                }}
-                                                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                                                onClick={() => setIsUltradianApplied(true)}
+                                                disabled={isUltradianApplied}
+                                                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900/60 disabled:text-indigo-300 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer disabled:cursor-default"
                                             >
                                                 <Zap className="w-3.5 h-3.5" />
-                                                <span>⚡ 내 하루 공부 계획에 울트라디안 리듬 즉시 동조하기</span>
+                                                <span>{isUltradianApplied ? `✓ 울트라디안 리듬 적용됨 (${chronotype === 'LARK' ? '아침형' : '올빼미형'})` : '⚡ 내 하루 공부 계획에 울트라디안 리듬 즉시 동조하기'}</span>
                                             </button>
+                                            {isUltradianApplied && (
+                                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                                    적용 상태가 저장되었습니다. 휴식 주기를 지키면 집중 유지에 도움이 될 수 있습니다.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1718,7 +1947,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span>뇌과학적 원리: 서파 수면(SWS) 중 해마 ➡️ 대뇌피질 기억 전이(Consolidation)</span>
                                             </span>
                                             <p className="leading-snug">
-                                                낮 동안 공부한 지식은 잠잘 때 장기기억으로 복사됩니다. 취침 직전 15분의 스마트폰 블루라이트는 그날 공부한 기억을 지워버립니다. 취침 전 10분 리플레이로 기억 보존율을 300% 높입니다.
+                                                낮 동안 공부한 지식은 잠자는 동안 장기기억으로 정리될 수 있습니다. 취침 직전 스마트폰 사용을 줄이면 다음 날 기억 인출에 도움이 될 수 있습니다.
                                             </p>
                                         </div>
 
@@ -1727,35 +1956,41 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <span className="font-black text-indigo-200 flex items-center gap-1">
                                                     <span>🌙 [취침 직전 15분 골든 리플레이 큐]</span>
                                                 </span>
-                                                <span className="text-[10px] text-indigo-400 font-mono">기억 보존율 300%</span>
+                                                <span className="text-[10px] text-indigo-400 font-mono">오늘의 오답 리플레이</span>
                                             </div>
 
-                                            {/* 리플레이 슬라이드 카드 */}
+                                            {/* 리플레이 슬라이드 카드 (저장된 오답노트 기반, 없으면 일반 가이드) */}
                                             <div className="p-3.5 bg-indigo-900/40 rounded-xl border border-indigo-500/30 text-xs space-y-2">
                                                 <span className="text-[10px] text-indigo-300 font-bold block">
-                                                    오늘 기록된 3색 오답 핵심 리플레이 ({replayCardIndex + 1}/3):
+                                                    {replayNotes.length > 0
+                                                        ? `오늘 기록된 오답 리플레이 (${replayCardIndex + 1}/${replayNotes.length}):`
+                                                        : '기본 리플레이 가이드:'}
                                                 </span>
                                                 <div className="font-bold text-sm text-amber-200 leading-snug">
-                                                    {replayCardIndex === 0 && '📌 [수학 21번]: "극값 x>0 정의역 조건 놓치지 않기 - 문제 첫 문장에 네모 박스 치기"'}
-                                                    {replayCardIndex === 1 && '📌 [국어 독서]: "인과 관계와 단순 선후 관계를 구분 - 지문 접속사에 역삼각형 표시"'}
-                                                    {replayCardIndex === 2 && '📌 [탐구 18번]: "역학적 에너지 보존식 기준점 0m 지면 설정 후 식 전개"'}
+                                                    {replayNotes.length > 0 ? (
+                                                        <>📌 {replayNotes[replayCardIndex % replayNotes.length].title}: "{replayNotes[replayCardIndex % replayNotes.length].text}"</>
+                                                    ) : (
+                                                        <>📌 오늘 배운 내용 중 가장 어려웠던 1개념을 떠올려보세요: "핵심 조건 3가지를 말로 설명할 수 있는가?"</>
+                                                    )}
                                                 </div>
-                                                <div className="flex items-center justify-between pt-1">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setReplayCardIndex(prev => (prev > 0 ? prev - 1 : 2))}
-                                                        className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] text-slate-300 cursor-pointer"
-                                                    >
-                                                        ◀ 이전 카드
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setReplayCardIndex(prev => (prev < 2 ? prev + 1 : 0))}
-                                                        className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] text-slate-300 cursor-pointer"
-                                                    >
-                                                        다음 카드 ▶
-                                                    </button>
-                                                </div>
+                                                {replayNotes.length > 1 && (
+                                                    <div className="flex items-center justify-between pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setReplayCardIndex(prev => (prev > 0 ? prev - 1 : replayNotes.length - 1))}
+                                                            className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] text-slate-300 cursor-pointer"
+                                                        >
+                                                            ◀ 이전 카드
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setReplayCardIndex(prev => (prev < replayNotes.length - 1 ? prev + 1 : 0))}
+                                                            className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] text-slate-300 cursor-pointer"
+                                                        >
+                                                            다음 카드 ▶
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <label className="flex items-center gap-2 p-2.5 bg-black/40 rounded-xl border border-indigo-500/30 cursor-pointer text-xs">
@@ -1772,15 +2007,81 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
 
                                             <button
                                                 type="button"
-                                                onClick={() => {
-                                                    setSleepReplayActive(true);
-                                                    alert('🌙 15분 해마 수면 고착 세션이 가동되었습니다. 화면을 덮고 편안히 수면에 들어 기억을 뇌피질에 영구 고착시키세요 (+5~9점 상승).');
-                                                }}
+                                                onClick={() => setSleepReplayActive(true)}
                                                 className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
                                             >
                                                 <Moon className="w-3.5 h-3.5" />
                                                 <span>🌙 15분 수면 기억 고착 모드 가동</span>
                                             </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* [p10] 수면 리플레이 오버레이 (화면을 덮고 오늘 오답 1장씩 복습) */}
+                                {sleepReplayActive && (
+                                    <div className="print:hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm">
+                                        <div className="w-full max-w-md bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 border border-indigo-500/40 rounded-3xl p-6 text-white space-y-4 shadow-2xl">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-black text-indigo-200">🌙 수면 리플레이 진행 중</span>
+                                                <span className="text-indigo-400 font-mono">
+                                                    {replayNotes.length > 0 ? `${(replayCardIndex % replayNotes.length) + 1}/${replayNotes.length}` : '가이드'}
+                                                </span>
+                                            </div>
+                                            <div className="p-4 bg-indigo-900/40 rounded-2xl border border-indigo-500/30 space-y-2">
+                                                <div className="font-bold text-sm text-amber-200 leading-snug">
+                                                    {replayNotes.length > 0 ? (
+                                                        <>📌 {replayNotes[replayCardIndex % replayNotes.length].title}</>
+                                                    ) : (
+                                                        <>📌 오늘 가장 어려웠던 1개념을 떠올려보세요</>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-200 leading-relaxed">
+                                                    {replayNotes.length > 0
+                                                        ? `"${replayNotes[replayCardIndex % replayNotes.length].text}"`
+                                                        : '"핵심 조건 3가지를 말로 설명할 수 있는가?"'}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400 leading-relaxed">
+                                                    화면을 보지 말고 눈을 감고 1분간 떠올려 보세요.
+                                                </p>
+                                            </div>
+                                            {replayNotes.length > 1 && (
+                                                <div className="flex items-center justify-between">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReplayCardIndex(prev => (prev > 0 ? prev - 1 : replayNotes.length - 1))}
+                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs text-slate-200 cursor-pointer"
+                                                    >
+                                                        ◀ 이전 카드
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReplayCardIndex(prev => (prev < replayNotes.length - 1 ? prev + 1 : 0))}
+                                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs text-slate-200 cursor-pointer"
+                                                    >
+                                                        다음 카드 ▶
+                                                    </button>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSleepPledgeChecked(true);
+                                                        setSleepReplayActive(false);
+                                                        pushToast('🌙 오늘의 수면 리플레이를 마쳤습니다. 편안한 밤 되세요.');
+                                                    }}
+                                                    className="flex-1 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white font-black rounded-xl text-xs cursor-pointer"
+                                                >
+                                                    복습 완료
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSleepReplayActive(false)}
+                                                    className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+                                                >
+                                                    나중에
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1797,7 +2098,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     </button>
                                 ) : (
                                     <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                                        🎉 오늘 10대 뇌신경 행동 교정을 완벽히 달성했습니다! 학부모 안심 리포트가 전송되었습니다.
+                                        🎉 오늘 10대 뇌신경 행동 교정을 목표로 달성했습니다! 학부모 안심 리포트가 전송되었습니다.
                                     </div>
                                 )}
                             </div>
@@ -1811,7 +2112,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         5대 뇌신경 행동 교정 스위트 잠금
                                     </h4>
                                     <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                                        물리 차단, IF-THEN 조건반사, 60초 파인만 인출기, 3분 생리학적 한숨, 3색 오답 분해기 등 전두엽을 개조하는 5대 실전 교정기는 <strong>PREMIUM PLUS (PLUS+) 등급 전용</strong>입니다.
+                                        물리 차단, IF-THEN 조건반사, 60초 파인만 인출기, 3분 생리학적 한숨, 3색 오답 분해기 등 전두엽을 개조하는 5대 실전 교정기는 <strong>PREMIUM 등급 전용</strong>입니다.
                                     </p>
                                 </div>
                                 {onUpgradeClick && (
@@ -1819,7 +2120,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                         onClick={onUpgradeClick}
                                         className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 cursor-pointer"
                                     >
-                                        PLUS+(월 ₩19,900)으로 5대 행동 교정기 풀버전 열기
+                                        정기결제(월 ₩19,900)로 5대 행동 교정기 풀버전 열기
                                     </button>
                                 )}
                             </div>
@@ -1928,11 +2229,14 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                     <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
                                         <span className="text-xs text-slate-300 block">수능 예측 등급 손실</span>
                                         <span className="text-3xl font-black text-red-500 font-mono mt-1 block">
-                                            -1.8 ~ -2.2등급
+                                            하락 위험
                                         </span>
-                                        <span className="text-[10px] text-slate-400">킬러문항 인출 실패 위험</span>
+                                        <span className="text-[10px] text-slate-400">교정 실천으로 개선 기대</span>
                                     </div>
                                 </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    ※ 낭비 시간은 선택한 습관의 추정치이며, 등급 영향은 개인차가 있습니다.
+                                </p>
                             </div>
 
                             {/* PREMIUM 전용 심층 뇌과학 원인 및 습관별 상세 진단서 */}
@@ -1945,10 +2249,10 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                             <span>12대 Care Type 신경계 메커니즘 연계 정밀 분석</span>
                                         </div>
                                         <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                            현재 수험생의 신경계는 <strong>[두뇌 피로형 &amp; 도파민 갈망 루프]</strong>에 진입해 있습니다.
-                                            전두엽 배외측피질(DLPFC)의 글루코스(포도당) 대사가 급격히 떨어지면, 뇌는 생존을 위해 사고의 고통을 피하려는 방어 기제로
-                                            <strong>"즉각적인 답지 열람"</strong>이나 <strong>"책상 정리 회피"</strong>, <strong>"숏폼·음악 멀티태스킹"</strong>을 유발합니다.
-                                            이는 단순한 의지 부족이 아닌 <strong>신경생리학적 뇌 에너지 방전 신호</strong>입니다.
+                                            현재 수험생의 신경계는 <strong>[두뇌 피로형 &amp; 도파민 갈망 루프]</strong>에 진입해 있을 수 있습니다.
+                                            주의 자원이 고갈되면, 뇌는 사고의 고통을 피하려는 방어 기제로
+                                            <strong>"즉각적인 답지 열람"</strong>이나 <strong>"책상 정리 회피"</strong>, <strong>"숏폼·음악 멀티태스킹"</strong>을 택할 수 있습니다.
+                                            이는 단순한 의지 부족이 아닌 <strong>신체·인지 피로 신호일 수 있습니다.</strong>
                                         </p>
                                     </div>
 
@@ -1959,12 +2263,15 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 <FileText className="w-4 h-4 text-rose-500" />
                                                 <span>진단된 나쁜 공부습관별 뇌과학 소견 및 긴급 처방 (Rx)</span>
                                             </h4>
-                                            <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300 w-fit">
-                                                👑 PREMIUM PLUS 이상 열람
+                                            <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-300 w-fit">
+                                                💎 PREMIUM 이상 열람
                                             </span>
                                         </div>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                                            ※ 인용 연구는 해당 현상에 대한 일반적 학술 배경이며, 본 프로그램의 효과를 직접 검증한 것은 아닙니다. 뇌과학 소견은 가능성 설명으로 받아들여 주세요.
+                                        </p>
 
-                                        {isPlusOrAbove ? (
+                                        {isPremiumOrAbove ? (
                                             <div className="space-y-3.5">
                                                 {checkedIds.map(id => {
                                                     const habit = BAD_HABITS_LIST.find(h => h.id === id);
@@ -1972,7 +2279,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                     return (
                                                         <div
                                                             key={habit.id}
-                                                            className="habit-print-avoid-break p-4.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs"
+                                                            className="habit-print-avoid-break p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs"
                                                         >
                                                             <div className="flex items-start justify-between gap-2">
                                                                 <div>
@@ -1998,6 +2305,11 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                                         <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
                                                                             {habit.brainCause}
                                                                         </p>
+                                                                        {(HABIT_SCIENCE_SOURCES[habit.id]?.length ?? 0) > 0 && (
+                                                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed mt-1.5">
+                                                                                📚 관련 대표 연구: {HABIT_SCIENCE_SOURCES[habit.id].join(' · ')}
+                                                                            </p>
+                                                                        )}
                                                                     </div>
                                                                 </div>
 
@@ -2051,29 +2363,29 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                                 <Lock className="w-6 h-6" />
                                                             </div>
                                                             <div>
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-purple-300 block">
-                                                                    PREMIUM PLUS (PLUS+) EXCLUSIVE
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 block">
+                                                                    SUBSCRIBER EXCLUSIVE
                                                                 </span>
                                                                 <h4 className="text-base sm:text-lg font-black text-white">
-                                                                    진단된 나쁜 공부습관별 뇌과학 소견 및 긴급 처방 (Rx)은 PLUS+ 이상에서 열람 가능합니다
+                                                                    진단된 나쁜 공부습관별 뇌과학 소견 및 긴급 처방 (Rx)은 정기결제 회원 전용입니다
                                                                 </h4>
                                                             </div>
                                                         </div>
-                                                        <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/40 text-purple-200 text-xs font-black rounded-full w-fit">
+                                                        <span className="px-3 py-1 bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 text-xs font-black rounded-full w-fit">
                                                             월 ₩19,900
                                                         </span>
                                                     </div>
 
                                                     <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
                                                         수험생의 나쁜 공부습관은 단순한 의지력 문제가 아닌 <strong>전두엽 피질(DLPFC) 글루코스 고갈</strong> 및 <strong>도파민 보상 회로 왜곡</strong>에서 비롯됩니다.
-                                                        <strong> PREMIUM PLUS (PLUS+)</strong> 등급으로 업그레이드하시면 신경회로를 재건축하는 정밀 소견서와 함께 학원·과외가 해결하지 못하는 <strong>4대 킬러 인터랙티브 교정 시스템</strong>이 즉시 활성화됩니다.
+                                                        <strong> 정기결제</strong> 회원으로 등록하시면 신경회로를 재건축하는 정밀 소견서와 함께 학원·과외가 해결하지 못하는 <strong>4대 킬러 인터랙티브 교정 시스템</strong>이 즉시 활성화됩니다.
                                                     </p>
 
                                                     {/* PLUS+ 4대 킬러 기능 안내 카드 */}
                                                     <div className="space-y-2.5">
                                                         <span className="text-xs font-black text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
                                                             <Sparkles className="w-3.5 h-3.5" />
-                                                            <span>PREMIUM PLUS 전용 4대 킬러 인터랙티브 기능</span>
+                                                            <span>PREMIUM 전용 4대 킬러 인터랙티브 기능</span>
                                                         </span>
 
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -2100,10 +2412,10 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                             <div className="p-4 bg-white/5 hover:bg-white/10 transition rounded-2xl border border-white/10 space-y-1.5">
                                                                 <div className="flex items-center gap-2 font-black text-emerald-300">
                                                                     <span>⏱️</span>
-                                                                    <span>3. 골든 서카디안 뽀모도로 타이머 &amp; 바이노럴 비트 연동</span>
+                                                                    <span>3. 골든 서카디안 뽀모도로 타이머</span>
                                                                 </div>
                                                                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                                                                    두뇌 피로도를 계산하여 25분 초집중 + 5분 신경계 회복 세션을 자동 운용하며 알파파(Alpha waves) 동기화 사운드로 도파민 방전을 방지합니다.
+                                                                    두뇌 피로도를 고려하여 25분 초집중 + 5분 회복 세션을 운용하며 공부 페이스 유지에 도움을 줍니다.
                                                                 </p>
                                                             </div>
 
@@ -2138,7 +2450,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                             className="w-full py-4 bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600 hover:from-purple-400 hover:to-indigo-400 text-white font-black text-sm rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                                                         >
                                                             <Sparkles className="w-4 h-4" />
-                                                            <span>PREMIUM PLUS(월 ₩19,900)으로 긴급 처방(Rx) 및 4대 킬러 기능 풀버전 열기</span>
+                                                            <span>정기결제(월 ₩19,900)로 긴급 처방(Rx) 및 4대 킬러 기능 풀버전 열기</span>
                                                             <ArrowRight className="w-4 h-4" />
                                                         </button>
                                                     )}
@@ -2147,13 +2459,13 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                                 {/* 미리보기 블러 티저 카드: 사용자가 선택한 습관이 이미 정밀 진단되었음을 보여줌 */}
                                                 <div className="space-y-2 opacity-60 select-none pointer-events-none">
                                                     <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">
-                                                        🔒 진단된 습관 처방전 미리보기 (PLUS+ 구독 즉시 잠금 해제):
+                                                        🔒 진단된 습관 처방전 미리보기 (정기결제 구독 즉시 잠금 해제):
                                                     </span>
                                                     {checkedIds.slice(0, 2).map(id => {
                                                         const h = BAD_HABITS_LIST.find(item => item.id === id);
                                                         if (!h) return null;
                                                         return (
-                                                            <div key={h.id} className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 filter blur-xs">
+                                                            <div key={h.id} className="p-3.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 filter blur-[2px]">
                                                                 <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                                                                     <span>🚫 {h.title}</span>
                                                                     <span className="text-rose-500">-{h.wastedMinutesPerDay}분/일</span>
@@ -2184,7 +2496,7 @@ export const HabitClinicView: React.FC<HabitClinicViewProps> = ({
                                 >
                                     닫기
                                 </button>
-                                {isPlusOrAbove ? (
+                                {isPremiumOrAbove ? (
                                     <button
                                         onClick={() => {
                                             setShowReportModal(false);

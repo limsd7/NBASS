@@ -198,8 +198,16 @@ export const TargetedFollowUpModal: React.FC<TargetedFollowUpModalProps> = ({
         if (targetId === 'care_type_specific') setCareTypeAnswers(new Array(5).fill(4));
     };
 
+    // 2주 추적 간격 게이트: 직전 검사일로부터 14일 미만이면 제출 차단
+    const isTooEarly = Number.isFinite(daysElapsed) && daysElapsed < 14;
+    const remainingDays = isTooEarly ? 14 - daysElapsed : 0;
+
     // 제출 핸들러
     const handleSubmit = async () => {
+        if (isTooEarly) {
+            alert(`2주 타겟 추적 검사는 직전 검사일로부터 14일 후부터 가능합니다. (D-${remainingDays}일, 현재 ${daysElapsed}일 경과)`);
+            return;
+        }
         setIsSubmitting(true);
         try {
             const followUpAnswers: FollowUpAnswers = {
@@ -253,6 +261,11 @@ export const TargetedFollowUpModal: React.FC<TargetedFollowUpModalProps> = ({
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                 {baselineResult.student.name} 수험생 | 직전 진단: <span className="font-bold text-slate-700 dark:text-slate-200">{baselineResult.careType}</span>
                             </p>
+                            {isTooEarly && (
+                                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-1">
+                                    ⚠️ 직전 검사 후 {daysElapsed}일 경과 — 2주 추적 검사는 D-{remainingDays}일 후 제출 가능합니다.
+                                </p>
+                            )}
                         </div>
                     </div>
                     <button
@@ -989,14 +1002,20 @@ export const TargetedFollowUpModal: React.FC<TargetedFollowUpModalProps> = ({
                         ) : (
                             <button
                                 type="button"
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || isTooEarly}
                                 onClick={handleSubmit}
+                                title={isTooEarly ? `D-${remainingDays}일 후 제출 가능` : undefined}
                                 className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-black shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                             >
                                 {isSubmitting ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         <span>2주 추적 결과 분석 중...</span>
+                                    </>
+                                ) : isTooEarly ? (
+                                    <>
+                                        <span>⏱️</span>
+                                        <span>D-{remainingDays}일 후 제출 가능</span>
                                     </>
                                 ) : (
                                     <>

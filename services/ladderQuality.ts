@@ -145,3 +145,21 @@ export const resetLadderQuality = (): void => {
         /* ignore */
     }
 };
+
+/**
+ * 특정 문항의 이전 풀이 시도 횟수 반환
+ */
+export const getQuestionAttemptCount = (questionId: string): number => {
+    if (!questionId) return 0;
+    const store = readStore();
+    return store[questionId]?.attempts || 0;
+};
+
+/**
+ * 주어진 문항들 중 이전에 1회 이상 풀어본 문항이 포함되어 있는지 여부 반환
+ */
+export const hasAnyQuestionAttempted = (questionIds: string[]): boolean => {
+    if (!questionIds || questionIds.length === 0) return false;
+    const store = readStore();
+    return questionIds.some(id => (store[id]?.attempts || 0) > 0);
+};

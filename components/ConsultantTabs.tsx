@@ -11,6 +11,8 @@ interface ConsultantTabsProps {
     protocol: ProtocolData;
     analytics: LearningAnalyticsData;
     bloodTest?: BloodTestData;
+    // 본판정(점수 기반)과 일치시키기 위한 확정 CareType (전달 시 로컬 재계산 대신 사용)
+    careType?: CareType;
     // 기존의 관리자 메모 상태 (Tab 1)
     adminMemo: string;
     setAdminMemo: (val: string) => void;
@@ -19,7 +21,7 @@ interface ConsultantTabsProps {
 }
 
 export const ConsultantTabs: React.FC<ConsultantTabsProps> = ({
-    student, hrv, survey, protocol, analytics, bloodTest,
+    student, hrv, survey, protocol, analytics, bloodTest, careType,
     adminMemo, setAdminMemo
 }) => {
     const [activeTab, setActiveTab] = useState<number>(0);
@@ -36,8 +38,8 @@ export const ConsultantTabs: React.FC<ConsultantTabsProps> = ({
     useEffect(() => {
         const result = generateConsultingReport(student, hrv, survey, protocol, analytics, bloodTest);
 
-        // CareType 계산 (App.tsx에서 전달받지 못했을 경우를 대비한 로컬 계산)
-        const calculatedCareType = evaluateClassificationRules(DEFAULT_CLASSIFICATION_RULES, hrv, survey, protocol, analytics, bloodTest) || CareType.HEALTHY;
+        // CareType 계산: 본판정 전달 시 그대로 사용, 없을 때만 로컬 계산(폴백)
+        const calculatedCareType = careType || evaluateClassificationRules(DEFAULT_CLASSIFICATION_RULES, hrv, survey, protocol, analytics, bloodTest) || CareType.HEALTHY;
 
         const scripts = generateConsultationScripts({ student, hrv, survey, protocol, analytics, bloodTest }, calculatedCareType);
         setScriptData(scripts);

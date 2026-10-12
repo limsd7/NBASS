@@ -8,6 +8,7 @@ import {
     FATIGUE_SYMPTOMS,
     SYMPATHETIC_SYMPTOMS,
     PARASYMPATHETIC_SYMPTOMS,
+    CIRCULATION_SYMPTOMS,
     CONCENTRATION_QUESTIONS,
     ADRENAL_QUESTIONS
 } from '../../data/questions';
@@ -59,6 +60,8 @@ interface SurveysStepProps {
     setSnsSymptomSelection: React.Dispatch<React.SetStateAction<string[]>>;
     pnsSymptomSelection: string[];
     setPnsSymptomSelection: React.Dispatch<React.SetStateAction<string[]>>;
+    circulationSymptomSelection?: string[];
+    setCirculationSymptomSelection?: React.Dispatch<React.SetStateAction<string[]>>;
 
     // Survey Answers
     baiAnswers: number[];
@@ -85,6 +88,8 @@ interface SurveysStepProps {
         fatigueCount: number;
         snsCount: number;
         pnsCount: number;
+        circulationCount?: number;
+        circulationScore?: number;
         isChronicFatigue: boolean;
     };
 
@@ -107,7 +112,7 @@ interface SurveysStepProps {
     ConfigModal: React.FC;
 }
 
-export const SurveysStep: React.FC<SurveysStepProps> = ({
+export const SurveysStep: React.FC<SurveysStepProps> = React.memo(({
     onNext,
     setStep,
     activeMenu,
@@ -126,6 +131,8 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
     setSnsSymptomSelection,
     pnsSymptomSelection,
     setPnsSymptomSelection,
+    circulationSymptomSelection = [],
+    setCirculationSymptomSelection,
     baiAnswers,
     setBaiAnswers,
     isiAnswers,
@@ -159,6 +166,12 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
 
     const togglePnsSymptom = (s: string) => {
         setPnsSymptomSelection(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s]);
+    };
+
+    const toggleCirculationSymptom = (s: string) => {
+        if (setCirculationSymptomSelection) {
+            setCirculationSymptomSelection(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s]);
+        }
     };
 
     const traits = learningTraitsData || calculateLearningTraits(learningTraitsAnswers);
@@ -232,6 +245,10 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
                                     <p className="text-[10px] text-slate-400 uppercase font-bold">Para</p>
                                     <p className="text-xl font-black text-blue-600">{surveyScores.pnsCount}</p>
                                 </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-emerald-500 uppercase font-bold">Circ</p>
+                                    <p className="text-xl font-black text-emerald-600">{surveyScores.circulationCount || 0}</p>
+                                </div>
                                 <div className="text-right border-l pl-4">
                                     <p className="text-[10px] text-slate-400 uppercase font-bold">Focus</p>
                                     <p className="text-xl font-black text-amber-600">{surveyScores.concentration}</p>
@@ -263,27 +280,49 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
 
                 <div className="animate-in fade-in duration-300">
                     {effectiveTab === 'ans' && !is10MinMode && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                                <div className="p-4 bg-red-600 text-white font-bold text-center text-base">Sympathetic (교감신경)</div>
-                                <div className="p-6 grid gap-3 bg-slate-50">
-                                    {SYMPATHETIC_SYMPTOMS.map(s => (
-                                        <label key={s.label} className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${snsSymptomSelection.includes(s.label) ? 'bg-red-50 border-red-500 shadow-sm' : 'bg-white hover:border-red-200'}`}>
-                                            <input type="checkbox" checked={snsSymptomSelection.includes(s.label)} onChange={() => toggleSnsSymptom(s.label)} className="w-5 h-5 accent-red-600 mt-0.5 rounded" />
-                                            <div>
-                                                <span className="text-base font-bold text-slate-800">{s.label}</span>
-                                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{s.desc}</p>
-                                            </div>
-                                        </label>
-                                    ))}
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                                    <div className="p-4 bg-red-600 text-white font-bold text-center text-base">Sympathetic (교감신경)</div>
+                                    <div className="p-6 grid gap-3 bg-slate-50">
+                                        {SYMPATHETIC_SYMPTOMS.map(s => (
+                                            <label key={s.label} className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${snsSymptomSelection.includes(s.label) ? 'bg-red-50 border-red-500 shadow-sm' : 'bg-white hover:border-red-200'}`}>
+                                                <input type="checkbox" checked={snsSymptomSelection.includes(s.label)} onChange={() => toggleSnsSymptom(s.label)} className="w-5 h-5 accent-red-600 mt-0.5 rounded" />
+                                                <div>
+                                                    <span className="text-base font-bold text-slate-800">{s.label}</span>
+                                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{s.desc}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                                    <div className="p-4 bg-blue-700 text-white font-bold text-center text-base">Parasympathetic (부교감신경)</div>
+                                    <div className="p-6 grid gap-3 bg-slate-50">
+                                        {PARASYMPATHETIC_SYMPTOMS.map(s => (
+                                            <label key={s.label} className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${pnsSymptomSelection.includes(s.label) ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white hover:border-blue-200'}`}>
+                                                <input type="checkbox" checked={pnsSymptomSelection.includes(s.label)} onChange={() => togglePnsSymptom(s.label)} className="w-5 h-5 accent-blue-700 mt-0.5 rounded" />
+                                                <div>
+                                                    <span className="text-base font-bold text-slate-800">{s.label}</span>
+                                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{s.desc}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Circulation (말초 혈액순환 저하) 자각증상 */}
                             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                                <div className="p-4 bg-blue-700 text-white font-bold text-center text-base">Parasympathetic (부교감신경)</div>
-                                <div className="p-6 grid gap-3 bg-slate-50">
-                                    {PARASYMPATHETIC_SYMPTOMS.map(s => (
-                                        <label key={s.label} className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${pnsSymptomSelection.includes(s.label) ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white hover:border-blue-200'}`}>
-                                            <input type="checkbox" checked={pnsSymptomSelection.includes(s.label)} onChange={() => togglePnsSymptom(s.label)} className="w-5 h-5 accent-blue-700 mt-0.5 rounded" />
+                                <div className="p-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-center text-base flex items-center justify-center gap-2">
+                                    <span>🩸</span>
+                                    <span>말초 혈액순환 및 혈관 탄성도 (Peripheral Circulation & Vascular Tone)</span>
+                                    <span className="text-xs font-normal opacity-90">(해당하는 증상을 선택하세요)</span>
+                                </div>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-slate-50">
+                                    {CIRCULATION_SYMPTOMS.map(s => (
+                                        <label key={s.label} className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${circulationSymptomSelection.includes(s.label) ? 'bg-emerald-50 border-emerald-500 shadow-sm' : 'bg-white hover:border-emerald-200'}`}>
+                                            <input type="checkbox" checked={circulationSymptomSelection.includes(s.label)} onChange={() => toggleCirculationSymptom(s.label)} className="w-5 h-5 accent-emerald-600 mt-0.5 rounded" />
                                             <div>
                                                 <span className="text-base font-bold text-slate-800">{s.label}</span>
                                                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">{s.desc}</p>
@@ -857,4 +896,4 @@ export const SurveysStep: React.FC<SurveysStepProps> = ({
             </div>
         </Layout>
     );
-};
+});

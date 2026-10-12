@@ -55,8 +55,35 @@ export const GradeManualModal: React.FC<GradeManualModalProps> = ({ isOpen, onCl
                 <span className="font-bold text-amber-600 dark:text-amber-400">7. 🔮 AI 시뮬레이션 (Simulation):</span> 목표 등급 향상에 따른 전국 백분위 상승 및 합격 가능 대학 군 변동 시뮬레이션.
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700">
-                <span className="font-bold text-cyan-600 dark:text-cyan-400">8. 📈 상세 분석 (Analysis):</span> 누적 시험 편차 통계, 과목별 취약 영역 상관도, 단원 정복률 심층 분석.
+                <span className="font-bold text-cyan-600 dark:text-cyan-400">8. 📈 상세 분석 (Analysis):</span> 과목간 성적 상관관계 피어슨 히트맵, 누적 시험 편차 통계, 과목별 취약 영역 상관도, 단원 정복률 심층 분석.
               </div>
+            </div>
+          </div>
+
+          {/* 과목간 성적 상관관계 히트맵 특별 가이드 섹션 */}
+          <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-3">
+            <h4 className="font-bold text-indigo-900 dark:text-indigo-300 text-sm flex items-center gap-2">
+              <span>📊</span> [심층 가이드] 과목간 성적 상관관계 히트맵 사용 및 분석법
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              히트맵은 여러 시험 동안 <strong>과목 간 성적 변동의 피어슨 상관계수(r)</strong>를 계산하여 과목 간 학습 밸런스와 시간 배분 문제를 진단합니다.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-rose-200 dark:border-rose-900/40">
+                <strong className="text-rose-600 dark:text-rose-400 block mb-1">🔴 붉은색 (양의 상관관계 r &gt; 0)</strong>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>동조화 현상:</strong> 두 과목이 함께 오르거나 함께 하락합니다. 뇌 피로도, 시험 불안, 독해력 등 두뇌 신경인지 상태가 두 과목에 공통 작용함을 의미합니다. (두뇌 루틴 관리 필수)
+                </p>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-blue-200 dark:border-blue-900/40">
+                <strong className="text-blue-600 dark:text-blue-400 block mb-1">🔵 푸른색 (음의 상관관계 r &lt; 0)</strong>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>트레이드오프 (풍선 효과):</strong> 한 과목이 오르면 다른 과목이 떨어집니다. 한 과목에 시간을 몰아주느라 다른 과목을 방치했을 때 발생합니다. (최소 유지시간 40분 강제 배분)
+                </p>
+              </div>
+            </div>
+            <div className="p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl text-[11px] text-indigo-900 dark:text-indigo-300">
+              📌 <strong>실전 코칭 팁:</strong> 수능 100일 전부터는 푸른색(상충) 과목군을 '상호 방어선'으로 전환하여, 특정 과목의 일시적 상승보다 전 과목 등급 밸런스를 지키는 시간표를 수립하세요.
             </div>
           </div>
 

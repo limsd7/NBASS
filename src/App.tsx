@@ -10,7 +10,7 @@ import { GradeManager } from "./components/GradeManager";
 import { WrongNotes } from "./components/WrongNotes";
 import { GoalsAndAIPlan } from "./components/GoalsAndAIPlan";
 import { ParentKakaoTalk } from "./components/ParentKakaoTalk";
-import { SubjectGrade, WrongNote, SubjectGoal, NotificationSetting, StudentProfile } from "./types";
+import { SubjectGrade, WrongNote, SubjectGoal, NotificationSetting, StudentProfile, CareType } from "./types";
 import { initialGrades, initialWrongNotes, initialGoals, initialNotification, initialProfile } from "./data/initialData";
 
 export default function App() {
@@ -99,7 +99,11 @@ export default function App() {
           <GradeManager grades={grades} setGrades={setGrades} profile={profile} />
         )}
         {activeTab === "wrongnotes" && (
-          <WrongNotes wrongNotes={wrongNotes} setWrongNotes={setWrongNotes} />
+          <WrongNotes
+            wrongNotes={wrongNotes}
+            setWrongNotes={setWrongNotes}
+            careType={profile.careType ? (CareType[profile.careType as keyof typeof CareType] || CareType.HEALTHY) : CareType.HEALTHY}
+          />
         )}
         {activeTab === "goals" && (
           <GoalsAndAIPlan

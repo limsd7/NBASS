@@ -1,5 +1,7 @@
 // 학년별 및 과목별 세부 교육과정 단원 데이터
 
+import { SUNEUNG_SUBJECTS } from './suneungSubjects';
+
 export interface CurriculumUnitGroup {
   gradeCategory: 'middle' | 'high_1' | 'high_2_3';
   gradeName: string;
@@ -436,7 +438,73 @@ export function getUnitsByGradeAndSubject(gradeStr?: string, subjectId: string =
   const category = getCurriculumCategoryByGrade(gradeStr);
   const group = CURRICULUM_DATA.find(g => g.gradeCategory === category) || CURRICULUM_DATA[2];
   const subjectGroup = group.subjects.find(s => s.subjectId === subjectId || (subjectId === 'math' && s.subjectId === 'math'));
-  return subjectGroup?.units || [];
+  if (subjectGroup) return subjectGroup.units;
+  // 국·수·영 전용 항목이 없는 탐구/한국사/제2외국어는 카테고리 대표 단원으로 폴백 (빈칸 방지)
+  return getUnitsByCategoryFallback(subjectId);
+}
+
+// 수능 과목 카테고리별 대표 단원 (탐구/한국사/제2외국어 취약단원 등록용)
+const CATEGORY_FALLBACK_DEFS: { category: string; units: { id: string; name: string; coreConcepts: string[]; prep: string }[] }[] = [
+  {
+    category: 'social',
+    units: [
+      { id: 'soc_ethics_life', name: '생활과윤리 (윤리 문제와 탐구)', coreConcepts: ['윤리학의 성격', '시민윤리와 직업윤리', '생명·정보윤리 쟁점'], prep: '사례-윤리 이론 매칭 훈련' },
+      { id: 'soc_ethics_thought', name: '윤리와사상 (동·서양 사상 비교)', coreConcepts: ['유교·불교·도가 핵심', '서양 근대 시민사상', '사회사상 흐름'], prep: '사상가별 공통점·차이점 비교표' },
+      { id: 'soc_kor_geo', name: '한국지리 (국토와 지역 특성)', coreConcepts: ['지형 형성 작용', '기후와 식생 분포', '도시 체계와 지역 개발'], prep: '지도 위 위치·분포 패턴 암기' },
+      { id: 'soc_world_geo', name: '세계지리 (세계 지역 구분)', coreConcepts: ['기후대별 경관', '주요 국가별 산업 구조', '지형도·통계지도 판독'], prep: '대륙별 대표 경관 이미지 연상' },
+      { id: 'soc_east_history', name: '동아시아사 (교류와 갈등)', coreConcepts: ['전근대 조공·책봉 체제', '근대 개항과 개혁 운동', '전쟁과 전후 처리'], prep: '시대별 교류 사건 연표 정리' },
+      { id: 'soc_world_history', name: '세계사 (문명과 근현대)', coreConcepts: ['4대 문명 비교', '산업혁명과 제국주의', '냉전과 탈냉전'], prep: '문명별 종교·제도 비교축 암기' },
+      { id: 'soc_economics', name: '경제 (시장과 정부)', coreConcepts: ['수요·공급과 탄력성', '시장 실패와 정부 실패', '물가·실업·국제무역 지표'], prep: '그래프 이동 방향(좌·우) 원리 체화' },
+      { id: 'soc_politics_law', name: '정치와법 (민주정치와 법)', coreConcepts: ['선거제도와 정당', '기본권 보장과 제한', '민사·형사 절차'], prep: '사례의 위헌·위법 쟁점 구분' },
+      { id: 'soc_culture', name: '사회·문화 (사회 변동과 문화)', coreConcepts: ['사회화와 일탈', '계층과 불평등 지표', '문화 이해 관점'], prep: '도표(지니계수 등) 수치 해석 연습' }
+    ]
+  },
+  {
+    category: 'science',
+    units: [
+      { id: 'sci_physics_mech', name: '물리학 (역학·에너지)', coreConcepts: ['등가속도 운동', '뉴턴 운동 법칙', '일·에너지와 역학적 보존'], prep: '힘-가속도-운동 연결 고리 훈련' },
+      { id: 'sci_physics_wave', name: '물리학 (파동·전기)', coreConcepts: ['파동의 간섭과 정상파', '전기장과 전류·자기장', '파동 광학 기초'], prep: '공식 문자 대입 전 단위 확인' },
+      { id: 'sci_chem_quant', name: '화학 (양적 관계·평형)', coreConcepts: ['몰과 화학 반응식', '산·염기와 중화 적정', '화학 평형 이동'], prep: '미지수 설정 도표화 풀이법' },
+      { id: 'sci_chem_structure', name: '화학 (물질 구조·유기)', coreConcepts: ['원자 구조와 주기율', '화학 결합과 분자 구조', '유기 화합물 계열'], prep: '작용기별 반응 패턴 암기' },
+      { id: 'sci_life_gene', name: '생명과학 (유전·항상성)', coreConcepts: ['멘델 유전과 가계도', '염색체 비분리와 돌연변이', '신경·호르몬 조절'], prep: '가계도 경우의 수 분기 훈련' },
+      { id: 'sci_life_eco', name: '생명과학 (세포·생태)', coreConcepts: ['세포 호흡과 광합성', '개체군·군집 상호작용', '물질 순환'], prep: '실험 변인(조작·통제) 구분' },
+      { id: 'sci_earth_atmo', name: '지구과학 (대기·해양)', coreConcepts: ['단열 변화와 날씨', '해수의 성질과 순환', '기후 변화 요인'], prep: '위도·계절별 일사량 그래프 해석' },
+      { id: 'sci_earth_geo', name: '지구과학 (지질·천문)', coreConcepts: ['판 구조론과 지진·화산', '지질 시대와화석', '별의 진화와 우주론'], prep: '지질 단면도 순서 판독 연습' },
+      { id: 'sci_lab_design', name: '탐구 실험 설계·변인 통제', coreConcepts: ['조작·종속·통제 변인', '대조군 설정 원리', '자료 해석 함정 회피'], prep: '발문 조건 [가]·[나] 밑줄 긋기' }
+    ]
+  },
+  {
+    category: 'required',
+    units: [
+      { id: 'req_kor_ancient', name: '한국사 (선사~통일신라)', coreConcepts: ['고조선과 여러 나라', '삼국 통치 체제', '남북국 시대 문화'], prep: '왕조별 제도 비교 연표' },
+      { id: 'req_kor_goryeo', name: '한국사 (고려)', coreConcepts: ['문벌귀족과 무신정권', '몽골 간섭과 자주 개혁', '불교 문화와 팔만대장경'], prep: '사건 인과 사슬 암기' },
+      { id: 'req_kor_joseon_early', name: '한국사 (조선 전기)', coreConcepts: ['유교 정치와 사림', '임진왜란과 병자호란', '실학과 북학'], prep: '전란 전후 제도 변화 정리' },
+      { id: 'req_kor_modern', name: '한국사 (개항~일제)', coreConcepts: ['갑신·갑오·독립협회', '3·1 운동과 임시정부', '무장·의열 투쟁'], prep: '운동별 주체·강령 비교' },
+      { id: 'req_kor_contemp', name: '한국사 (현대)', coreConcepts: ['광복과 분단·전쟁', '민주화 운동 계보', '경제 성장과 외교'], prep: '연도-사건 직결 암기' }
+    ]
+  },
+  {
+    category: 'foreign',
+    units: [
+      { id: 'for_vocab', name: '제2외국어 필수 어휘', coreConcepts: ['테마별 핵심 단어', '인사·숫자·시간 표현', '반의어·유의어 쌍'], prep: '하루 20개 누적 복습' },
+      { id: 'for_grammar', name: '제2외국어 기초 문법', coreConcepts: ['동사 변화(시제·인칭)', '문장 성분과 어순', '부정·의문문'], prep: '예문 통째 암기 후 변형' },
+      { id: 'for_reading', name: '제2외국어 짧은 독해', coreConcepts: ['안내문·광고문 유형', '대화체 함정 선지', '문화 상식 지문'], prep: '기출 대화체 3개년 분석' },
+      { id: 'for_hanja', name: '한문 (기초 한자·독해)', coreConcepts: ['부수별 대표 한자', '어법(재·피동·사역)', '고사성어와 출전'], prep: '음·훈 병기 카드 암기' }
+    ]
+  }
+];
+
+function getUnitsByCategoryFallback(subjectId: string): CurriculumUnitItem[] {
+  const info = SUNEUNG_SUBJECTS.find(s => s.id === subjectId);
+  if (!info) return [];
+  const def = CATEGORY_FALLBACK_DEFS.find(d => d.category === info.category);
+  if (!def) return [];
+  return def.units.map(u => ({
+    id: u.id,
+    name: u.name,
+    coreConcepts: u.coreConcepts,
+    recommendedPreparation: u.prep
+  }));
 }
 
 /**

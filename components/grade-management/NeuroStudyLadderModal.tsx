@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StudentInfo, LadderStageLevel, LadderQuestion, ConceptCheckItem } from '../../types';
 import { getCareTypeDetail } from '../../data/careTypesData';
 import {
@@ -6,10 +6,15 @@ import {
   getBrainPrimingGuide,
   getAdaptiveTimerConfig,
   getMetacognitiveConceptCheck,
+  shuffleConceptCheckOptions,
   getNeuroErrorFeedback
 } from '../../services/neuroStudyEngine';
-import { getQuestionsForUnit } from '../../data/ladderQuestions';
-import { recordLadderAttempt } from '../../services/ladderQuality';
+import { getQuestionsForUnit, shuffleLadderOptions } from '../../data/ladderQuestions';
+import { recordLadderAttempt, getQuestionAttemptCount } from '../../services/ladderQuality';
+import { detectSubjectKey, getCachedOrGenerateStageQuestions } from '../../services/ladderAiGeneratorService';
+import { SUBJECT_LADDER_AI_CONFIG } from '../../services/aiModelConfig';
+import { BreathingCore } from '../BreathingGuide';
+import { recommendBreathingProtocols } from '../../services/breathingEngine';
 
 interface NeuroStudyLadderModalProps {
   isOpen: boolean;
@@ -18,6 +23,9 @@ interface NeuroStudyLadderModalProps {
   subjectName: string;
   unitName: string;
   weakPriority?: number; // 1, 2, 3순위
+  initialStage?: LadderStageLevel; // 작업기억 기반 시작 단계 (없으면 A)
+  startReason?: string; // 시작 단계 선정 사유 표시용
+  hasAssessment?: boolean; // false면 진단 상태 표기를 중립화
   onClose: () => void;
 }
 
@@ -28,28 +36,56 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
   subjectName,
   unitName,
   weakPriority = 1,
+  initialStage,
+  startReason,
+  hasAssessment = true,
   onClose
 }) => {
   // Navigation Phases: 1: Brain Priming ➔ 2: Metacognitive Concept Check ➔ 3: 6-Stage Ladder ➔ 4: Completion Summary
   const [currentPhase, setCurrentPhase] = useState<1 | 2 | 3 | 4>(1);
 
+  // 과목별 특화 2026 SOTA AI 모델 판별 (국어: Claude 5.5 / 수학: DeepSeek V4.1 / 영어: Gemini 3.8)
+  const subjectKey = detectSubjectKey(subjectName, unitName);
+  const aiConfig = SUBJECT_LADDER_AI_CONFIG[subjectKey];
+
+  // AI 실시간 출제 모드 및 상태 관리
+  const [isAiMode, setIsAiMode] = useState<boolean>(true);
+  const [aiQuestionsMap, setAiQuestionsMap] = useState<Record<string, LadderQuestion[]>>({});
+  const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+  const [aiGenerationNotice, setAiGenerationNotice] = useState<string | null>(null);
+
   // CareType & Engine Data
   const currentCare = getCareTypeDetail(careTypeCode);
   const primingGuide = getBrainPrimingGuide(careTypeCode, unitName);
   const timerConfig = getAdaptiveTimerConfig(careTypeCode);
-  const conceptChecks = getMetacognitiveConceptCheck(unitName, subjectName);
-  const allLadderQuestions = getQuestionsForUnit(unitName, subjectName);
+  const conceptChecks = useMemo(
+    // 진입 시 선지 1회 셔플 (정답 1번 고정 악용 차단, 풀이 중 순서 고정)
+    () => shuffleConceptCheckOptions(getMetacognitiveConceptCheck(unitName, subjectName)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unitName, subjectName]
+  );
+  const allLadderQuestions = useMemo(
+    // 단원 진입 시 선지 1회 셔플 (정답 위치 암기·패턴 공략 차단, 풀이 중 순서 고정)
+    () => shuffleLadderOptions(getQuestionsForUnit(unitName, subjectName)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unitName, subjectName]
+  );
 
   // Phase 1: Priming Timer State
   const [primingSecondsLeft, setPrimingSecondsLeft] = useState<number>(primingGuide.recommendedDurationMinutes * 60);
   const [isPrimingRunning, setIsPrimingRunning] = useState<boolean>(true);
+  const [showPrimingBreath, setShowPrimingBreath] = useState<boolean>(false);
+  const primingBreath = useMemo(
+    () => recommendBreathingProtocols(careTypeCode, 'pre_study'),
+    [careTypeCode]
+  );
 
   // Phase 2: Concept Check State
   const [conceptAnswers, setConceptAnswers] = useState<Record<number, number>>({});
   const [showConceptExplanations, setShowConceptExplanations] = useState<Record<number, boolean>>({});
 
   // Phase 3: Ladder Study State
-  const [currentStage, setCurrentStage] = useState<LadderStageLevel>('A');
+  const [currentStage, setCurrentStage] = useState<LadderStageLevel>(initialStage || 'A');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0); // 0 ~ 4 (5 questions per stage)
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState<boolean>(false);
@@ -62,8 +98,20 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
   const [studySecondsLeft, setStudySecondsLeft] = useState<number>(timerConfig.defaultMinutes * 60);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(timerConfig.defaultMinutes > 0);
 
-  // Filter questions for current stage
-  const stageQuestions = allLadderQuestions.filter(q => q.stage === currentStage);
+  // Filter questions for current stage (AI 모드 활성화 시 AI 생성 문항 우선, 미생성/오프라인 시 표준 기출)
+  const currentStageAiList = aiQuestionsMap[currentStage];
+  const stageQuestions = (isAiMode && currentStageAiList && currentStageAiList.length > 0)
+    ? currentStageAiList
+    : allLadderQuestions.filter(q => q.stage === currentStage);
+
+  // 뱅크에 실제 존재하는 단계만 탭/진행에 사용 (라이트 뱅크 A/B/C 3단계 지원)
+  const availableStages = useMemo<LadderStageLevel[]>(() => {
+    const order: LadderStageLevel[] = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const present = order.filter(s => allLadderQuestions.some(q => q.stage === s));
+    return present.length > 0 ? present : order;
+  }, [allLadderQuestions]);
+  const isLightBank = availableStages.length === 3;
+
   const activeQuestion: LadderQuestion | undefined = stageQuestions[currentQuestionIndex];
 
   // Priming Countdown
@@ -108,6 +156,42 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
       setIsTimerRunning(timerConfig.defaultMinutes > 0);
     }
   }, [isOpen, unitName, careTypeCode]);
+
+  // AI 문항 로드 및 신규 생성 핸들러
+  const loadAiQuestions = async (stage: LadderStageLevel, forceRegen = false) => {
+    if (!isAiMode) return;
+    setIsAiGenerating(true);
+    setAiGenerationNotice(`${aiConfig.modelDisplayName} (${aiConfig.specialtyBadge})가 ${stage}단계 5문항을 출제 중입니다...`);
+    try {
+      const res = await getCachedOrGenerateStageQuestions(
+        subjectName,
+        unitName,
+        stage,
+        careTypeCode,
+        null,
+        forceRegen
+      );
+      if (res.questions && res.questions.length > 0) {
+        setAiQuestionsMap(prev => ({
+          ...prev,
+          [stage]: res.questions
+        }));
+        setAiGenerationNotice(res.isAiGenerated ? `✨ ${aiConfig.modelDisplayName} 맞춤 출제 완료` : '기본 기출 문항으로 준비되었습니다.');
+      }
+    } catch (e) {
+      console.warn('AI question generation error:', e);
+    } finally {
+      setIsAiGenerating(false);
+      setTimeout(() => setAiGenerationNotice(null), 3000);
+    }
+  };
+
+  // Phase 3 진입 시 또는 단계 전환 시 AI 문항 로드
+  useEffect(() => {
+    if (isOpen && currentPhase === 3 && isAiMode && !aiQuestionsMap[currentStage]) {
+      loadAiQuestions(currentStage, false);
+    }
+  }, [isOpen, currentPhase, currentStage, isAiMode]);
 
   if (!isOpen) return null;
 
@@ -160,18 +244,17 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
   // Move to next stage ladder
   const handleAdvanceToNextStage = () => {
     setShowStageSuccessModal(false);
-    const stageOrder: LadderStageLevel[] = ['A', 'B', 'C', 'D', 'E', 'F'];
-    const currentIndex = stageOrder.indexOf(currentStage);
+    const currentIndex = availableStages.indexOf(currentStage);
 
-    if (currentIndex < stageOrder.length - 1) {
-      const nextStage = stageOrder[currentIndex + 1];
+    if (currentIndex >= 0 && currentIndex < availableStages.length - 1) {
+      const nextStage = availableStages[currentIndex + 1];
       setCurrentStage(nextStage);
       setCurrentQuestionIndex(0);
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
       setShowHint(false);
     } else {
-      // All 6 Stages Completed!
+      // All Available Stages Completed!
       setCurrentPhase(4);
     }
   };
@@ -192,7 +275,7 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black text-white">
-                  {unitName} <span className="text-blue-400">신경인지 6단계 사다리 훈련</span>
+                  {unitName} <span className="text-blue-400">신경인지 {availableStages.length}단계 사다리 훈련</span>
                 </h2>
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${weakPriority === 1 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
                     weakPriority === 2 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
@@ -202,7 +285,11 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                {student.name} 학생 · 신경인지 상태: <span className="text-emerald-400 font-bold">{currentCare.title} ({currentCare.code})</span>
+                {student.name} 학생 · 신경인지 상태: {hasAssessment ? (
+                  <span className="text-emerald-400 font-bold">{currentCare.title} ({currentCare.code})</span>
+                ) : (
+                  <span className="text-slate-300 font-bold">미측정 (기본 프로그램)</span>
+                )}
               </p>
             </div>
           </div>
@@ -305,12 +392,27 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                     {isPrimingRunning ? '⏸️ 일시 정지' : '▶️ 호흡 타이머 재개'}
                   </button>
                   <button
+                    onClick={() => setShowPrimingBreath(v => !v)}
+                    className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 rounded-xl text-xs font-bold text-indigo-300 transition-colors cursor-pointer"
+                    title={`${primingBreath.primary.name} 가이드 타이머`}
+                  >
+                    {primingBreath.primary.emoji} {primingBreath.primary.name.split(' (')[0]} 타이머 {showPrimingBreath ? '닫기' : '열기'}
+                  </button>
+                  <button
                     onClick={() => setCurrentPhase(2)}
                     className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-sm font-black shadow-lg hover:shadow-blue-500/25 transition-all cursor-pointer flex items-center gap-2"
                   >
                     <span>두뇌 세팅 완료! 필수 개념 자가진단 ➔</span>
                   </button>
                 </div>
+                {showPrimingBreath && (
+                  <div className="bg-white rounded-3xl p-5 text-slate-900 animate-in fade-in duration-200">
+                    <p className="text-xs font-bold text-slate-500 mb-3">
+                      {primingBreath.primary.oneLiner} · 약 {primingBreath.primary.estMinutes}분
+                    </p>
+                    <BreathingCore key={primingBreath.primary.id} pattern={primingBreath.primary.pattern} />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -425,12 +527,84 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
           {/* ========================================================================= */}
           {/* PHASE 3: 6-STAGE LADDER STUDY ROOM                                        */}
           {/* ========================================================================= */}
-          {currentPhase === 3 && activeQuestion && (
+          {currentPhase === 3 && (
             <div className="space-y-6 animate-in fade-in duration-300">
 
+              {/* 🌟 2026 SOTA 과목별 특화 AI 실시간 출제 컨트롤러 바 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 p-3.5 rounded-2xl border border-indigo-500/30 text-xs shadow-md">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-slate-800/90 px-3 py-1 rounded-xl border border-indigo-400/30">
+                    <span className="text-sm">
+                      {subjectKey === 'korean' ? '📖' : subjectKey === 'math' ? '🧮' : subjectKey === 'inquiry' ? '🔬' : '⚡'}
+                    </span>
+                    <span className="font-black text-white">{aiConfig.modelDisplayName}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                      {aiConfig.specialtyBadge}
+                    </span>
+                  </div>
+                  <span className="text-slate-400 text-[11px] hidden md:inline">
+                    {aiConfig.description}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* 모드 선택 (표준 기출 vs AI 실시간 생성) */}
+                  <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setIsAiMode(false)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                        !isAiMode ? 'bg-slate-700 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      표준 기출
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAiMode(true);
+                        if (!aiQuestionsMap[currentStage]) {
+                          loadAiQuestions(currentStage, false);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        isAiMode ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>✨ AI 실시간 출제</span>
+                    </button>
+                  </div>
+
+                  {/* 🔄 신규 문항 다시 출제 (재도전/답 암기 방지용) */}
+                  {isAiMode && (
+                    <button
+                      type="button"
+                      disabled={isAiGenerating}
+                      onClick={() => {
+                        loadAiQuestions(currentStage, true);
+                        setCurrentQuestionIndex(0);
+                        setSelectedOption(null);
+                        setIsAnswerSubmitted(false);
+                        setShowHint(false);
+                      }}
+                      className="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl font-bold flex items-center gap-1 text-[11px] transition-all cursor-pointer disabled:opacity-50"
+                      title="현재 단계의 문제를 AI로 완전히 새로운 변형/신유형으로 다시 출제합니다"
+                    >
+                      <span className={isAiGenerating ? 'animate-spin' : ''}>🔄</span>
+                      <span>새 문항 출제</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Stage Ladder Bar (A to F Tabs) */}
-              <div className="grid grid-cols-6 gap-2">
-                {(['A', 'B', 'C', 'D', 'E', 'F'] as LadderStageLevel[]).map(stageKey => {
+              {startReason && (
+                <div className="mb-2 text-[11px] font-bold text-indigo-300">
+                  🧠 {startReason} (추정치, 단계 이동 자유)
+                </div>
+              )}
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${availableStages.length}, minmax(0, 1fr))` }}>
+                {availableStages.map(stageKey => {
                   const sInfo = LADDER_STAGES[stageKey];
                   const isCurrent = currentStage === stageKey;
                   const isCompleted = completedStages.includes(stageKey);
@@ -455,7 +629,9 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                       <span className="text-base">{sInfo.icon}</span>
                       <span className="text-xs font-black">{stageKey}단계</span>
                       <span className="text-[10px] truncate max-w-full font-medium">
-                        {stageKey === 'A' ? '기본' : stageKey === 'B' ? '진행' : stageKey === 'C' ? '심화' : stageKey === 'D' ? '기출' : stageKey === 'E' ? '준킬러' : '수능킬러'}
+                        {isLightBank
+                          ? (stageKey === 'A' ? '개념' : stageKey === 'B' ? '자료해석' : '킬러')
+                          : (stageKey === 'A' ? '기본' : stageKey === 'B' ? '진행' : stageKey === 'C' ? '심화' : stageKey === 'D' ? '기출' : stageKey === 'E' ? '준킬러' : '수능킬러')}
                       </span>
                       {isCompleted && (
                         <span className="absolute top-1.5 right-1.5 text-[9px] font-black text-emerald-400">✓</span>
@@ -495,36 +671,64 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                 </div>
               </div>
 
-              {/* Question Card */}
-              <div className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 space-y-6 shadow-xl">
-
-                {/* Stage Header */}
-                <div className="flex items-center justify-between border-b border-slate-700/80 pb-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-2xl">{LADDER_STAGES[currentStage].icon}</span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-blue-400 uppercase tracking-wider">
-                          {LADDER_STAGES[currentStage].title}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300">
-                          {currentQuestionIndex + 1} / {stageQuestions.length} 문항
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {LADDER_STAGES[currentStage].targetFocus}
-                      </p>
-                    </div>
+              {/* AI 출제 중 로딩 인디케이터 */}
+              {isAiGenerating ? (
+                <div className="bg-slate-800/90 border border-indigo-500/40 rounded-3xl p-12 text-center space-y-4 shadow-2xl animate-pulse">
+                  <div className="w-12 h-12 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="space-y-1">
+                    <h4 className="text-base font-black text-white flex items-center justify-center gap-2">
+                      <span>✨</span>
+                      <span>{aiConfig.modelDisplayName} 맞춤 출제 진행 중</span>
+                    </h4>
+                    <p className="text-xs text-indigo-200">
+                      {aiGenerationNotice || `${aiConfig.modelDisplayName} (${aiConfig.specialtyBadge})가 ${currentStage}단계 5문항을 생성하고 있습니다.`}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      평가원 출제 원리 및 수식 무결성 검증을 거쳐 출제됩니다. 잠시만 기다려주세요.
+                    </p>
                   </div>
-
-                  <button
-                    onClick={() => setShowHint(!showHint)}
-                    className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    <span>💡 뇌과학 힌트</span>
-                    <span>{showHint ? '닫기' : '보기'}</span>
-                  </button>
                 </div>
+              ) : activeQuestion ? (
+                /* Question Card */
+                <div className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 space-y-6 shadow-xl">
+
+                  {/* Stage Header */}
+                  <div className="flex items-center justify-between border-b border-slate-700/80 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{LADDER_STAGES[currentStage].icon}</span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-blue-400 uppercase tracking-wider">
+                            {LADDER_STAGES[currentStage].title}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300">
+                            {currentQuestionIndex + 1} / {stageQuestions.length} 문항
+                          </span>
+                          {isAiMode && currentStageAiList ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                              <span>✨</span>
+                              <span>{aiConfig.modelDisplayName} 출제</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700/80 text-slate-300">
+                              표준 기출
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {LADDER_STAGES[currentStage].targetFocus}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setShowHint(!showHint)}
+                      className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <span>💡 뇌과학 힌트</span>
+                      <span>{showHint ? '닫기' : '보기'}</span>
+                    </button>
+                  </div>
 
                 {/* Hint Box (Collapsible) */}
                 {showHint && (
@@ -648,6 +852,7 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                   </div>
                 )}
               </div>
+            ) : null}
             </div>
           )}
 
@@ -703,7 +908,7 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
               <div className="text-center space-y-2">
                 <span className="text-4xl">👑</span>
                 <h3 className="text-2xl font-black text-white">
-                  '{unitName}' 6단계 사다리 훈련 종합 리포트
+                  '{unitName}' {availableStages.length}단계 사다리 훈련 종합 리포트
                 </h3>
                 <p className="text-xs text-slate-300">
                   {student.name} 학생의 신경인지 상태({currentCare.title})에 맞춘 훈련이 성공적으로 기록되었습니다.
@@ -713,10 +918,10 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
               {/* Badges Collection */}
               <div className="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 space-y-4 shadow-xl">
                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">
-                  획득한 6단계 사다리 배지 컬렉션
+                  획득한 {availableStages.length}단계 사다리 배지 컬렉션
                 </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {(['A', 'B', 'C', 'D', 'E', 'F'] as LadderStageLevel[]).map(stageKey => {
+                <div className="grid grid-cols-3 gap-2" style={{ gridTemplateColumns: `repeat(${availableStages.length}, minmax(0, 1fr))` }}>
+                  {availableStages.map(stageKey => {
                     const sInfo = LADDER_STAGES[stageKey];
                     const isPassed = completedStages.includes(stageKey);
 
@@ -753,6 +958,18 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                     <span className="text-lg font-black text-blue-400">{accuracyPct}%</span>
                   </div>
                 </div>
+                {/* 🌟 2026 SOTA 특화 AI 출제 검증 인증 배너 */}
+                <div className="mt-3 pt-3 border-t border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🤖</span>
+                    <span className="text-slate-300">
+                      출제 엔진: <strong className="text-white">{aiConfig.modelDisplayName}</strong> ({aiConfig.specialtyBadge})
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
+                    2026 SOTA 특화 AI 출제 검증 완료
+                  </span>
+                </div>
               </div>
 
               {/* CareType Specific Next Advice */}
@@ -763,7 +980,7 @@ export const NeuroStudyLadderModal: React.FC<NeuroStudyLadderModalProps> = ({
                 </div>
                 <p className="text-xs text-slate-200 leading-relaxed">
                   방금 훈련을 통해 '{unitName}' 단원의 취약 고리가 A단계부터 고난도 사다리로 연결되었습니다.
-                  {currentCare.title} 상태에서는 연속 100문항 양치기보다 오늘처럼 <b>5문항 단위의 단계적 난이도 사다리</b>를 매일 1개 단원씩 정복하는 것이 수능 당일 뇌의 Freezing(머리 하얘짐)을 완벽히 방어합니다.
+                  {currentCare.title} 상태에서는 연속 100문항 양치기보다 오늘처럼 <b>5문항 단위의 단계적 난이도 사다리</b>를 매일 1개 단원씩 정복하는 것이 수능 당일 뇌의 Freezing(머리 하얘짐) 완화에 도움이 됩니다.
                 </p>
               </div>
 

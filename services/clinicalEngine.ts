@@ -250,7 +250,7 @@ export const generateClinicalAnalysis = (
             return rule ? rule.productName : p.productId;
         });
         if (essentials.length > 0) {
-            customSolutions.push(`💊 **[영양 처방]**: 핵심 필요 영양소 - **${Array.from(new Set(essentials)).join(', ')}**`);
+            customSolutions.push(`💊 **[맞춤 영양 가이드]**: 핵심 권장 성분 - **${Array.from(new Set(essentials)).join(', ')}**`);
         } else {
             customSolutions.push(`💊 **[영양 가이드]**: ${strategy.nutritionGuide}`);
         }
@@ -322,7 +322,7 @@ ${detailedInsightData.vulnerableTimeStrategy}
     // 4. Report Assembly (Section 1: Lifestyle Connection)
     let lifestyleReport = `## [1] 맞춤형 신체-학습 연결 리포트 (Physical-Learning)\n\n`;
 
-    lifestyleReport += `### 💊 영양 처방 (Nutrition)\n`;
+    lifestyleReport += `### 🥗 수험생 맞춤 영양 가이드 (Nutritional Strategy)\n`;
     lifestyleReport += `- **추천 식단**: ${lifestyle.diet.title}\n`;
     const dietLines = lifestyle.diet.advice.split('\n').filter(l => l.trim().startsWith('- '));
     dietLines.forEach(line => {

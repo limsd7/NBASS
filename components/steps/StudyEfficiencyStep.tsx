@@ -64,7 +64,7 @@ export const StudyEfficiencyStep: React.FC<StudyEfficiencyStepProps> = ({
     const [isTestWindowOpen, setIsTestWindowOpen] = useState(Boolean(currentResult));
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
-    const isFree = isFreeStudent || membershipTier === 'free' || membershipTier === 'basic';
+    const isFree = isFreeStudent || membershipTier === 'free';
 
     return (
         <Layout onHomeClick={onHomeClick} activeMenu={activeMenu} onMenuChange={onMenuChange} isDarkMode={isDarkMode} onToggleDarkMode={onToggleDarkMode}>
@@ -85,10 +85,10 @@ export const StudyEfficiencyStep: React.FC<StudyEfficiencyStepProps> = ({
                 )}
 
                 <AssessmentCard
-                    badge={isFree ? "Free Mode • Digital Addiction" : "Study Dynamics & Chronotype"}
-                    title={isFree ? "공부 효율성 검사 (디지털 도파민 중독 척도)" : "5종 공부 효율성 및 인지 스타일 정밀 검사"}
+                    badge={isFree ? "Free Mode • TAI Result" : "Study Dynamics & Chronotype"}
+                    title="5종 공부 효율성 및 인지 스타일 정밀 검사"
                     subtitle={isFree
-                        ? "FREE 모드에서는 디지털 도파민 중독 척도 검사가 제공됩니다. (나머지 4종 검사는 PRO 이상 결제 시 전체 해금)"
+                        ? "5종 검사를 모두 수행할 수 있습니다. 결과 표시는 시험불안(TAI)만 제공되며, 나머지 4종 결과는 PRO 이상 결제 시 해금됩니다."
                         : "크로노타입(생체 리듬), 학습 감각(VARK), 시험불안(TAI), 디지털 의존도, 메타인지를 종합 분석합니다."}
                     accentColor="blue"
                 >
@@ -108,14 +108,14 @@ export const StudyEfficiencyStep: React.FC<StudyEfficiencyStepProps> = ({
                                 <div className="text-slate-700 dark:text-slate-300 leading-relaxed space-y-1.5 flex-1">
                                     <div className="flex items-center justify-between">
                                         <strong className="font-black text-blue-700 dark:text-blue-300 text-sm md:text-base">
-                                            FREE 모드: 디지털 도파민 중독 척도 검사 제공
+                                            FREE 모드: 5종 수행 · TAI 결과 표시
                                         </strong>
                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-200">
-                                            1종 체험
+                                            TAI 표시
                                         </span>
                                     </div>
                                     <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                        스마트폰 및 숏폼 도파민 의존도를 측정합니다. <strong>크로노타입(수면리듬), VARK(학습감각), TAI(시험불안), 메타인지</strong> 4개 심층 정밀 검사는 <strong>PRO 이상 유료 멤버십</strong> 결제 시 전체 해금되어 5종 모두 진행하실 수 있습니다.
+                                        크로노타입, VARK, 디지털 의존도, 메타인지를 포함한 <strong>5종 검사를 모두 수행</strong>합니다. <strong>결과 표시</strong>는 <strong>시험불안(TAI)만 제공</strong>되며, 나머지 4종 결과는 <strong>PRO 이상 유료 멤버십</strong> 결제 시 해금됩니다.
                                     </p>
                                     <button
                                         onClick={() => setIsSubscriptionModalOpen(true)}
@@ -147,7 +147,7 @@ export const StudyEfficiencyStep: React.FC<StudyEfficiencyStepProps> = ({
                                     onClick={() => setIsTestWindowOpen(true)}
                                     className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                                 >
-                                    {currentResult ? '🎯 5종 정밀 검사 열기 / 이어하기 →' : isFree ? '디지털 도파민 검사 시작하기 →' : '5종 정밀 검사 시작하기 →'}
+                                    {currentResult ? '🎯 5종 정밀 검사 열기 / 이어하기 →' : '5종 정밀 검사 시작하기 →'}
                                 </button>
                                 <div>
                                     <button

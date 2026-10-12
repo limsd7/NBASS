@@ -43,3 +43,38 @@ export const computeAdherence = (result: AssessmentResult | null | undefined): A
     const { level, label } = levelOf(rate);
     return { prescribedCount, completedCount, rate, level, label };
 };
+
+// ==================== Habit 분리 지표 (전문가 처방 %와 분리 표기) ====================
+// - completedExpertGuideItems에 섞인 'habit:pN' 태그를 별도 집계합니다.
+// - 기존 computeAdherence 산식은 손대지 않습니다 (전문가 처방 기준 유지).
+// - 대시보드에는 기존 % 아래에 'Habit 실천 x/10' 1줄로 소형 표시합니다.
+export const HABIT_PROTOCOL_IDS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10'] as const;
+export type HabitProtocolId = (typeof HABIT_PROTOCOL_IDS)[number];
+
+export interface HabitAdherenceSummary {
+    completedCount: number;
+    totalCount: number;
+    /** 0~100 (%) */
+    rate: number;
+    level: AdherenceLevel;
+    label: string;
+    completedIds: HabitProtocolId[];
+}
+
+/** 'habit:pN' 태그 목록에서 Habit 실천 현황 집계 (완료 수/10, 기존 level 체계 재사용) */
+export const computeHabitAdherence = (
+    tags: string[] | null | undefined
+): HabitAdherenceSummary => {
+    const totalCount = HABIT_PROTOCOL_IDS.length;
+    const seen = new Set<string>();
+    for (const t of tags || []) {
+        if (typeof t !== 'string' || !t.startsWith('habit:')) continue;
+        const id = t.slice('habit:'.length).trim();
+        if ((HABIT_PROTOCOL_IDS as readonly string[]).includes(id)) seen.add(id);
+    }
+    const completedIds = (HABIT_PROTOCOL_IDS as readonly string[]).filter(id => seen.has(id)) as HabitProtocolId[];
+    const completedCount = completedIds.length;
+    const rate = Math.max(0, Math.min(100, Math.round((completedCount / totalCount) * 100)));
+    const { level, label } = levelOf(rate);
+    return { completedCount, totalCount, rate, level, label, completedIds };
+};

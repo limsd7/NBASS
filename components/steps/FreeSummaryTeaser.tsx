@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { CareType, AssessmentResult, SurveyData } from '../../types';
-import { MembershipTier, TIER_INFO } from '../../utils/featureGate';
+import { MembershipTier, TIER_INFO, normalizeTier } from '../../utils/featureGate';
 import { SubscriptionModal } from '../modals/SubscriptionModal';
+import { LossAversionWarningCard } from './freeTeaser/LossAversionWarningCard';
+import { PrescriptionTasteCard } from './freeTeaser/PrescriptionTasteCard';
+import { KakaoShareMomLoop } from './freeTeaser/KakaoShareMomLoop';
+import { ReportTocPreview } from './freeTeaser/ReportTocPreview';
 
 interface FreeSummaryTeaserProps {
   result: AssessmentResult;
@@ -105,7 +109,7 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
               <div className="mt-3 p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-400 leading-relaxed flex items-start gap-2.5">
                 <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 <span>
-                  <strong className="text-slate-300">안내:</strong> 무료체험에 의한 CareType 판단은 간이 문진 기반 약식 결과이며, <b>유료회원에서 시행하는 정밀 다각도 검사(자율신경·신경인지·심리 5대 심층 종합 검사)</b>를 통해 성향 진단 및 맞춤 솔루션이 달라질 수 있습니다.
+                  <strong className="text-slate-300">안내:</strong> 무료체험에 의한 CareType 판단은 간이 문진 기반 약식 결과이며, <b>유료회원에서 시행하는 정밀 다각도 검사(심리 설문·신경인지·공부 효율성 5대 심층 종합 검사)</b>를 통해 성향 진단 및 맞춤 솔루션이 달라질 수 있습니다.
                 </span>
               </div>
             </div>
@@ -184,25 +188,36 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
 
       </div>
 
-      {/* 2. FREE 사용자 대상 블러(Blur) & 업셀 잠금 영역 */}
+      {/* 2. [전환 극대화 최적 조합] 손실 회피 경고 + 1호 처방 맛보기 + 엄마 카톡 선물 루프 */}
+      {isFree && (
+        <div className="space-y-6">
+          {/* 방법 1: 손실 회피 & 48시간 골든타임 시한부 경고 */}
+          <LossAversionWarningCard
+            result={result}
+            onOpenUpgrade={handleOpenUpgrade}
+          />
+
+          {/* 방법 2: 초개인화 처방 1개 무료 맛보기 & 14P 잠금 호기심 간극 */}
+          <PrescriptionTasteCard
+            result={result}
+            onOpenUpgrade={handleOpenUpgrade}
+          />
+
+          {/* 방법 3: 학생 ➔ 엄마 소환 카카오톡 공유 루프 */}
+          <KakaoShareMomLoop
+            result={result}
+            onOpenUpgrade={handleOpenUpgrade}
+          />
+        </div>
+      )}
+
+      {/* 3. FREE 사용자 대상 블러(Blur) & 업셀 잠금 영역 */}
       {isFree && (
         <div className="relative rounded-3xl border border-slate-800 p-6 md:p-8 bg-slate-950 overflow-hidden shadow-2xl">
           
-          {/* Blur Background Content Preview */}
+          {/* Blur Background Content Preview (리포트 목차 미리보기) */}
           <div className="filter blur-md select-none pointer-events-none opacity-30 space-y-6">
-            <div className="h-6 w-1/3 bg-slate-700 rounded-md"></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="h-28 bg-slate-800 rounded-2xl"></div>
-              <div className="h-28 bg-slate-800 rounded-2xl"></div>
-            </div>
-            <div className="h-4 bg-slate-700 rounded w-full"></div>
-            <div className="h-4 bg-slate-700 rounded w-5/6"></div>
-            <div className="h-4 bg-slate-700 rounded w-4/6"></div>
-            <div className="grid grid-cols-3 gap-4 pt-4">
-              <div className="h-32 bg-slate-800 rounded-2xl"></div>
-              <div className="h-32 bg-slate-800 rounded-2xl"></div>
-              <div className="h-32 bg-slate-800 rounded-2xl"></div>
-            </div>
+            <ReportTocPreview result={result} onOpenUpgrade={handleOpenUpgrade} />
           </div>
 
           {/* Locked Paywall Overlay Box */}
@@ -216,36 +231,39 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
             </h3>
             
             <p className="text-xs md:text-sm text-slate-400 max-w-lg mt-2 mb-6 leading-relaxed">
-              취약 과목별 초정밀 맞춤 시간표, 작업기억 용량(Working Memory), 자율신경 생체 신호, 영양·수면 처방 전문 리포트를 즉시 잠금 해제하세요.
+              취약 과목별 초정밀 맞춤 시간표, 작업기억 용량(Working Memory), 영양·수면 처방 전문 리포트를 즉시 잠금 해제하세요.
             </p>
 
             {/* Direct 2-Button Action Bar */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-lg">
               
-              {/* Option 1: 1회 스타터 패스 ₩9,000 */}
+              {/* Option 1: 1회 정밀 리포트 ₩24,900 */}
               <button
-                onClick={() => handleOpenUpgrade('1회 학생용 정밀 리포트 열람')}
-                className="w-full sm:w-1/2 py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs md:text-sm rounded-xl transition-all border border-slate-700 flex flex-col items-center justify-center"
+                onClick={() => handleOpenUpgrade('14P 초정밀 신경인지 솔루션 리포트북 1회 영구 열람')}
+                className="w-full sm:w-1/2 py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs md:text-sm rounded-xl transition-all border border-slate-700 flex flex-col items-center justify-center cursor-pointer"
               >
-                <span>1회 정밀 리포트 열기</span>
-                <span className="text-[11px] font-normal text-slate-400">₩9,000 (1회성)</span>
+                <span>📄 1회 정밀 리포트 열기</span>
+                <span className="text-[11px] font-normal text-slate-400">₩24,900 (영구 소장)</span>
               </button>
 
-              {/* Option 2: PREMIUM 정기구독 ₩9,900 + 카톡 알림 */}
+              {/* Option 2: 정기구독 ₩19,900 + 카톡 알림 */}
               <button
-                onClick={() => handleOpenUpgrade('전문가 심층 리포트 + 카톡 주간 알림 구독')}
-                className="w-full sm:w-1/2 py-3.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs md:text-sm rounded-xl transition-all shadow-lg shadow-blue-600/30 flex flex-col items-center justify-center border border-blue-500 relative overflow-hidden"
+                onClick={() => handleOpenUpgrade('매주 카톡 주간 브리핑 + AI 시간표 정기 케어 구독')}
+                className="w-full sm:w-1/2 py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs md:text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex flex-col items-center justify-center border border-indigo-500 relative overflow-hidden cursor-pointer"
               >
+                <div className="absolute top-0 right-0 bg-amber-400 text-slate-950 font-black text-[9px] px-2 py-0.5 rounded-bl">
+                  추천 1위
+                </div>
                 <span>💎 정기 케어 구독</span>
-                <span className="text-[11px] font-normal text-blue-100">
-                  월 ₩9,900 + 카톡 알림
+                <span className="text-[11px] font-normal text-indigo-100">
+                  월 ₩19,900 (매주 카톡 케어)
                 </span>
               </button>
 
             </div>
 
-            <p className="text-[11px] text-slate-400 mt-4">
-              💡 1회권(9,000원)에 단 900원만 더하면 매주 카톡 케어 알림과 무제한 정밀 리포트가 제공됩니다.
+            <p className="text-[11px] text-slate-300 mt-4 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
+              💡 정기구독(월 19,900원) 신청 시 1회 리포트북(24,900원 상당)이 무료 포함되며, 매주 일요일 엄마 카톡으로 주간 컨디션 브리핑이 발송됩니다.
             </p>
 
           </div>
@@ -253,16 +271,14 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
         </div>
       )}
 
-      {/* 3. 유료 회원(Pro/Premium vs VIP) 추가 검사 진행 배너 */}
+      {/* 3. 유료 회원(Pro/Premium) 추가 검사 진행 배너 */}
       {!isFree && (
         <div className={`border-2 rounded-3xl p-6 md:p-8 shadow-xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
           isAllCompleted
             ? 'bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 border-emerald-500/40'
             : completedCount > 0
               ? 'bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border-blue-500/50'
-              : userTier === 'vip' 
-                ? 'bg-gradient-to-r from-amber-950 via-slate-900 to-indigo-950 border-amber-500/50' 
-                : 'bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border-emerald-500/50'
+              : 'bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border-emerald-500/50'
         }`}>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -277,13 +293,9 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
                   🎯 5종 정밀 검사 진행 중 ({completedCount}/5 완료 · {remainingCount}개 남음)
                 </span>
               ) : (
-                <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border ${
-                  userTier === 'vip'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full animate-pulse ${userTier === 'vip' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                  🔓 정밀 진단 모드 활성화 ({TIER_INFO[userTier].name})
+                <span className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full animate-pulse bg-emerald-400" />
+                  🔓 정밀 진단 모드 활성화 ({TIER_INFO[normalizeTier(userTier)].name})
                 </span>
               )}
               <span className="text-xs text-slate-300">기존 검사 데이터 보존됨</span>
@@ -312,15 +324,6 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
                   </p>
                 </div>
               </>
-            ) : userTier === 'vip' ? (
-              <>
-                <h4 className="text-lg md:text-xl font-black text-white mt-1">
-                  👑 VIP 전용: [심층 신경인지 5대 정밀 검사 및 1:1 맞춤형 솔루션]을 이어서 진행하시겠습니까?
-                </h4>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-                  크로노타입(MEQ), 학습유형(VARK), 시험불안(TAI), 디지털 밸런스 및 인지 제어 역량을 결합하여 <b>상위 1% 정밀 24P 종합 처방 리포트가 즉시 재산출</b>됩니다.
-                </p>
-              </>
             ) : (
               <>
                 <h4 className="text-lg md:text-xl font-black text-white mt-1">
@@ -341,9 +344,7 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 shadow-slate-900/40'
                   : completedCount > 0
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-900/40 animate-pulse'
-                    : userTier === 'vip'
-                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black shadow-amber-900/30'
-                      : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-900/30'
+                    : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-900/30'
               }`}
             >
               <span>
@@ -351,9 +352,7 @@ export const FreeSummaryTeaser: React.FC<FreeSummaryTeaserProps> = ({
                   ? '✅ 5종 검사 완료됨 (재검사 / 수정)'
                   : completedCount > 0
                     ? `🎯 남은 ${remainingCount}개 검사 이어하기 (${completedCount}/5 완료)`
-                    : userTier === 'vip'
-                      ? '🧠 VIP 심층 5종 정밀 검사 시작'
-                      : '🎯 공부 효율성 5종 정밀 검사 시작'}
+                    : '🎯 공부 효율성 5종 정밀 검사 시작'}
               </span>
               <span>→</span>
             </button>

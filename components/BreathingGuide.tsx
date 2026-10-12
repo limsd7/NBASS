@@ -1,11 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { BreathPattern } from '../data/breathingProtocols';
 
-// Core Breathing Widget (Reusable)
-export const BreathingCore: React.FC = () => {
-    const [phase, setPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
-    const [count, setCount] = useState(4);
+// Core Breathing Widget (Reusable, 패턴 범용)
+// - pattern 미지정 시 기존 4-7-8 동작과 동일 (하위 호환)
+// - hold가 0인 구간은 자동으로 건너뛴다
+interface BreathingCoreProps {
+    pattern?: BreathPattern;
+    onComplete?: (cycles: number) => void;
+}
+
+type BreathPhase = 'inhale' | 'hold' | 'exhale' | 'hold2';
+
+export const BreathingCore: React.FC<BreathingCoreProps> = ({ pattern, onComplete }) => {
+    const phases = useMemo((): { key: BreathPhase; seconds: number }[] => {
+        const p = pattern || { inhaleSec: 4, holdSec: 7, exhaleSec: 8, hold2Sec: 0 };
+        const list: { key: BreathPhase; seconds: number }[] = [
+            { key: 'inhale', seconds: Math.max(1, Math.round(p.inhaleSec)) },
+        ];
+        if (p.holdSec > 0) list.push({ key: 'hold', seconds: Math.max(1, Math.round(p.holdSec)) });
+        list.push({ key: 'exhale', seconds: Math.max(1, Math.round(p.exhaleSec)) });
+        if (p.hold2Sec > 0) list.push({ key: 'hold2', seconds: Math.max(1, Math.round(p.hold2Sec)) });
+        return list;
+    }, [pattern?.inhaleSec, pattern?.holdSec, pattern?.exhaleSec, pattern?.hold2Sec]);
+
+    const [phaseIdx, setPhaseIdx] = useState(0);
+    const [count, setCount] = useState(phases[0]?.seconds || 4);
     const [isActive, setIsActive] = useState(false);
     const [completedCycles, setCompletedCycles] = useState(0);
+    const phase = phases[phaseIdx]?.key || 'inhale';
+
+    useEffect(() => {
+        setPhaseIdx(0);
+        setCount(phases[0]?.seconds || 4);
+        setIsActive(false);
+        setCompletedCycles(0);
+    }, [phases]);
 
     useEffect(() => {
         if (!isActive) return;
@@ -15,27 +44,29 @@ export const BreathingCore: React.FC = () => {
                 if (prev > 1) return prev - 1;
 
                 // 다음 단계로 전환
-                if (phase === 'inhale') {
-                    setPhase('hold');
-                    return 7;
-                } else if (phase === 'hold') {
-                    setPhase('exhale');
-                    return 8;
-                } else {
-                    setPhase('inhale');
-                    setCompletedCycles(prev => prev + 1);
-                    return 4;
+                const nextIdx = (phaseIdx + 1) % phases.length;
+                if (nextIdx === 0) {
+                    setCompletedCycles(c => {
+                        const n = c + 1;
+                        if (onComplete) {
+                            try { onComplete(n); } catch { /* ignore */ }
+                        }
+                        return n;
+                    });
                 }
+                setPhaseIdx(nextIdx);
+                return phases[nextIdx]?.seconds || 4;
             });
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isActive, phase]);
+    }, [isActive, phaseIdx, phases]);
 
     const getPhaseText = () => {
         switch (phase) {
             case 'inhale': return '숨을 들이마시세요';
-            case 'hold': return '숨을 참으세요';
+            case 'hold':
+            case 'hold2': return '숨을 참으세요';
             case 'exhale': return '천천히 내쉬세요';
         }
     };
@@ -43,12 +74,13 @@ export const BreathingCore: React.FC = () => {
     const getPhaseColor = () => {
         switch (phase) {
             case 'inhale': return 'from-blue-500 to-cyan-500';
-            case 'hold': return 'from-amber-500 to-orange-500';
+            case 'hold':
+            case 'hold2': return 'from-amber-500 to-orange-500';
             case 'exhale': return 'from-emerald-500 to-green-500';
         }
     };
 
-    const circleScale = phase === 'inhale' ? 'scale-150' : phase === 'hold' ? 'scale-150' : 'scale-75';
+    const circleScale = phase === 'exhale' ? 'scale-75' : 'scale-150';
 
     return (
         <div className="w-full">
@@ -83,8 +115,8 @@ export const BreathingCore: React.FC = () => {
                 <button
                     onClick={() => {
                         setIsActive(false);
-                        setPhase('inhale');
-                        setCount(4);
+                        setPhaseIdx(0);
+                        setCount(phases[0]?.seconds || 4);
                         setCompletedCycles(0);
                     }}
                     className="px-6 py-4 bg-slate-200 hover:bg-slate-300 rounded-xl font-bold text-slate-700 transition-all"
@@ -119,7 +151,7 @@ export const BreathingGuide: React.FC<{ onClose: () => void }> = ({ onClose }) =
                     </button>
                 </div>
                 <p className="text-sm text-slate-500 mb-8">
-                    불안 완화와 수면 개선에 효과적인 호흡 기법입니다
+                    긴장 완화에 도움이 될 수 있는 호흡 기법입니다
                 </p>
 
                 <BreathingCore />

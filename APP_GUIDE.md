@@ -32,7 +32,7 @@ NBASS는 단순 심리검사 앱이 아닙니다. 수험생의 **설문 응답, 
 | **AI 엔진** | Google Gemini (`@google/genai`) |
 | **클라우드 DB/인증** | Supabase (PostgreSQL, Auth) |
 | **로컬 DB** | Dexie (IndexedDB 래퍼) + localStorage |
-| **OCR** | Tesseract.js + PDF.js (성적표 이미지/PDF 자동 인식) |
+| **OCR** | Tesseract.js (성적표 사진 인식 → 사용자 확인 후 입력) |
 | **아이콘** | Lucide React |
 | **PWA** | Service Worker + Web App Manifest (모바일 설치 지원) |
 
@@ -107,10 +107,11 @@ flowchart TD
     C --> D["🧠 4. 공부 효율성 정밀 검사<br/>(StudyEfficiencyStep)"]
     D --> E["🧩 5. 작업 기억 용량 테스트<br/>(WorkingMemoryStep)"]
     E --> F["🎯 6. 인지 성능 테스트<br/>(CognitivePerformanceStep)"]
-    F --> G["🩸 7. 혈액검사 입력 (선택)<br/>(BloodTestInput)"]
-    G --> H["⏳ AI 통합 분석<br/>(LoadingStep)"]
+    F --> H["⏳ AI 통합 분석<br/>(LoadingStep)"]
     H --> I["✅ 종합 결과 리포트<br/>(ResultsView)"]
 ```
+
+> 참고: HRV/EEG 기기 측정 및 혈액검사 입력 단계는 제거됐다. 분류·처방은 설문+인지검사 기반으로 동작하며, 생체신호·혈액 수치 입력 UI는 제공하지 않는다.
 
 #### 단계별 상세
 
@@ -135,8 +136,6 @@ flowchart TD
 **⑤ 작업 기억 용량 테스트** ([WorkingMemoryAssessment](components/WorkingMemoryAssessment.tsx)) — 숫자 거꾸로 외우기(Digit Span), N-Back 등 미니게임형 테스트로 작업 기억 스팬 측정
 
 **⑥ 인지 성능 테스트** ([CognitivePerformanceAssessment](components/CognitivePerformanceAssessment.tsx)) — Go/No-Go 과제 기반 주의력·충동성 제어 능력 실측
-
-**⑦ 혈액검사 입력 (선택)** — 빈혈/갑상선/비타민D 등 수치 입력 시 의학 엔진([medicalEngine](services/))이 추가 분석
 
 ---
 
@@ -178,10 +177,10 @@ flowchart TD
 | **오답노트 처방** | [wrongNotePrescriptionEngine.ts](services/wrongNotePrescriptionEngine.ts) | 오답 패턴별 학습 전략 처방 |
 | **학습 전략** | [studyStrategyEngine.ts](services/studyStrategyEngine.ts), [studyEfficiencyService.ts](services/studyEfficiencyService.ts) | 학습 효율 분석 및 전략 매칭 |
 | **시간생물학** | [chronobiologyEngine.ts](services/chronobiologyEngine.ts) | 서카디안 리듬 기반 수면/학습 리듬 분석 |
-| **OCR** | [ocrEngine.ts](services/ocrEngine.ts), [ocrDataMapper.ts](services/ocrDataMapper.ts) | 성적표 사진/PDF 자동 인식 → 성적 입력 |
+| **OCR** | [gradeOcrService.ts](services/gradeOcrService.ts) | 성적표 사진 인식 → 후보 표시 → 사용자 확인 후 입력 (PDF 직접 인식은 미지원) |
 | **추천 엔진** | [recommendationEngine.ts](services/recommendationEngine.ts) | 케어타입별 제품/콘텐츠 추천 |
 
-> **AI 하이브리드 설계**: [aiGradePlanEngine.ts](services/aiGradePlanEngine.ts)는 규칙 엔진(비용 0원, 즉시 생성)을 기본으로 하고, 멤버십 등급에 따라 Gemini AI 생성 플랜을 월 할당량(프리미엄 월 5회 ~ VIP 주 5회)만큼 제공합니다.
+> **AI 하이브리드 설계**: [aiGradePlanEngine.ts](services/aiGradePlanEngine.ts)는 규칙 엔진(비용 0원, 즉시 생성)을 기본으로 하고, 멤버십 등급에 따라 Gemini AI 생성 플랜을 월 할당량(프리미엄 월 5회)만큼 제공합니다.
 
 ---
 
@@ -205,15 +204,12 @@ flowchart TD
 
 | 등급 | 가격 | 핵심 기능 |
 | :--- | :--- | :--- |
-| 🌱 **FREE** | ₩0 | 3분 기본 진단, 케어타입 분류, 1줄 요약 |
-| ⚡ **PRO** | ₩9,000 (1회) | 1회 학생용 풀 리포트 열람 |
-| 💎 **PREMIUM** | ₩9,900/월 | 심층 리포트 무제한, 성적 관리·시뮬레이션, 영양 처방, 카카오톡 주간 알림, AI 공부 시간표 |
-| ✨ **PREMIUM PLUS** | ₩19,900/월 | + AI 1:1 학습 클리닉, 14P 의학 리포트북 PDF, 스마트 케어 스케줄러 |
-| 👑 **VIP** | ₩29,900/월 | 전 기능 무제한 + 수면 관리, 멘탈 케어, 예측 엔진 |
-| 🩺 **EXPERT** | 전문가용 | 전 기능 100% 무제한 해금 |
+| 🌱 **무료 회원 (FREE)** | ₩0 | 3분 기본 진단, 12종 케어타입 분류, 핵심 1줄 진단 소견 무료 열람 |
+| ⚡ **1회 리포트 회원 (REPORT)** | ₩24,900 (1회) | **14P 초정밀 전두엽·뇌신체 의학 리포트북 PDF 영구 발급**, 작업기억 인지 분석표, 골든타임 시간표 |
+| 💎 **정기결제 회원 (SUBSCRIBER)** | ₩19,900/월 | **매주 일요일 엄마 카톡 주간 브리핑** + 매주 AI 골든타임 시간표 + 목표 대학 시뮬레이션 & 오답 클리닉 + 14P 리포트북 상시 무료 |
+| 🩺 **EXPERT** | 관리자 전용 | 전 기능 100% 무제한 해금 & 전체 관제 포털 접근 권한 |
 
-- `canAccess(tier, feature)` 함수로 기능별 접근 제어
-- AI 플랜 생성은 등급별 월 할당량 관리 (localStorage 기반 사용량 추적)
+- `canAccess(tier, feature)` 함수로 기능별 접근 제어 (정기결제 회원은 모든 지속 케어 기능 무제한 접근)
 
 ---
 

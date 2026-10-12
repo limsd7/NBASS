@@ -137,24 +137,15 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
     // Print window handler
     const handlePrintWindow = () => {
         // Target the hidden Medical Report component
-        const printContent = document.getElementById('medical-report-container')?.innerHTML;
+        const rawContent = document.getElementById('medical-report-container')?.innerHTML;
+        if (!rawContent) return;
 
-        // Basic print styles to reset page
-        const printStyle = `
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto+Mono&display=swap');
-            @page { size: A4; margin: 0; }
-            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        `;
+        let printContent = rawContent.replace(/@import\s+url\([^)]+\);?/gi, '');
 
-        // Gather Tailwind styles from current document
-        const tailwindStyles = Array.from(document.styleSheets)
-            .map(styleSheet => {
-                try {
-                    return Array.from(styleSheet.cssRules).map(rule => rule.cssText).join('');
-                } catch (e) {
-                    return '';
-                }
-            }).join('');
+        // 1. Gather ONLY compiled inline <style> elements from current document (0 network requests, instantly ready from memory)
+        const headStyles = Array.from(document.querySelectorAll('head style'))
+            .map(el => el.outerHTML)
+            .join('\n');
 
         const printWindow = window.open('', '_blank', 'width=1200,height=900');
         if (printWindow) {
@@ -162,18 +153,23 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
         <!DOCTYPE html>
         <html lang="ko">
           <head>
+            <meta charset="utf-8" />
+            <base href="${window.location.origin}/" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>NBASS Assessment Report - ${result.student.name}</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            ${headStyles}
             <style>
-              ${tailwindStyles}
-              ${printStyle}
-              .no-print { display: none !important; }
-              /* Ensure popup is scrollable if needed on screen, but print is paginated */
-              body { overflow-y: auto; }
-              @media print {
-                  .floating-print-btn { display: none; }
-                  body { -webkit-print-color-adjust: exact; }
+              @page { size: A4 portrait; margin: 0; }
+              html, body { 
+                margin: 0; 
+                padding: 0; 
+                background: white !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif !important;
               }
+              .no-print, .floating-print-btn { display: none !important; }
+              body { overflow-y: auto; }
               .floating-print-btn {
                 position: fixed; top: 20px; right: 20px;
                 background: #1e293b; color: white; padding: 12px 24px;
@@ -189,11 +185,27 @@ export const ResultsStep: React.FC<ResultsStepProps> = ({
             <div id="print-root">
               ${printContent}
             </div>
+            <script>
+              var printed = false;
+              function triggerPrint() {
+                if (printed) return;
+                printed = true;
+                setTimeout(function() {
+                  window.print();
+                }, 50);
+              }
+
+              if (document.readyState === 'complete') {
+                triggerPrint();
+              } else {
+                window.addEventListener('load', triggerPrint);
+                setTimeout(triggerPrint, 250);
+              }
+            </script>
           </body>
         </html>
       `);
             printWindow.document.close();
-            // Optional: Give time for styles/fonts to load
             printWindow.focus();
         }
     };

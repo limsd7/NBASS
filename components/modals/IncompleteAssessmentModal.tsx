@@ -84,9 +84,11 @@ export const IncompleteAssessmentModal: React.FC<IncompleteAssessmentModalProps>
           
           <button
             onClick={onLeave}
-            className="w-full py-2.5 bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 hover:border-rose-500/30 border border-slate-700/60 font-bold text-xs rounded-xl transition-all"
+            className="w-full py-2.5 bg-slate-800/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 hover:border-rose-500/30 border border-slate-700/60 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
           >
-            검사 중단하고 나가기
+            <span>🚪</span>
+            <span>검사 중단하고 나가기</span>
+            <span className="text-[11px] text-slate-400 font-normal">(이전 검사결과로 이동)</span>
           </button>
         </div>
 

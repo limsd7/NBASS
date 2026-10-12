@@ -1,5 +1,5 @@
 
-export type MembershipTier = 'free' | 'pro' | 'premium' | 'premium_plus' | 'vip' | 'expert' | 'basic';
+export type MembershipTier = 'free' | 'pro' | 'premium' | 'expert';
 
 // 자율신경균형도 유형 (uBioMacpa Portable Device)
 export enum ANSBalanceType {
@@ -206,7 +206,7 @@ export interface StudentInfo {
   activityLevel?: number; // 1: Low, 2: Moderate, 3: Active, 4: Very Active
   mbti?: string; // Optional legacy fallback
   learningTraits?: LearningTraitsData; // 5대 과학적 학습 기질 및 전략 데이터
-  membershipTier?: 'free' | 'pro' | 'basic' | 'premium' | 'premium_plus' | 'vip' | 'expert';
+  membershipTier?: 'free' | 'pro' | 'premium' | 'expert';
   subscriptionExpiresAt?: string; // ISO date string for subscription expiry
 
   academyName?: string; // 소속 학원명 (학생지도전문가 매칭용)
@@ -218,6 +218,8 @@ export interface StudentInfo {
     streak: number;
     lastCompletedDate?: string;
     completedTasks: string[];
+    // 기기 간 체크/해제 충돌 해결용 tombstone 로그 (taskId -> 마지막 액션)
+    taskLog?: Record<string, { done: boolean; at: string }>;
   };
 }
 
@@ -350,7 +352,12 @@ export interface SurveyData {
   fatigueSymptomsCount: number;
   symptoms: string[];
   sympatheticSymptoms: string[];
+  sympatheticSymptomsCount?: number;
   parasympatheticSymptoms: string[];
+  parasympatheticSymptomsCount?: number;
+  circulationScore?: number;
+  circulationSymptomsCount?: number;
+  circulationSymptoms?: string[];
   concentrationScore: number;
   adrenalFatigueScore?: number;
   // 공부 효율성 정밀 검사 (Study Efficiency Assessments)
@@ -746,6 +753,17 @@ export interface StudentRoadmap {
   customNotes?: string;
   createdAt: string;
   updatedAt: string;
+  // 적응형 재생성용 입력 스냅샷 (입력 변화 감지·완료상태 보존 병합용, 미존재 시 레거시로 간주)
+  inputSnapshot?: RoadmapInputSnapshot;
+}
+
+// 로드맵 생성 시점의 입력 스냅샷 (stale 감지용)
+export interface RoadmapInputSnapshot {
+  careTypeCode: string;
+  primaryScore?: number;
+  recordCount: number;
+  latestExamDate?: string;
+  gradesKey: string; // 'korean-math-english' 현재 등급 조합
 }
 
 export interface GradeGoal {
@@ -819,8 +837,21 @@ export interface SleepPrescription {
 // 오답 원인 분류 및 망각곡선 간격반복 타입
 export type WrongNoteErrorType = 'CONCEPT' | 'MISTAKE_IMPULSE' | 'TIME_LIMIT' | 'KILLER_PROBLEM';
 
+/** 복습 기록 방식: answer=정답 직접 입력 검증, twin=AI 변형 문제 풀이, self=자기확인, recall=백지 인출 연동 */
+export type WrongNoteReviewMethod = 'answer' | 'twin' | 'self' | 'recall';
+
+export interface WrongNoteReviewRecord {
+  date: string;
+  passed: boolean;
+  /** 검증 통과 여부 (true=정답 입력·변형 문제로 확인, false·미기재=자기보고) */
+  verified?: boolean;
+  method?: WrongNoteReviewMethod;
+}
+
 export interface WrongNote {
   id: string;
+  studentId?: string; // 동기화용 학생 식별자 (없으면 PC 로컬 전용)
+  source?: string; // 'android' — Android에서 온 병합분 표시 (재푸시 제외용)
   subject: string;
   questionTitle: string;
   wrongAnswer: string;
@@ -828,12 +859,25 @@ export interface WrongNote {
   explanation: string;
   difficulty: "상" | "중" | "하";
   errorType?: WrongNoteErrorType; // 개념부족, 실수/산만, 시간부족, 킬러문항
-  reviewStage?: number; // 0: 신규, 1: 1일후, 2: 3일후, 3: 7일후, 4: 마스터 정복
+  reviewStage?: number; // 0: 신규, 1: 1일 후, 2: 3일 후, 3: 7일 후, 4: 마스터 (3단계 통과 후 14일 재검증)
   nextReviewDate?: string; // YYYY-MM-DD
   lastReviewedAt?: string;
-  reviewHistory?: { date: string; passed: boolean }[];
+  reviewHistory?: WrongNoteReviewRecord[];
   isResolved: boolean;
   createdAt: string;
+  imageUrl?: string; // 문제 원본 사진 (촬영/캡처본)
+  metacognitiveNote?: { // 3줄 메타인지 빠른 기록
+    misconception?: string; // 1줄: 내가 한 착각/함정 사고
+    trapKeyword?: string;    // 2줄: 출제자의 함정/단서
+    actionRule?: string;     // 3줄: 다음 번 첫 행동 수칙
+  };
+  twinProblem?: { // AI 쌍둥이 유사 변형 문항 캐시
+    twinTitle: string;
+    question: string;
+    answer: string;
+    explanation: string;
+    generatedAt?: string;
+  };
 }
 
 // 인지검사 결과 기반 과목별 맞춤 공부법 조정 인터페이스
@@ -869,4 +913,62 @@ export interface CognitiveSubjectAdaptation {
     currentScore: number;
     improvementRate: number; // percentage
   };
+}
+
+// ===== 과목별 AI 클리닉 & 문제은행 타입 정의 =====
+
+export type TrapType =
+  // 국어 함정 유형
+  | 'causal_distortion'        // 인과 왜곡 (선후관계를 원인-결과로 왜곡)
+  | 'subject_object_inversion' // 주객 전도 / 범주 오류
+  | 'exaggeration'             // 과장·확대해석 / 일반화의 오류
+  | 'unsupported_inference'    // 본문에 없는 자의적 억측
+  | 'fact_mismatch'            // 단순 사실 불일치
+  // 수학 함정 및 계산 실수 유형
+  | 'sign_flip'                // 부호 실수 / 이항 전개 오류 (Sign Flip)
+  | 'boundary_value'           // 경계값 / 등호 누락 / 정수 조건 미확인 (Boundary Value)
+  | 'condition_omission'       // 발문 조건 [가], [나] 간과 (Omitted Condition)
+  | 'calc_overload'            // 계산 비효율 / 무리한 전개 인지 과부하 (Calculation Overload)
+  | 'graph_misassumption'      // 그래프 개형 임의 단정 / 대칭성 오판 (Graph Misassumption)
+  // 영어 함정 및 매력적 오답 유형
+  | 'word_match_distortion'    // 단어 일치 왜곡형 (지문 단어만 보고 성급히 고르는 함정)
+  | 'discourse_signpost_miss'  // 지시어·연결사 단서 간과 (However, Such, This 대명사 누락)
+  | 'scope_overgeneralization' // 지나친 일반화·비약 (All, Always, Never, Solely 범위 왜곡)
+  | 'opposite_causality'       // 인과 역전·주객 전도 (원인과 결과를 뒤바꾼 선지)
+  | 'irrelevant_theme';        // 주제 이탈·부분적 참 (매력적이지만 글 전체 요지와 무관)
+
+export interface BankQuestion {
+  id: string;                    // 고유 UUID
+  studentId: string;             // 학생 ID
+  subjectId: string;             // 'korean' | 'math' | 'english' 등
+  targetGrade: number;           // 목표 등급 (예: 1)
+  currentGrade: number;          // 현재 등급 (예: 2)
+  strategyType: 'grade_strategy' | 'cognitive_tip'; // 등급 전략 vs 인지 훈련
+  strategyTag: string;           // 예: '문학 미세 선지 판별', '핵심 명제 연결'
+  passage: string;               // 250~350자 내외 지문 본문
+  question: string;              // 발문
+  options: string[];             // 선지 목록 (3~4개)
+  correctIndex: number;          // 정답 인덱스 (0-based)
+  strategyFeedback: string;      // 정답/오답 해설 및 전략 체화 가이드
+  trapType: TrapType;            // 출제 함정 유형
+  topicKeyword: string;          // 주제 키워드 (예: '흄의 인과론', '채권 수익률')
+  fingerprint: string;           // 지문 중복 방지용 정규화 해시
+  isSolved: boolean;             // 풀이 완료 여부
+  isCorrect?: boolean;           // 정답 여부
+  chosenIndex?: number;          // 학생이 고른 선지
+  solveDurationSec?: number;     // 풀이 소요 시간 (초)
+  cognitiveFatigueNote?: string; // 소요 시간에 따른 인지 과부하 분석
+  memoryKeywords?: string[];     // 인지 훈련 시 입력한 키워드 3개
+  createdAt: string;             // 생성 일시
+  solvedAt?: string;             // 풀이 일시
+}
+
+export interface TrapDnaStats {
+  totalAttempts: number;
+  correctCount: number;
+  accuracyRate: number;
+  trapBreakdown: Record<TrapType, { attempts: number; failedCount: number; failRate: number }>;
+  mostVulnerableTrap: TrapType | null;
+  avgSolveSec: number;
+  cognitiveOverloadCount: number; // 90초 이상 고민한 횟수
 }

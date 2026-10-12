@@ -13,14 +13,15 @@ export const ReportNavigator: React.FC<ReportNavigatorProps> = ({ isExpertUser =
     const [activeId, setActiveId] = useState<string>('');
 
     const expertLinks = [
-        { id: "section-medical-analysis", label: "의학적 정밀 분석" },
-        { id: "section-mind-prescription", label: "오늘의 마음 처방전" },
-        { id: "section-gamification", label: "인지 훈련 (Gamification)" },
+        { id: "section-sleep-dashboard", label: "신경수면 & 생체리듬 대시보드" },
+        { id: "section-grade-analytics", label: "학업 성취도 & 성적 추이 연동" },
+        { id: "section-mind-prescription", label: "오늘의 마음 케어 (Zen)" },
         { id: "section-expert-memo", label: "전문가 소견 (Secret Point)" },
         { id: "section-charts", label: "생체 데이터 차트 분석" },
-        { id: "section-nutrition", label: "맞춤형 영양 처방 (Nutrition)" },
+        { id: "section-nutrition", label: "맞춤형 영양 가이드 (Nutrition)" },
+        { id: "section-daily-todo", label: "📋 1일 실천 To-Do 플래너" },
         { id: "section-ai-schedule", label: "AI 최적 학습 스케줄링" },
-        { id: "section-mental-health", label: "정신건강 처방전" },
+        { id: "section-mental-health", label: "멘탈 밸런스 가이드" },
         ...(isExpertUser ? [{ id: "section-ai-assistant", label: "나의 전문소견 & AI 보조 어시스턴트" }] : [])
     ];
 
@@ -56,7 +57,7 @@ export const ReportNavigator: React.FC<ReportNavigatorProps> = ({ isExpertUser =
             ]
         },
         {
-            title: "전문가 심층 처방 (Expert)",
+            title: "전문가 심층 솔루션 (Expert)",
             links: expertLinks
         }
     ];
@@ -94,8 +95,6 @@ export const ReportNavigator: React.FC<ReportNavigatorProps> = ({ isExpertUser =
             const y = element.getBoundingClientRect().top + window.scrollY - 210;
             window.scrollTo({ top: y, behavior: 'smooth' });
             setActiveId(id);
-        } else {
-            console.warn(`Element with id ${id} not found.`);
         }
     };
 

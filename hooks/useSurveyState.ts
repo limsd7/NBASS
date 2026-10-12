@@ -4,6 +4,7 @@ import { calculateLearningTraits } from '../data/learningTraitsData';
 export const useSurveyState = () => {
     const [snsSymptomSelection, setSnsSymptomSelection] = useState<string[]>([]);
     const [pnsSymptomSelection, setPnsSymptomSelection] = useState<string[]>([]);
+    const [circulationSymptomSelection, setCirculationSymptomSelection] = useState<string[]>([]);
     const [baiAnswers, setBaiAnswers] = useState<number[]>(() => new Array(21).fill(0));
     const [isiAnswers, setIsiAnswers] = useState<number[]>(() => new Array(7).fill(0));
     const [concentrationAnswers, setConcentrationAnswers] = useState<number[]>(() => new Array(7).fill(0));
@@ -21,6 +22,7 @@ export const useSurveyState = () => {
     const resetSurveys = () => {
         setSnsSymptomSelection([]);
         setPnsSymptomSelection([]);
+        setCirculationSymptomSelection([]);
         setBaiAnswers(new Array(21).fill(0));
         setIsiAnswers(new Array(7).fill(0));
         setConcentrationAnswers(new Array(7).fill(0));
@@ -34,6 +36,7 @@ export const useSurveyState = () => {
     return {
         snsSymptomSelection, setSnsSymptomSelection,
         pnsSymptomSelection, setPnsSymptomSelection,
+        circulationSymptomSelection, setCirculationSymptomSelection,
         baiAnswers, setBaiAnswers,
         isiAnswers, setIsiAnswers,
         concentrationAnswers, setConcentrationAnswers,

@@ -2,7 +2,7 @@
  * 오답노트 ↔ CareType 공부법 자동 연동 & 에빙하우스 망각곡선 간격반복(Spaced Repetition) 처방 엔진
  */
 
-import { CareType, WrongNote, WrongNoteErrorType } from '../types';
+import { CareType, WrongNote, WrongNoteErrorType, WrongNoteReviewRecord } from '../types';
 import { DETAILED_CARETYPE_STRATEGIES } from '../data/learningStrategies';
 
 export interface WrongNoteErrorTypeMeta {
@@ -70,12 +70,18 @@ export interface SpacedRepetitionItem {
     daysRemaining: number; // 0 이하이면 오늘 복습 대상
     statusLabel: string;
     isDueToday: boolean;
+    /** 누적 복습 실패 횟수 (reviewHistory 기반, 기록은 있으나 미활용이던 데이터 활용) */
+    lapses: number;
+    /** 2회 이상 틀린 반복 오답 여부 */
+    isRepeatOffender: boolean;
 }
 
 export interface WrongNoteAnalysisReport {
     totalNotes: number;
     unresolvedNotes: number;
     dueTodayNotes: SpacedRepetitionItem[];
+    /** 반복 실패(2회 이상) 오답 — 근본 재학습 처방 대상 */
+    repeatOffenderNotes: WrongNote[];
     errorTypeCounts: Record<WrongNoteErrorType, number>;
     dominantErrorType: WrongNoteErrorType;
     subjectPrescriptions: SubjectWrongNotePrescription[];
@@ -84,20 +90,85 @@ export interface WrongNoteAnalysisReport {
 
 // 망각곡선 주기: 0(당일) -> 1(1일후) -> 2(3일후) -> 3(7일후) -> 4(완전 마스터)
 export const SPACED_REPETITION_INTERVALS: Record<number, number> = {
-    0: 1, // 0단계 -> 1일 후
-    1: 3, // 1단계 -> 3일 후
-    2: 7, // 2단계 -> 7일 후
-    3: 14 // 3단계 -> 14일 후
+    0: 1, // 0단계 -> 1일 후 (D+1)
+    1: 3, // 1단계 -> 3일 후 (D+3)
+    2: 7, // 2단계 -> 7일 후 (D+7)
+    3: 14, // 3단계 -> 14일 후 (D+14)
+    4: 30 // 4단계 -> 30일 후 (마스터 완료 참고 주기)
+};
+
+/**
+ * 디바이스 로컬(한국 시간) 기준 오늘 날짜 (YYYY-MM-DD).
+ * - UTC 기반 toISOString는 새벽 0~9시(KST)에 어제 날짜를 반환하여
+ *   복습 D-Day 판정이 하루 밀리는 버그를 방지합니다.
+ */
+export const todayLocalStr = (d: Date = new Date()): string => {
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+/** 오늘 우선 복습 큐 노출 상한 (초과분은 '더 보기'로 접기) */
+export const DAILY_QUEUE_LIMIT = 10;
+
+/** 정답 비교용 정규화 (공백·대소문자 차이 무시) */
+export const normalizeAnswer = (s: string): string =>
+    String(s || '').replace(/\s+/g, '').toLowerCase();
+
+/** 재풀이 검증: 입력 답과 등록 정답 비교 */
+export const checkReviewAnswer = (input: string, correct: string): boolean => {
+    const a = normalizeAnswer(input);
+    const b = normalizeAnswer(correct);
+    return a.length > 0 && a === b;
+};
+
+export interface RetentionDay {
+    date: string;      // YYYY-MM-DD
+    label: string;     // MM-DD
+    total: number;     // 복습 기록 수
+    passed: number;    // 통과 수
+    verified: number;  // 검증 통과 수
+    /** 정답률 0~100 (기록 없으면 null) */
+    rate: number | null;
+}
+
+/** reviewHistory 기반 최근 N일 복습 정답률 시리즈 (망각곡선 시각화용) */
+export const buildRetentionSeries = (notes: WrongNote[], days = 14): RetentionDay[] => {
+    const out: RetentionDay[] = [];
+    const now = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const key = todayLocalStr(d);
+        let total = 0, passed = 0, verified = 0;
+        for (const n of notes) {
+            for (const h of (n.reviewHistory || []) as WrongNoteReviewRecord[]) {
+                if (!h || h.date !== key) continue;
+                total += 1;
+                if (h.passed) passed += 1;
+                if (h.passed && h.verified) verified += 1;
+            }
+        }
+        out.push({
+            date: key,
+            label: key.slice(5),
+            total, passed, verified,
+            rate: total > 0 ? Math.round((passed / total) * 100) : null,
+        });
+    }
+    return out;
 };
 
 /**
  * 다음 복습 날짜를 계산하여 YYYY-MM-DD 형식으로 반환합니다.
+ * 4단계(완전 마스터)에 도달한 경우 복습 일정이 종료되므로 undefined를 반환합니다.
  */
-export const calculateNextReviewDate = (currentStage: number, fromDate?: Date): string => {
+export const calculateNextReviewDate = (currentStage: number, fromDate?: Date): string | undefined => {
+    if (currentStage >= 4) {
+        return undefined;
+    }
     const base = fromDate ? new Date(fromDate) : new Date();
     const daysToAdd = SPACED_REPETITION_INTERVALS[currentStage] || 1;
     base.setDate(base.getDate() + daysToAdd);
-    return base.toISOString().split('T')[0];
+    return todayLocalStr(base);
 };
 
 /**
@@ -107,7 +178,7 @@ export const analyzeWrongNotesAndCareType = (
     notes: WrongNote[],
     careType: CareType = CareType.HEALTHY
 ): WrongNoteAnalysisReport => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = todayLocalStr();
     const today = new Date(todayStr);
 
     const errorCounts: Record<WrongNoteErrorType, number> = {
@@ -131,20 +202,24 @@ export const analyzeWrongNotesAndCareType = (
             const stage = n.reviewStage || 0;
 
             const isDueToday = diffDays <= 0;
-            let statusLabel = isDueToday 
-                ? '오늘 복습 (D-Day)' 
+            let statusLabel = isDueToday
+                ? '오늘 복습 (D-Day)'
                 : `${diffDays}일 후 복습`;
 
             if (stage >= 4) {
                 statusLabel = '마스터 완료 (정복)';
             }
 
+            const lapses = (n.reviewHistory || []).filter(h => h && h.passed === false).length;
+
             dueTodayNotes.push({
                 note: n,
                 stage,
                 daysRemaining: diffDays,
                 statusLabel,
-                isDueToday: isDueToday && stage < 4
+                isDueToday: isDueToday && stage < 4,
+                lapses,
+                isRepeatOffender: lapses >= 2
             });
         }
     });
@@ -221,17 +296,30 @@ export const analyzeWrongNotesAndCareType = (
                 killerTips: protocol.killerTips,
                 recommendedStepRoutine: [
                     `1단계: ${ERROR_TYPE_METAS[subjDominant].rootCauseTip}`,
-                    `2단계: ${protocol.readingOrConceptMethod.slice(0, 100)}...`,
-                    `3단계: 1일 ➡️ 3일 ➡️ 7일 후 변형 문제로 동일 개념 재인출 검증`
+                    `2단계: ${protocol.readingOrConceptMethod.length > 120 ? protocol.readingOrConceptMethod.slice(0, 120) + '…' : protocol.readingOrConceptMethod}`,
+                    `3단계: 1·3·7·14일 후 변형 문제로 동일 개념 재인출 검증`
                 ]
             }
         });
     });
 
+    // 우선순위 정렬: 반복 실패 많은 순 → 난이도 높은 순 → 오래된 순
+    const dueQueue = dueTodayNotes
+        .filter(d => d.isDueToday)
+        .sort((a, b) => {
+            if (b.lapses !== a.lapses) return b.lapses - a.lapses;
+            const dOrder: Record<string, number> = { '상': 2, '중': 1, '하': 0 };
+            const da = dOrder[a.note.difficulty] ?? 1;
+            const db = dOrder[b.note.difficulty] ?? 1;
+            if (db !== da) return db - da;
+            return (a.note.createdAt || '').localeCompare(b.note.createdAt || '');
+        });
+
     return {
         totalNotes: notes.length,
         unresolvedNotes: notes.filter(n => !n.isResolved).length,
-        dueTodayNotes: dueTodayNotes.filter(d => d.isDueToday),
+        dueTodayNotes: dueQueue,
+        repeatOffenderNotes: dueTodayNotes.filter(d => d.isRepeatOffender).map(d => d.note),
         errorTypeCounts: errorCounts,
         dominantErrorType,
         subjectPrescriptions,

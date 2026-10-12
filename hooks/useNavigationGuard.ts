@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 
 export type AppMenu = 'dashboard' | 'assessment' | 'results' | 'schedule' | 'sleep' | 'grades' | 'history' | 'wrongnotes' | 'resources' | 'solutions' | 'progress' | 'habits';
-export type AssessmentStep = 'role_selection' | 'student_directory' | 'parent_directory' | 'parent_dashboard' | 'expert_dashboard' | 'owner_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'hrv' | 'eeg' | 'bloodtest' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management';
+export type AssessmentStep = 'role_selection' | 'student_directory' | 'parent_directory' | 'parent_dashboard' | 'expert_dashboard' | 'owner_dashboard' | 'register' | 'surveys' | 'protocol' | 'analytics' | 'study_efficiency' | 'cognitive_test' | 'working_memory' | 'loading' | 'results' | 'admin_expertise' | 'study_management' | 'grade_management' | 'sleep_management';
 
 interface UseNavigationGuardArgs {
     step: AssessmentStep | string;
@@ -10,6 +10,7 @@ interface UseNavigationGuardArgs {
     setActiveMenu: (m: AppMenu | string) => void;
     currentUserRole: string | null;
     studentName: string;
+    onLeaveToResults?: () => void;
 }
 
 export const useNavigationGuard = ({
@@ -19,6 +20,7 @@ export const useNavigationGuard = ({
     setActiveMenu,
     currentUserRole,
     studentName,
+    onLeaveToResults,
 }: UseNavigationGuardArgs) => {
     const [showIncompleteWarningModal, setShowIncompleteWarningModal] = useState(false);
     const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
@@ -39,10 +41,9 @@ export const useNavigationGuard = ({
                 step === 'working_memory' ||
                 step === 'cognitive_test' ||
                 step === 'hrv' ||
-                step === 'eeg' ||
-                (step === 'register' && Boolean(studentName?.trim())))
+                step === 'eeg')
         );
-    }, [currentUserRole, activeMenu, step, studentName]);
+    }, [currentUserRole, activeMenu, step]);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -78,7 +79,7 @@ export const useNavigationGuard = ({
                 }, 60);
             } else {
                 isPoppingHistoryRef.current = true;
-                const subMenus = ['schedule', 'sleep', 'wrongnotes', 'history', 'resources', 'progress'];
+                const subMenus = ['schedule', 'sleep', 'grades', 'wrongnotes', 'history', 'resources', 'progress'];
                 const subSteps = ['sleep_management', 'grade_management', 'study_management'];
                 if (subMenus.includes(String(activeMenu)) || subSteps.includes(String(step))) {
                     setStep('results');
@@ -152,11 +153,17 @@ export const useNavigationGuard = ({
 
     const handleConfirmLeave = useCallback(() => {
         setShowIncompleteWarningModal(false);
-        if (pendingNavigationAction) {
-            pendingNavigationAction();
-            setPendingNavigationAction(null);
+        const action = pendingNavigationAction;
+        setPendingNavigationAction(null);
+        if (action) {
+            action();
+        } else if (onLeaveToResults) {
+            onLeaveToResults();
+        } else {
+            setActiveMenu('results');
+            setStep('results');
         }
-    }, [pendingNavigationAction]);
+    }, [pendingNavigationAction, onLeaveToResults, setActiveMenu, setStep]);
 
     const handleContinueAssessment = useCallback(() => {
         setShowIncompleteWarningModal(false);

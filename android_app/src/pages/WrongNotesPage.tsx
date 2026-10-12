@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, WrongNoteItem } from '../types';
 import { dataSyncService } from '../services/dataSyncService';
+import { newRecordId } from '../utils/ids';
+import { useNbassRemoteRefresh } from '../hooks/useNbassRemoteRefresh';
 import { hasRequiredTier } from '../services/featureGate';
 import { LockedCard } from '../components/tiered-features/LockedCard';
-import { Camera, Plus, CheckCircle2, Sparkles, Image, AlertCircle, FileText, ChevronRight, X } from 'lucide-react';
+import { Camera, Plus, CheckCircle2, Check, RotateCcw, Sparkles, Image, AlertCircle, FileText, ChevronRight, X } from 'lucide-react';
 
 interface WrongNotesPageProps {
   user: UserProfile;
@@ -11,8 +13,10 @@ interface WrongNotesPageProps {
 }
 
 export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeClick }) => {
-  const isPlusOrAbove = hasRequiredTier(user.tier, 'premium_plus');
+  const isPlusOrAbove = hasRequiredTier(user.tier, 'premium');
   const [notes, setNotes] = useState<WrongNoteItem[]>(() => dataSyncService.getWrongNotes(user.studentId));
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [quizIdx, setQuizIdx] = useState(0);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   // 폼 입력 상태
@@ -24,9 +28,30 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedNote, setSelectedNote] = useState<WrongNoteItem | null>(null);
 
+  // ── 망각곡선 간격반복 (웹과 동일: 1일→3일→7일→14일, Retry는 한 단계 후퇴) ──
+  const REVIEW_INTERVALS = [1, 3, 7, 14];
+  const todayLocal = (): string => {
+    const d = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const addDays = (baseYmd: string, days: number): string => {
+    const [y, m, dd] = baseYmd.split('-').map(Number);
+    const d = new Date(y, m - 1, dd + days);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const nextReviewDateFor = (stage: number): string | undefined =>
+    stage >= 4 ? undefined : addDays(todayLocal(), REVIEW_INTERVALS[Math.min(stage, 3)]);
+  const isDue = (n: WrongNoteItem, today: string): boolean =>
+    !n.isResolved && (!n.nextReviewDate || n.nextReviewDate <= today);
+
   useEffect(() => {
     setNotes(dataSyncService.getWrongNotes(user.studentId));
   }, [user.studentId]);
+
+  // 원격(PC 등) 변경 실시간 반영
+  useNbassRemoteRefresh(() => setNotes(dataSyncService.getWrongNotes(user.studentId)));
 
   // 카메라 촬영 및 파일 업로드 핸들러
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,7 +85,7 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
     }
 
     const newNote: WrongNoteItem = {
-      id: 'wn-' + Date.now(),
+      id: newRecordId('wn'),
       studentId: user.studentId,
       subject,
       unitName: unitName.trim(),
@@ -70,7 +95,10 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
       memo: memo.trim(),
       aiPrescription,
       isResolved: false,
-      createdAt: new Date().toISOString().split('T')[0]
+      createdAt: new Date().toISOString().split('T')[0],
+      reviewStage: 0,
+      nextReviewDate: nextReviewDateFor(0),
+      reviewHistory: []
     };
 
     await dataSyncService.saveWrongNote(newNote);
@@ -83,6 +111,41 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
     setPreviewImage(null);
     setIsFormOpen(false);
     alert('✅ 오답노트가 실시간 등록되고 AI 처방이 발급되었습니다!');
+  };
+
+  // 복습 Pass / Retry (Retry는 전면 리셋 대신 한 단계 후퇴 — 웹과 동일 규칙)
+  const handleReview = async (note: WrongNoteItem, passed: boolean) => {    const today = todayLocal();
+    const currentStage = note.reviewStage || 0;
+    const newStage = passed ? Math.min(4, currentStage + 1) : Math.max(0, currentStage - 1);
+    const updated: WrongNoteItem = {
+      ...note,
+      reviewStage: newStage,
+      nextReviewDate: nextReviewDateFor(newStage),
+      lastReviewedAt: today,
+      isResolved: newStage >= 4 ? true : note.isResolved,
+      reviewHistory: [...(note.reviewHistory || []), { date: today, passed }]
+    };
+    await dataSyncService.saveWrongNote(updated);
+    setNotes(dataSyncService.getWrongNotes(user.studentId));
+    setSelectedNote(updated);
+  };
+
+  const todayStr = todayLocal();
+  const sortedNotes = [...notes].sort((a, b) => Number(isDue(a, todayStr)) - Number(isDue(b, todayStr)));
+  const dueNotes = sortedNotes.filter(n => isDue(n, todayStr));
+  const quizNote = quizOpen ? dueNotes[Math.min(quizIdx, Math.max(0, dueNotes.length - 1))] : null;
+
+  const handleQuizAnswer = async (passed: boolean) => {
+    if (!quizNote) return;
+    await handleReview(quizNote, passed);
+    setSelectedNote(null); // 퀴즈 중 상세 모달이 뜨지 않도록 닫음
+    if (quizIdx + 1 >= dueNotes.length) {
+      setQuizOpen(false);
+      setQuizIdx(0);
+      alert('🎉 오늘 복습 대상을 모두 마쳤습니다!');
+    } else {
+      setQuizIdx(i => i + 1);
+    }
   };
 
   return (
@@ -104,6 +167,46 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
       {/* PLUS+ 잠금 또는 기능 렌더링 */}
       {isPlusOrAbove ? (
         <div className="space-y-4">
+          {/* 복습 퀴즈 (오늘 복습 대상 다시풀기) */}
+          {quizOpen && quizNote ? (
+            <div className="bg-white p-5 rounded-3xl border-2 border-amber-300 shadow-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900">📝 복습 퀴즈 ({quizIdx + 1}/{dueNotes.length})</h3>
+                <button onClick={() => { setQuizOpen(false); setQuizIdx(0); }} className="text-slate-400 hover:text-slate-600 p-1">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-[10px] font-black text-purple-600 mb-1">{quizNote.subject} · {quizNote.unitName}</p>
+                <p className="text-sm font-black text-slate-900">{quizNote.questionNumber}</p>
+                <p className="text-[11px] text-slate-500 mt-2">정답·해설을 가리고 다시 풀어보세요. 다 풀었으면 아래 버튼을 눌러 기록하세요.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleQuizAnswer(true)}
+                  className="py-3 rounded-xl bg-emerald-500 text-white text-xs font-black active:scale-95 transition"
+                >
+                  맞췄다 (+1단계)
+                </button>
+                <button
+                  onClick={() => handleQuizAnswer(false)}
+                  className="py-3 rounded-xl bg-rose-500 text-white text-xs font-black active:scale-95 transition"
+                >
+                  틀렸다 (−1단계)
+                </button>
+              </div>
+            </div>
+          ) : (
+            dueNotes.length > 0 && (
+              <button
+                onClick={() => { setQuizIdx(0); setQuizOpen(true); }}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md active:scale-98 transition"
+              >
+                <span>📝</span>
+                <span>오늘 복습 {dueNotes.length}문제 다시풀기</span>
+              </button>
+            )
+          )}
           {/* New Note Button */}
           {!isFormOpen && (
             <button
@@ -275,7 +378,7 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
                 <p className="text-[10px] mt-1">상단의 촬영 버튼을 눌러 틀린 문제를 올려보세요.</p>
               </div>
             ) : (
-              notes.map((note) => (
+              sortedNotes.map((note) => (
                 <div
                   key={note.id}
                   onClick={() => setSelectedNote(note)}
@@ -290,6 +393,16 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
                         <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[10px] font-bold">
                           #{note.errorReason}
                         </span>
+                        {isDue(note, todayStr) && (
+                          <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                            🔥 오늘 복습
+                          </span>
+                        )}
+                        {!note.isResolved && !isDue(note, todayStr) && note.nextReviewDate && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold">
+                            {(note.reviewStage || 0)}단계 · {note.nextReviewDate.slice(5)} 복습
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-sm font-black text-slate-900 leading-tight">
                         {note.unitName}
@@ -331,9 +444,9 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
         </div>
       ) : (
         <LockedCard
-          requiredTier="premium_plus"
+          requiredTier="premium"
           featureTitle="스마트폰 오답 촬영 &amp; AI 처방 잠금"
-          description="카메라로 틀린 문제를 바로 찍어 올리고 인지 피로도 기반 맞춤 처방을 발급받는 기능은 PREMIUM PLUS (PLUS+) 등급 전용입니다."
+          description="카메라로 틀린 문제를 바로 찍어 올리고 인지 피로도 기반 맞춤 처방을 발급받는 기능은 PREMIUM 등급 전용입니다."
           onUpgradeClick={onUpgradeClick}
         />
       )}
@@ -391,7 +504,25 @@ export const WrongNotesPage: React.FC<WrongNotesPageProps> = ({ user, onUpgradeC
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+              {selectedNote && !selectedNote.isResolved && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleReview(selectedNote, true)}
+                    className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs flex items-center justify-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>복습 통과 ({Math.min(4, (selectedNote.reviewStage || 0) + 1)}단계로)</span>
+                  </button>
+                  <button
+                    onClick={() => handleReview(selectedNote, false)}
+                    title="다시 틀림 (이전 단계로 이동)"
+                    className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => setSelectedNote(null)}
                 className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs"

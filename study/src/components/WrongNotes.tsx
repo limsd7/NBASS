@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { WrongNote, WrongNoteErrorType, CareType } from "../types";
+import { WrongNote, WrongNoteErrorType } from "../types";
+import { CareType } from "../../../types";
 import { 
   Plus, CheckCircle2, AlertCircle, BookOpen, Search, Filter, Trash2, 
   Check, X, Camera, Sparkles, Loader2, Calendar, Brain, ArrowRight, RotateCcw, Timer
@@ -7,7 +8,8 @@ import {
 import { 
   analyzeWrongNotesAndCareType, 
   ERROR_TYPE_METAS, 
-  calculateNextReviewDate 
+  calculateNextReviewDate,
+  todayLocalStr
 } from "../../../services/wrongNotePrescriptionEngine";
 import { ActiveRecallModal } from "../../../components/ActiveRecallModal";
 
@@ -80,7 +82,7 @@ export function WrongNotes({ wrongNotes, setWrongNotes, careType = CareType.HEAL
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = todayLocalStr();
     const newNote: WrongNote = {
       id: `wn_${Date.now()}`,
       subject,
@@ -105,14 +107,14 @@ export function WrongNotes({ wrongNotes, setWrongNotes, careType = CareType.HEAL
     setErrorType("CONCEPT");
   };
 
-  // 간격반복 단계 이동 (Pass / Retry)
+  // 간격반복 단계 이동 (Pass / Retry — Retry는 전면 리셋 대신 한 단계 후퇴)
   const handleReviewStep = (id: string, passed: boolean) => {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = todayLocalStr();
     setWrongNotes((prev) =>
       prev.map((n) => {
         if (n.id !== id) return n;
         const currentStage = n.reviewStage || 0;
-        const newStage = passed ? Math.min(4, currentStage + 1) : 0;
+        const newStage = passed ? Math.min(4, currentStage + 1) : Math.max(0, currentStage - 1);
         const nextDate = calculateNextReviewDate(newStage);
         const isMastered = newStage >= 4;
 
@@ -143,7 +145,7 @@ export function WrongNotes({ wrongNotes, setWrongNotes, careType = CareType.HEAL
     }
   };
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayLocalStr();
 
   const filteredNotes = wrongNotes.filter((n) => {
     const matchSubject = selectedSubject === "전체" || n.subject === selectedSubject;

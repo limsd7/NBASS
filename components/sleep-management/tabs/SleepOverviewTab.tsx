@@ -2,6 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { SleepRecord, SleepGoal, AssessmentResult } from '../../../types';
 import { SleepTrendChart } from '../SleepTrendChart';
 import { MemoryConsolidationCard } from '../MemoryConsolidationCard';
+import { BreathingCore } from '../../BreathingGuide';
+import { recommendBreathingProtocols } from '../../../services/breathingEngine';
+import { BREATH_SAFETY_NOTICE } from '../../../data/breathingProtocols';
 
 interface SleepOverviewTabProps {
   records: SleepRecord[];
@@ -103,6 +106,11 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({
   }, [sortedRecords, todayScore]);
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showSleepBreath, setShowSleepBreath] = useState(false);
+  const sleepBreath = useMemo(
+    () => recommendBreathingProtocols(currentAssessment?.careType, 'pre_sleep'),
+    [currentAssessment?.careType]
+  );
 
   const handleSyncWearable = async () => {
     setIsSyncing(true);
@@ -121,6 +129,29 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({
     }
   };
 
+  const getChronotypeLabel = (raw: any): string => {
+    if (!raw) return '표준형';
+    const val = typeof raw === 'object' ? (raw.result || raw.type) : raw;
+    if (typeof val !== 'string') return '표준형';
+    switch (val.toLowerCase()) {
+      case 'morning':
+      case 'definite_morning':
+        return '아침형';
+      case 'moderate_morning':
+        return '중간 아침형';
+      case 'evening':
+      case 'definite_evening':
+        return '저녁형';
+      case 'moderate_evening':
+        return '중간 저녁형';
+      case 'intermediate':
+      case 'neutral':
+        return '중간(표준)형';
+      default:
+        return val;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Assessment Baseline Banner */}
@@ -131,7 +162,7 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({
             <span className="font-bold text-white">진단 기준치:</span>
             <span className="text-slate-300">
               {currentAssessment.careType} · 
-              {currentAssessment.studyEfficiencyResults?.chronotype || currentAssessment.analytics?.chronotype || '표준형'} 크로노타입 · 
+              {getChronotypeLabel(currentAssessment.studyEfficiencyResults?.chronotype || currentAssessment.analytics?.chronotype)} 크로노타입 · 
               평균 {currentAssessment.analytics?.avgSleepHours || 7}시간
             </span>
           </div>
@@ -258,7 +289,7 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             {sleepDebtStats.debtHours < -3 ? (
-              '누적 수면 부채로 인해 뇌 전두엽 반응 속도가 약 18% 저하된 상태입니다. 평일 수면 시간을 30분 늘리세요.'
+              '누적 수면 부채가 있으면 낮 동안의 반응 속도가 느려지고 집중이 어려워질 수 있습니다. 평일 수면 시간을 30분 늘려보세요.'
             ) : (
               '권장 수면 시간을 안정적으로 충족하여 학습된 지식이 뇌에 정상적으로 고착화되고 있습니다.'
             )}
@@ -320,6 +351,39 @@ export const SleepOverviewTab: React.FC<SleepOverviewTabProps> = ({
 
       {/* [Pillar 1] Memory Consolidation Card (서파 vs 렘 기억 고착화) */}
       <MemoryConsolidationCard latestRecord={sortedRecords[0]} />
+
+      {/* 취침 전 호흡 루틴 (CareType 맞춤) */}
+      <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 p-6 rounded-3xl border border-indigo-500/30 text-white shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{sleepBreath.primary.emoji}</span>
+            <div>
+              <h3 className="font-bold text-base text-white">취침 전 호흡 루틴: {sleepBreath.primary.name}</h3>
+              <p className="text-xs text-indigo-200/80 mt-0.5">{sleepBreath.primary.oneLiner} · 약 {sleepBreath.primary.estMinutes}분</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSleepBreath(v => !v)}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shrink-0"
+          >
+            {showSleepBreath ? '닫기' : '🌙 호흡 시작하기'}
+          </button>
+        </div>
+        {showSleepBreath && (
+          <div className="mt-5 bg-white rounded-2xl p-5 text-slate-900">
+            <BreathingCore key={sleepBreath.primary.id} pattern={sleepBreath.primary.pattern} />
+            <ol className="mt-4 space-y-1.5 text-xs text-slate-600">
+              {sleepBreath.primary.steps.map((s, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="font-black text-indigo-600">{i + 1}.</span>
+                  <span>{s}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-[10px] text-slate-400 leading-relaxed">⚠️ {BREATH_SAFETY_NOTICE}</p>
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

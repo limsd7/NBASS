@@ -111,9 +111,9 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
     onComplete,
     onClose
 }) => {
-    const isFree = isFreeMode !== undefined ? isFreeMode : (membershipTier === 'free' || membershipTier === 'basic');
-    // FREE 모드에서는 디지털 도파민 검사가 바로 열리도록 기본값 지정
-    const [currentAssessment, setCurrentAssessment] = useState<AssessmentType | null>(isFree ? 'digitalAddiction' : null);
+    const isFree = isFreeMode !== undefined ? isFreeMode : (membershipTier === 'free');
+    // FREE/유료 모두 5종 전체 수행 가능. 결과 표시만 등급 게이트 (FREE: TAI만 표시)
+    const [currentAssessment, setCurrentAssessment] = useState<AssessmentType | null>(null);
 
     // Global State from Context
     const {
@@ -165,14 +165,7 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
         : ['chronotype', 'vark', 'metacognition'];
 
     const handleStartAssessment = (type: AssessmentType) => {
-        if (isFree && type !== 'digitalAddiction') {
-            if (onUpgrade) {
-                onUpgrade();
-            } else {
-                alert('🔒 크로노타입, VARK, 시험불안, 메타인지 검사는 PRO 이상 멤버십 전용입니다.\nPRO 이상 유료 결제 시 5종 전체 정밀 진단을 모두 이용하실 수 있습니다.');
-            }
-            return;
-        }
+        // FREE 포함 전 등급 5종 모두 수행 가능 (결과 표시만 TAI 게이트)
         setCurrentAssessment(type);
     };
 
@@ -201,17 +194,7 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
         setResults(newResult);
         setCompletedAssessments(prev => new Set([...prev, type]));
 
-        // FREE 모드에서는 디지털 도파민 검사 완료 시 불필요한 카드 선택창 복귀 없이 즉시 결과 반영 및 다음 단계로 이동
-        if (isFree && type === 'digitalAddiction') {
-            const completedPayload: StudyEfficiencyResults = {
-                ...newResult,
-                digitalAddiction: newResult.digitalAddiction || calculateDigitalAddictionResult(digitalAnswers),
-                completedAt: new Date().toISOString()
-            } as StudyEfficiencyResults;
-            onComplete(completedPayload);
-            return;
-        }
-
+        // 완료 후 검사 선택 목록으로 복귀 (FREE/유료 동일)
         setCurrentAssessment(null);
     };
 
@@ -233,8 +216,8 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     📊 공부 효율성 정밀 검사
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300">
-                    {isFree 
-                        ? '무료 체험 모드: 디지털 도파민 중독 척도 검사를 진행하실 수 있습니다.' 
+                    {isFree
+                        ? 'FREE 모드: 5종 검사를 모두 수행할 수 있으며, 결과는 시험불안(TAI)만 표시됩니다.'
                         : '아래 검사들을 통해 나만의 최적 학습 전략을 파악하세요.'}
                 </p>
 
@@ -258,9 +241,9 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                             )}
                         </div>
                         <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                            무료 체험에서는 <strong>4. 디지털 도파민 중독 척도 검사</strong>만 열려 있습니다. 
+                            FREE 모드에서는 <strong>5종 검사(크로노타입, VARK, TAI, 디지털 의존도, 메타인지)를 모두 수행</strong>할 수 있습니다.
                             <br />
-                            <strong>크로노타입(수면리듬), VARK(학습감각), TAI(시험불안), 메타인지</strong> 4개 심층 정밀 검사는 <strong>PRO 이상 유료 멤버십</strong> 결제 시 전체 해금되어 5종 모두 진행하실 수 있습니다.
+                            검사 <strong>결과 표시</strong>는 <strong>시험불안(TAI)만 제공</strong>되며, 나머지 4종 결과는 <strong>PRO 이상 유료 멤버십</strong> 결제 시 전체 해금됩니다.
                         </p>
                     </div>
                 ) : (
@@ -273,7 +256,7 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     </div>
                 )}
 
-                {careType && careType !== CareType.UNASSESSED && !isFree && (
+                {careType && careType !== CareType.UNASSESSED && (
                     <div className="mt-2.5 p-3 bg-blue-50/70 dark:bg-blue-900/30 rounded-xl">
                         <p className="text-xs text-blue-700 dark:text-blue-300">
                             🎯 <strong>{careType}</strong> 맞춤 우선 추천 검사: {' '}
@@ -287,53 +270,28 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     </div>
                 )}
 
-                {/* 상단 완료 버튼 - 항상 보이도록 */}
+                {/* 상단 완료 버튼 - 항상 보이도록 (FREE/유료 동일: 1개 이상 완료 시 리포트 반영) */}
                 <div className="mt-4">
-                    {isFree ? (
-                        <>
-                            <button
-                                onClick={completedAssessments.has('digitalAddiction') ? handleFinish : () => setCurrentAssessment('digitalAddiction')}
-                                className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.has('digitalAddiction')
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
-                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'
-                                    }`}
-                            >
-                                {completedAssessments.has('digitalAddiction')
-                                    ? '✅ 디지털 도파민 검사 완료! 결과 확인하기 →'
-                                    : '📱 디지털 도파민 중독 검사 시작하기 →'}
-                            </button>
-                            {completedAssessments.has('digitalAddiction') ? (
-                                <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-2">
-                                    (FREE 검사가 완료되었습니다! 상단 또는 하단 버튼을 눌러 리포트를 확인하세요)
-                                </p>
-                            ) : (
-                                <p className="text-xs text-gray-500 mt-2">
-                                    (무료 모드에서는 디지털 도파민 중독 척도 검사 완료 시 리포트가 생성됩니다)
-                                </p>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <button
-                                onClick={handleFinish}
-                                className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
-                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                    }`}
-                                disabled={completedAssessments.size === 0}
-                            >
-                                {completedAssessments.size >= 5
-                                    ? '✅ 5개 전체 검사 완료! 결과 리포트에 즉시 반영하기 →'
-                                    : completedAssessments.size > 0
-                                        ? `✅ ${completedAssessments.size}개 검사 완료! 결과 리포트에 반영하기 (남은 ${5 - completedAssessments.size}개) →`
-                                        : '검사를 시작해 주세요'}
-                            </button>
-                            {completedAssessments.size > 0 && (
-                                <p className="text-xs text-gray-500 mt-2">
-                                    ({completedAssessments.size}/5 검사 완료 {completedAssessments.size < 5 ? `- 더 자세한 분석을 위해 남은 ${5 - completedAssessments.size}개 검사를 완료하거나 바로 리포트에 반영할 수 있습니다` : '- 5종 모든 정밀 검사가 완료되어 결과 리포트에 100% 반영됩니다'})
-                                </p>
-                            )}
-                        </>
+                    <button
+                        onClick={handleFinish}
+                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 hover:shadow-xl animate-pulse'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            }`}
+                        disabled={completedAssessments.size === 0}
+                    >
+                        {completedAssessments.size >= 5
+                            ? '✅ 5개 전체 검사 완료! 결과 리포트에 즉시 반영하기 →'
+                            : completedAssessments.size > 0
+                                ? `✅ ${completedAssessments.size}개 검사 완료! 결과 리포트에 반영하기 (남은 ${5 - completedAssessments.size}개) →`
+                                : '검사를 시작해 주세요'}
+                    </button>
+                    {completedAssessments.size > 0 && (
+                        <p className="text-xs text-gray-500 mt-2">
+                            ({completedAssessments.size}/5 검사 완료{isFree
+                                ? ' - FREE 모드에서는 TAI 결과만 리포트에 표시됩니다'
+                                : completedAssessments.size < 5 ? `- 더 자세한 분석을 위해 남은 ${5 - completedAssessments.size}개 검사를 완료하거나 바로 리포트에 반영할 수 있습니다` : '- 5종 모든 정밀 검사가 완료되어 결과 리포트에 100% 반영됩니다'})
+                        </p>
                     )}
                 </div>
             </div>
@@ -343,66 +301,61 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     const info = ASSESSMENT_INFO[type];
                     const isCompleted = completedAssessments.has(type);
                     const isRecommended = recommendedAssessments.includes(type);
-                    const isLocked = isFree && type !== 'digitalAddiction';
+                    // FREE도 5종 모두 수행 가능. 결과 표시만 TAI 제외 잠금.
+                    const isResultLocked = isFree && type !== 'testAnxiety';
 
                     return (
                         <div
                             key={type}
                             className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                                isLocked
-                                    ? 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 hover:border-indigo-300'
-                                    : isCompleted
+                                isCompleted
                                         ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
                                         : isRecommended
                                             ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:shadow-lg'
                                             : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:shadow-md'
                             }`}
-                            onClick={() => !isLocked && handleStartAssessment(type)}
+                            onClick={() => handleStartAssessment(type)}
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <span className="text-3xl">{info.icon}</span>
                                     <div>
-                                        <h3 className={`font-semibold flex items-center gap-2 ${
-                                            isLocked ? 'text-slate-600 dark:text-slate-400' : 'text-gray-800 dark:text-white'
-                                        }`}>
+                                        <h3 className="font-semibold flex items-center gap-2 text-gray-800 dark:text-white">
                                             {info.title}
-                                            {isLocked && (
+                                            {isCompleted && isResultLocked && (
                                                 <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                                                    🔒 PRO 전용
+                                                    🔒 결과 PRO 전용
                                                 </span>
                                             )}
-                                            {!isLocked && type === 'digitalAddiction' && isFree && (
-                                                <span className="text-xs bg-blue-600 text-white font-bold px-2 py-0.5 rounded-full">
-                                                    FREE 제공
-                                                </span>
-                                            )}
-                                            {isRecommended && !isCompleted && !isLocked && (
+                                            {isRecommended && !isCompleted && (
                                                 <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">추천</span>
                                             )}
                                             {isCompleted && (
                                                 <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">완료 ✓</span>
                                             )}
                                         </h3>
-                                        <p className={`text-sm ${isLocked ? 'text-slate-400 dark:text-slate-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
                                             {info.description}
                                         </p>
-                                        {isLocked && (
+                                        {isResultLocked && (
                                             <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1">
-                                                ※ PRO 이상 결제 시 전체 해금되는 정밀 검사입니다. (클릭 시 결제/안내)
+                                                ※ 검사는 수행 가능하며, 결과는 PRO 이상 결제 시 확인 가능합니다. (TAI 결과는 FREE 제공)
                                             </p>
                                         )}
                                     </div>
                                 </div>
                                 <div className="text-right shrink-0 ml-3">
                                     <span className="text-xs text-gray-400">{info.time}</span>
-                                    {isLocked ? (
-                                        <div className="mt-1 text-indigo-600 dark:text-indigo-400 font-bold text-xs bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                                            해금하기 🔒
-                                        </div>
-                                    ) : !isCompleted ? (
+                                    {!isCompleted ? (
                                         <div className="mt-1 text-blue-500 font-bold">
                                             <span className="text-sm">시작 →</span>
+                                        </div>
+                                    ) : isResultLocked ? (
+                                        <div
+                                            className="mt-1 text-indigo-600 dark:text-indigo-400 font-bold text-xs bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800"
+                                            onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); }}
+                                        >
+                                            결과 잠금 🔒
                                         </div>
                                     ) : (
                                         <div className="mt-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs hover:underline">
@@ -412,8 +365,18 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                                 </div>
                             </div>
 
-                            {/* 완료된 검사 결과 미리보기 */}
-                            {isCompleted && renderResultPreview(type)}
+                            {/* 완료된 검사 결과 미리보기 (FREE는 TAI만 표시) */}
+                            {isCompleted && !isResultLocked && renderResultPreview(type)}
+                            {isCompleted && isResultLocked && (
+                                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); }}
+                                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                    >
+                                        🔒 검사 완료됨 — 결과 확인은 PRO 업그레이드 후 가능 →
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -428,39 +391,25 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                         ← 이전 단계
                     </button>
                     <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
-                        {isFree 
-                            ? `FREE 모드: 1종 검사 중 ${completedAssessments.has('digitalAddiction') ? '1' : '0'}개 완료` 
+                        {isFree
+                            ? `완료: ${completedAssessments.size}/${Object.keys(ASSESSMENT_INFO).length} 검사 (FREE · TAI 결과만 표시)`
                             : `완료: ${completedAssessments.size}/${Object.keys(ASSESSMENT_INFO).length} 검사`}
                     </div>
                 </div>
-                {isFree ? (
-                    <button
-                        onClick={completedAssessments.has('digitalAddiction') ? handleFinish : () => setCurrentAssessment('digitalAddiction')}
-                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.has('digitalAddiction')
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'
-                            }`}
-                    >
-                        {completedAssessments.has('digitalAddiction')
-                            ? `✅ 검사 완료 및 리포트 발급 이동 →`
-                            : '📱 디지털 도파민 중독 검사 시작하기 →'}
-                    </button>
-                ) : (
-                    <button
-                        onClick={handleFinish}
-                        className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
-                            : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
-                            }`}
-                        disabled={completedAssessments.size === 0}
-                    >
-                        {completedAssessments.size >= 5
-                            ? '✅ 5종 전체 정밀 검사 완료! 결과 리포트에 즉시 반영하기 →'
-                            : completedAssessments.size > 0
-                                ? `✅ ${completedAssessments.size}개 완료! 결과 리포트에 즉시 반영하기 (남은 ${5 - completedAssessments.size}개) →`
-                                : '⚠️ 최소 1개 이상의 검사를 완료해 주세요'}
-                    </button>
-                )}
+                <button
+                    onClick={handleFinish}
+                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${completedAssessments.size > 0
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl'
+                        : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
+                        }`}
+                    disabled={completedAssessments.size === 0}
+                >
+                    {completedAssessments.size >= 5
+                        ? '✅ 5종 전체 정밀 검사 완료! 결과 리포트에 즉시 반영하기 →'
+                        : completedAssessments.size > 0
+                            ? `✅ ${completedAssessments.size}개 완료! 결과 리포트에 즉시 반영하기 (남은 ${5 - completedAssessments.size}개) →`
+                            : '⚠️ 최소 1개 이상의 검사를 완료해 주세요'}
+                </button>
             </div>
         </div>
     );
@@ -795,19 +744,13 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
                     onClick={() => setCurrentAssessment(null)}
                     className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-bold hover:bg-gray-300 transition-colors"
                 >
-                    ← {isFree ? '안내 화면 보기' : '검사 목록으로'}
+                    ← 검사 목록으로
                 </button>
                 <button
                     onClick={() => handleCompleteAssessment('digitalAddiction')}
-                    className={`px-6 py-3 rounded-xl font-black text-sm transition-all shadow-md ${
-                        isFree
-                            ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:shadow-lg active:scale-95'
-                            : 'px-6 py-2 bg-pink-500 text-white rounded-lg font-semibold hover:bg-pink-600'
-                    }`}
+                    className="px-6 py-2 bg-pink-500 text-white rounded-lg font-semibold hover:bg-pink-600"
                 >
-                    {isFree 
-                        ? '✅ 디지털 도파민 검사 완료 및 진단 리포트 확인 →' 
-                        : '검사 완료'}
+                    검사 완료
                 </button>
             </div>
         </div>
@@ -886,7 +829,8 @@ export const StudyEfficiencyAssessment: React.FC<StudyEfficiencyAssessmentProps>
         </div>
     );
 
-    const activeAssessment = (isFree && currentAssessment !== 'digitalAddiction') ? null : currentAssessment;
+    // FREE는 결과 표시만 게이트(TAI 제외 잠금)하고 수행은 5종 모두 허용하므로 별도 강제 복귀 없음
+    const activeAssessment = currentAssessment;
 
     // 메인 렌더링
     // isInline=true이면 모달 오버레이 없이 렌더링

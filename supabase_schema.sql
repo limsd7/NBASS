@@ -61,6 +61,14 @@ BEGIN
         CREATE POLICY "Users can view own subscription."
             ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'subscriptions' AND policyname = 'Users can insert own subscription.') THEN
+        CREATE POLICY "Users can insert own subscription."
+            ON public.subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'subscriptions' AND policyname = 'Users can update own subscription.') THEN
+        CREATE POLICY "Users can update own subscription."
+            ON public.subscriptions FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
 END $$;
 
 -- 4. Assessments Table (Brain-Body & Cognitive Diagnosis Records)
@@ -107,6 +115,14 @@ BEGIN
         CREATE POLICY "Users can insert own assessments."
             ON public.assessments FOR INSERT WITH CHECK (auth.uid() = user_id);
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'assessments' AND policyname = 'Users can update own assessments.') THEN
+        CREATE POLICY "Users can update own assessments."
+            ON public.assessments FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'assessments' AND policyname = 'Users can delete own assessments.') THEN
+        CREATE POLICY "Users can delete own assessments."
+            ON public.assessments FOR DELETE USING (auth.uid() = user_id);
+    END IF;
 END $$;
 
 -- 5. Content Queue Table (24/7 Autonomous Marketing Agent AEO / GEO Assets)
@@ -131,6 +147,14 @@ BEGIN
         CREATE POLICY "Allow public read for published content."
             ON public.content_queue FOR SELECT USING (status = 'published');
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'content_queue' AND policyname = 'Owners and admins can manage content queue.') THEN
+        CREATE POLICY "Owners and admins can manage content queue."
+            ON public.content_queue FOR ALL USING (
+                EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+            ) WITH CHECK (
+                EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+            );
+    END IF;
 END $$;
 
 -- 6. Marketing Daily Budget & Ad Analytics Table (Daily 500,000 KRW Tracking)
@@ -147,6 +171,18 @@ CREATE TABLE IF NOT EXISTS public.marketing_campaign_logs (
 );
 
 ALTER TABLE public.marketing_campaign_logs ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'marketing_campaign_logs' AND policyname = 'Owners and admins can manage marketing logs.') THEN
+        CREATE POLICY "Owners and admins can manage marketing logs."
+            ON public.marketing_campaign_logs FOR ALL USING (
+                EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+            ) WITH CHECK (
+                EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role IN ('owner', 'admin'))
+            );
+    END IF;
+END $$;
 
 -- 7. Affiliated Academies Table (Owner-managed partner academies/schools)
 CREATE TABLE IF NOT EXISTS public.affiliated_academies (
@@ -211,6 +247,165 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grades' AND policyname = 'Users can delete own grades.') THEN
         CREATE POLICY "Users can delete own grades."
             ON public.grades FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+END $$;
+
+-- 8b. Grade Records Table (앱 upsert 키와 일치: student_id + exam_name + exam_date)
+-- 앱 코드(services/database.ts syncGradeRecordToSupabase)가 이 테이블을 사용한다.
+-- user_id는 로그인 세션이 있을 때만 기록된다 (없으면 로컬 전용, RLS에 의해 차단).
+CREATE TABLE IF NOT EXISTS public.grade_records (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL,
+    exam_name TEXT NOT NULL DEFAULT '',
+    exam_type TEXT NOT NULL DEFAULT 'mock_exam',
+    exam_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    subjects JSONB NOT NULL DEFAULT '[]'::jsonb,
+    memo TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (student_id, exam_name, exam_date)
+);
+
+ALTER TABLE public.grade_records ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_records' AND policyname = 'Users can view own grade records.') THEN
+        CREATE POLICY "Users can view own grade records."
+            ON public.grade_records FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_records' AND policyname = 'Users can insert own grade records.') THEN
+        CREATE POLICY "Users can insert own grade records."
+            ON public.grade_records FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_records' AND policyname = 'Users can update own grade records.') THEN
+        CREATE POLICY "Users can update own grade records."
+            ON public.grade_records FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_records' AND policyname = 'Users can delete own grade records.') THEN
+        CREATE POLICY "Users can delete own grade records."
+            ON public.grade_records FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+END $$;
+
+-- 8c. Grade Goals Table (앱 upsert 키와 일치: student_id + subject_id)
+CREATE TABLE IF NOT EXISTS public.grade_goals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL,
+    subject_id TEXT NOT NULL,
+    tier1_target NUMERIC,
+    tier2_target NUMERIC,
+    tier3_target NUMERIC,
+    current_grade NUMERIC,
+    memo TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (student_id, subject_id)
+);
+
+ALTER TABLE public.grade_goals ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_goals' AND policyname = 'Users can view own grade goals.') THEN
+        CREATE POLICY "Users can view own grade goals."
+            ON public.grade_goals FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_goals' AND policyname = 'Users can insert own grade goals.') THEN
+        CREATE POLICY "Users can insert own grade goals."
+            ON public.grade_goals FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_goals' AND policyname = 'Users can update own grade goals.') THEN
+        CREATE POLICY "Users can update own grade goals."
+            ON public.grade_goals FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'grade_goals' AND policyname = 'Users can delete own grade goals.') THEN
+        CREATE POLICY "Users can delete own grade goals."
+            ON public.grade_goals FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+END $$;
+
+-- 8d. Gamification Progress Table (주간 액션 플래너 기기 간 공유: student_id + week_key)
+CREATE TABLE IF NOT EXISTS public.gamification_progress (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL,
+    week_key TEXT NOT NULL DEFAULT '',
+    completed_tasks JSONB NOT NULL DEFAULT '[]'::jsonb,
+    exp INTEGER NOT NULL DEFAULT 0,
+    level INTEGER NOT NULL DEFAULT 1,
+    streak INTEGER NOT NULL DEFAULT 0,
+    last_completed_date DATE,
+    task_log JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (student_id, week_key)
+);
+
+ALTER TABLE public.gamification_progress ENABLE ROW LEVEL SECURITY;
+
+-- 기존 설치분 task_log 컬럼 추가 (신규 설치는 위 CREATE TABLE에 포함)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'gamification_progress' AND column_name = 'task_log'
+    ) THEN
+        ALTER TABLE public.gamification_progress ADD COLUMN task_log JSONB NOT NULL DEFAULT '{}'::jsonb;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'gamification_progress' AND policyname = 'Users can view own gamification progress.') THEN
+        CREATE POLICY "Users can view own gamification progress."
+            ON public.gamification_progress FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'gamification_progress' AND policyname = 'Users can insert own gamification progress.') THEN
+        CREATE POLICY "Users can insert own gamification progress."
+            ON public.gamification_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'gamification_progress' AND policyname = 'Users can update own gamification progress.') THEN
+        CREATE POLICY "Users can update own gamification progress."
+            ON public.gamification_progress FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'gamification_progress' AND policyname = 'Users can delete own gamification progress.') THEN
+        CREATE POLICY "Users can delete own gamification progress."
+            ON public.gamification_progress FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+END $$;
+
+-- 8e. Habit Progress Table (공부습관 클리닉 기기 간 공유: student_id 단일 행, 필드별 LWW)
+CREATE TABLE IF NOT EXISTS public.habit_progress (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL UNIQUE,
+    fields JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.habit_progress ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'habit_progress' AND policyname = 'Users can view own habit progress.') THEN
+        CREATE POLICY "Users can view own habit progress."
+            ON public.habit_progress FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'habit_progress' AND policyname = 'Users can insert own habit progress.') THEN
+        CREATE POLICY "Users can insert own habit progress."
+            ON public.habit_progress FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'habit_progress' AND policyname = 'Users can update own habit progress.') THEN
+        CREATE POLICY "Users can update own habit progress."
+            ON public.habit_progress FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'habit_progress' AND policyname = 'Users can delete own habit progress.') THEN
+        CREATE POLICY "Users can delete own habit progress."
+            ON public.habit_progress FOR DELETE USING (auth.uid() = user_id);
     END IF;
 END $$;
 

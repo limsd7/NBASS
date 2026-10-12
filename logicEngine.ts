@@ -2,6 +2,10 @@
 // 관리자가 UI에서 수정 가능한 로직 엔진 설정
 
 import { CareType, SecondaryClassificationDetail } from './types';
+import { hasRealBloodData } from './services/medicalEngine';
+import { ALL_PNT_PRODUCTS } from './data/pntProducts';
+import { supabase, isSupabaseReady } from './lib/supabase';
+import { markSupabasePushed, isSupabasePushEcho } from './services/supabasePushGuard';
 
 // ========== 타입 정의 ==========
 
@@ -58,6 +62,9 @@ export interface LogicThresholds {
     baiHigh: number;
     isiHigh: number;
     concentrationLow: number;
+    concentrationHigh?: number;
+    circulationHigh?: number;
+    vitalityLow: number;
     motivationLow: number;
     noiseSensitive: number;
     stressHigh: number;
@@ -105,6 +112,10 @@ export const AVAILABLE_FIELDS = {
         { key: 'adrenalFatigueScore', label: '부신피로 점수', type: 'number' },
         { key: 'fatigueSymptomsCount', label: '피로 증상 개수', type: 'number' },
         { key: 'chronicFatigue', label: '만성 피로 여부', type: 'boolean' },
+        { key: 'sympatheticSymptomsCount', label: '교감신경 증상 개수', type: 'number' },
+        { key: 'parasympatheticSymptomsCount', label: '부교감신경 증상 개수', type: 'number' },
+        { key: 'circulationScore', label: '혈액순환 증상 점수', type: 'number' },
+        { key: 'circulationSymptomsCount', label: '혈액순환 증상 개수', type: 'number' },
     ],
     protocol: [
         { key: 'stressLevel', label: '스트레스 레벨', type: 'number' },
@@ -117,6 +128,7 @@ export const AVAILABLE_FIELDS = {
         { key: 'pureStudyRatio', label: '순공 시간 비율 (%)', type: 'number' },
         { key: 'avgFocusDuration', label: '평균 집중 시간 (분)', type: 'number' },
         { key: 'distractionCount', label: '산만도 (횟수/시간)', type: 'number' },
+        { key: 'avgSleepHours', label: '평균 수면 시간 (시간)', type: 'number' },
         { key: 'chronotype', label: '크로노타입', type: 'string' },
         { key: 'goalAchievementRate', label: '목표 달성률 (%)', type: 'number' },
         { key: 'sleepQuality', label: '수면 품질 (1-5)', type: 'number' },
@@ -155,6 +167,9 @@ export const DEFAULT_THRESHOLDS: LogicThresholds = {
     baiHigh: 15,
     isiHigh: 15,
     concentrationLow: 15,
+    concentrationHigh: 16,
+    circulationHigh: 3,
+    vitalityLow: 65,
     motivationLow: 2,
     noiseSensitive: 7,
     stressHigh: 7,
@@ -190,8 +205,8 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         name: 'ANXIETY_TENSION',
         nameKr: '불안-긴장형',
         conditions: [
-            { field: 'hrv.sns', operator: '>=', value: 60 },
-            { field: 'survey.bai', operator: '>=', value: 20 },
+            { field: 'hrv.sns', operator: '>=', value: t.snsHigh },
+            { field: 'survey.bai', operator: '>=', value: t.baiHigh },
             { field: 'hrv.dominantEEG', operator: '==', value: 'H-Beta' },
         ],
         combinator: 'AND',
@@ -248,8 +263,9 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         nameKr: '부신피로 증후군',
         conditions: [
             { field: 'survey.adrenalFatigueScore', operator: '>=', value: 35 },
+            { field: 'survey.fatigueSymptomsCount', operator: '>=', value: 3 },
         ],
-        combinator: 'OR',
+        combinator: 'AND',
         result: CareType.ADRENAL,
         priority: 6,
         enabled: true,
@@ -261,9 +277,10 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         name: 'BRAIN_FATIGUE',
         nameKr: '뇌피로 집중곤란',
         conditions: [
+            { field: 'analytics.avgFocusDuration', operator: '<', value: 25 },
+            { field: 'survey.fatigueSymptomsCount', operator: '>=', value: 3 },
             { field: 'hrv.brainScore', operator: '<', value: t.brainScoreLow },
             { field: 'hrv.concentrationLevel', operator: '<', value: 40 },
-            { field: 'analytics.avgFocusDuration', operator: '<', value: 20 },
         ],
         combinator: 'AND',
         result: CareType.BRAIN_FATIGUE,
@@ -275,9 +292,9 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         name: 'HYPERSENSITIVE',
         nameKr: '과민성 학습장애',
         conditions: [
+            { field: 'analytics.distractionCount', operator: '>', value: 8 },
+            { field: 'survey.sympatheticSymptomsCount', operator: '>=', value: 4 },
             { field: 'hrv.eegHBeta', operator: '>=', value: 30 },
-            { field: 'analytics.distractionCount', operator: '>', value: t.distractionHigh },
-            { field: 'survey.concentrationScore', operator: '<=', value: t.concentrationLow },
         ],
         combinator: 'AND',
         result: CareType.HYPERSENSITIVE,
@@ -289,6 +306,8 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         name: 'ATTENTION_DEFICIT',
         nameKr: '주의력 산만형',
         conditions: [
+            { field: 'survey.concentrationScore', operator: '>=', value: t.concentrationHigh || 16 },
+            { field: 'analytics.distractionCount', operator: '>=', value: 7 },
             { field: 'hrv.attentionLevel', operator: '<', value: 40 },
             { field: 'hrv.dominantEEG', operator: '==', value: 'Alpha' },
         ],
@@ -305,7 +324,7 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         nameKr: '수면 장애형',
         conditions: [
             { field: 'survey.isi', operator: '>=', value: t.isiHigh },
-            { field: 'protocol.avgSleep', operator: '<', value: 6 },
+            { field: 'analytics.avgSleepHours', operator: '<=', value: 6.5 },
         ],
         combinator: 'AND',
         result: CareType.SLEEP,
@@ -317,8 +336,8 @@ export const createDefaultClassificationRules = (t: LogicThresholds = DEFAULT_TH
         name: 'CIRCULATION',
         nameKr: '혈액순환 저하형',
         conditions: [
-            { field: 'hrv.ppgLevel', operator: '>=', value: 5 },
-            { field: 'hrv.vlf', operator: '<', value: 100 },
+            { field: 'survey.circulationSymptomsCount', operator: '>=', value: t.circulationHigh || 3 },
+            { field: 'hrv.vitality', operator: '<=', value: t.vitalityLow || 65 },
         ],
         combinator: 'AND',
         result: CareType.CIRCULATION,
@@ -368,19 +387,9 @@ export const DEFAULT_PRODUCT_RULES: ProductRecommendationRule[] = [
     {
         id: 'prod_calm_sleep',
         productId: 'calm_sleep',
-        productName: '캄 슬립 (수면)',
+        productName: 'L-테아닌 & 수면 케어',
         conditions: [
             { field: 'survey.isi', operator: '>=', value: 10 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_calm_sleep_pns',
-        productId: 'calm_sleep',
-        productName: '캄 슬립 (PNS 저하)',
-        conditions: [
-            { field: 'hrv.pns', operator: '<', value: 20 },
         ],
         combinator: 'OR',
         enabled: true,
@@ -406,16 +415,6 @@ export const DEFAULT_PRODUCT_RULES: ProductRecommendationRule[] = [
         enabled: true,
     },
     {
-        id: 'prod_energy_bal',
-        productId: 'magnesium_capsule',
-        productName: '마그네슘 (긴장)',
-        conditions: [
-            { field: 'hrv.sns', operator: '>', value: 65 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
         id: 'prod_energy_bal_bai',
         productId: 'magnesium_capsule',
         productName: '마그네슘 (불안)',
@@ -426,94 +425,11 @@ export const DEFAULT_PRODUCT_RULES: ProductRecommendationRule[] = [
         enabled: true,
     },
     {
-        id: 'prod_no_cardi',
-        productId: 'no_cardi_ginkgo',
-        productName: '엔오카디 (두뇌)',
-        conditions: [
-            { field: 'hrv.brainScore', operator: '<', value: 75 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
         id: 'prod_no_cardi_conc',
         productId: 'no_cardi_ginkgo',
-        productName: '엔오카디 (집중력)',
+        productName: '은행잎 & 집중력 케어',
         conditions: [
             { field: 'survey.concentrationScore', operator: '<', value: 12 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_magnesium',
-        productId: 'magnesium_capsule',
-        productName: '마그네슘 (스트레스/신경긴장)',
-        conditions: [
-            { field: 'hrv.stressResistance', operator: '<', value: 40 },
-            { field: 'hrv.dominantEEG', operator: '==', value: 'H-Beta' },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    // ========== 혈액검사 기반 제품 추천 규칙 ==========
-    {
-        id: 'prod_iron_hemo',
-        productId: 'active_b_complex',
-        productName: '비컴플렉스 (빈혈 지원/활력)',
-        conditions: [
-            { field: 'bloodTest.hemoglobin', operator: '<', value: 13 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_vitd_low',
-        productId: 'every_d_plus',
-        productName: '에브리 D (비타민D 부족)',
-        conditions: [
-            { field: 'bloodTest.vitaminD', operator: '<', value: 30 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_omega_crp',
-        productId: 'rtg_omega3_plus',
-        productName: '오메가-3 (염증지표 상승)',
-        conditions: [
-            { field: 'bloodTest.crp', operator: '>', value: 1 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_liver_ast',
-        productId: 'livermarin',
-        productName: '리버마린 (간기능 이상)',
-        conditions: [
-            { field: 'bloodTest.ast', operator: '>', value: 40 },
-            { field: 'bloodTest.alt', operator: '>', value: 40 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_bsbal_hba1c',
-        productId: 'berberine',
-        productName: '베르베린 (혈당 주의)',
-        conditions: [
-            { field: 'bloodTest.hba1c', operator: '>=', value: 5.7 },
-        ],
-        combinator: 'OR',
-        enabled: true,
-    },
-    {
-        id: 'prod_immune_nk',
-        productId: 'immune_one',
-        productName: '이뮨원 (NK세포 저하)',
-        conditions: [
-            { field: 'bloodTest.nkActivity', operator: '<', value: 500 },
         ],
         combinator: 'OR',
         enabled: true,
@@ -598,12 +514,20 @@ export const DEFAULT_LOGIC_CONFIG: LogicEngineConfig = {
     productRules: DEFAULT_PRODUCT_RULES,
     secretPointRules: DEFAULT_SECRET_POINT_RULES,
     thresholds: DEFAULT_THRESHOLDS,
-    version: '1.1.0',
+    version: '1.4.0',
     lastModified: new Date().toISOString(),
 };
 
 // 마이그레이션 기준 버전 (이 버전 미만의 저장 설정은 누락된 기본 규칙을 자동 보완)
-const CURRENT_CONFIG_VERSION = '1.1.0';
+const CURRENT_CONFIG_VERSION = '1.4.0';
+
+// v1.3.0 기본 순환 규칙 (기기 조건): 이후 버전에서 설문 쌍축으로 교체됨.
+// 저장된 규칙이 이와 정확히 일치할 때만(미수정) 최신 조건으로 자동 갱신한다.
+const LEGACY_CIRCULATION_CONDITIONS = [
+    { field: 'survey.circulationSymptomsCount', operator: '>=', value: 3 },
+    { field: 'hrv.ppgLevel', operator: '>=', value: 5 },
+    { field: 'hrv.vlf', operator: '<', value: 100 },
+];
 
 // ========== 유틸리티 함수 ==========
 
@@ -614,9 +538,19 @@ export const loadLogicConfig = (): LogicEngineConfig => {
             const config: LogicEngineConfig = JSON.parse(saved);
 
             // === 버전 마이그레이션 ===
-            // 구버전(v1.0.0 이하) 설정에는 HEALTHY 규칙이 없으므로 누락된 기본 규칙을 보완한다.
-            // 사용자가 커스터마이징한 기존 규칙은 그대로 유지하고, 없는 규칙만 추가한다.
+            // 커스텀 조건 보존: 기본값으로 덮어쓰지 않고 누락 규칙만 추가.
+            // 단, v1.3.0 순환 규칙을 그대로 쓰는(미수정) 저장본은 v1.4.0 설문 쌍축 조건으로 자동 갱신한다
+            // (enabled 플래그는 유지, 손댄 규칙은 손대지 않음).
             if (config.version !== CURRENT_CONFIG_VERSION) {
+                const defaultMap = new Map(DEFAULT_CLASSIFICATION_RULES.map(r => [r.id, r]));
+                config.classificationRules = (config.classificationRules || []).map(r => {
+                    if (r.id === 'rule_circulation' && r.combinator === 'AND' &&
+                        JSON.stringify(r.conditions) === JSON.stringify(LEGACY_CIRCULATION_CONDITIONS)) {
+                        const fresh = defaultMap.get('rule_circulation');
+                        return fresh ? { ...fresh, enabled: r.enabled } : r;
+                    }
+                    return r;
+                });
                 const existingRuleIds = new Set((config.classificationRules || []).map(r => r.id));
                 const missingRules = DEFAULT_CLASSIFICATION_RULES.filter(r => !existingRuleIds.has(r.id));
                 if (missingRules.length > 0) {
@@ -639,6 +573,8 @@ export const loadLogicConfig = (): LogicEngineConfig => {
 export const saveLogicConfig = (config: LogicEngineConfig): void => {
     config.lastModified = new Date().toISOString();
     localStorage.setItem('sn1_logic_config', JSON.stringify(config));
+    // 백그라운드 클라우드 푸시 (모바일 이식 엔진과 규칙 공유)
+    pushLogicConfigToSupabase(config).catch(() => undefined);
 };
 
 export const resetLogicConfig = (): LogicEngineConfig => {
@@ -647,8 +583,64 @@ export const resetLogicConfig = (): LogicEngineConfig => {
         lastModified: new Date().toISOString()
     };
     localStorage.setItem('sn1_logic_config', JSON.stringify(defaultConfig));
+    pushLogicConfigToSupabase(defaultConfig).catch(() => undefined);
     return defaultConfig;
 };
+
+// ---------------------------------------------------------------------------
+// 진단 규칙 클라우드 동기화 (app_logic_config 단일 row, lastModified 최신승)
+// ---------------------------------------------------------------------------
+
+const LOGIC_SYNC_ID = 'default';
+const logicPushKey = () => 'logic:default';
+
+export async function pushLogicConfigToSupabase(config: LogicEngineConfig): Promise<boolean> {
+    try {
+        if (!isSupabaseReady()) return false;
+        const { error } = await (supabase.from('app_logic_config' as any) as any).upsert({
+            id: LOGIC_SYNC_ID,
+            config: config as any,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'id' } as any);
+        if (!error) markSupabasePushed('app_logic_config', logicPushKey());
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 클라우드 규칙을 로컬에 병합. 클라우드가 더 새로울 때만 덮어쓴다.
+ * @returns 적용된 경우 true
+ */
+export async function pullLogicConfigFromSupabase(): Promise<boolean> {
+    try {
+        if (!isSupabaseReady()) return false;
+        const { data } = await (supabase.from('app_logic_config' as any) as any)
+            .select('config,updated_at')
+            .eq('id', LOGIC_SYNC_ID)
+            .limit(1)
+            .maybeSingle();
+        const remote = (data as any)?.config as LogicEngineConfig | undefined;
+        if (!remote || !remote.lastModified) return false;
+        if (isSupabasePushEcho('app_logic_config', logicPushKey())) return false;
+        let localLast = '';
+        try {
+            const raw = localStorage.getItem('sn1_logic_config');
+            if (raw) localLast = (JSON.parse(raw) as LogicEngineConfig)?.lastModified || '';
+        } catch { /* ignore */ }
+        if (remote.lastModified > localLast) {
+            localStorage.setItem('sn1_logic_config', JSON.stringify(remote));
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('nbass_logic_config_changed', { detail: { source: 'supabase' } }));
+            }
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
 
 // ========== 규칙 평가 함수 ==========
 
@@ -767,9 +759,12 @@ export const evaluateProductRules = (
     hrv: any,
     survey: any,
     careType: CareType,
-    bloodTest?: any
+    bloodTest?: any,
+    extra?: { protocol?: any; analytics?: any; cognitive?: any },
+    validIds?: Set<string> | string[]
 ): RecommendedProduct[] => {
     const recommendedSet = new Set<string>();
+    const fullCtx = { hrv, survey, bloodTest, ...(extra || {}) };
 
     for (const rule of rules) {
         if (!rule.enabled) continue;
@@ -779,7 +774,7 @@ export const evaluateProductRules = (
                 if (cond.field === 'careType') {
                     return cond.operator === '==' ? careType === cond.value : careType !== cond.value;
                 }
-                return evaluateCondition(cond, { hrv, survey, bloodTest });
+                return evaluateCondition(cond, fullCtx);
             });
             if (passed) recommendedSet.add(rule.productId);
 
@@ -788,7 +783,7 @@ export const evaluateProductRules = (
                 if (cond.field === 'careType') {
                     return cond.operator === '==' ? careType === cond.value : careType !== cond.value;
                 }
-                return evaluateCondition(cond, { hrv, survey, bloodTest });
+                return evaluateCondition(cond, fullCtx);
             });
             if (passed) recommendedSet.add(rule.productId);
         }
@@ -827,8 +822,49 @@ export const evaluateProductRules = (
         }
     }
 
-    return result;
+    // 4. 카탈로그 대조 검증 — 카탈로그에 없는 productId는 화면 노출 금지
+    const allowList = validIds
+        ? new Set(Array.isArray(validIds) ? validIds : [...validIds])
+        : new Set(Object.keys(ALL_PNT_PRODUCTS));
+    const dropped = result.filter(r => !allowList.has(r.productId));
+    if (dropped.length > 0) {
+        console.warn(
+            '[logicEngine] 카탈로그에 없는 상품 추천 제외:',
+            dropped.map(r => `${r.productId}(${r.tier})`).join(', ')
+        );
+    }
+    return result.filter(r => allowList.has(r.productId));
 };
+
+/**
+ * 시작 시 1회 호출 권장 — 규칙/필수매핑이 참조하는 productId가
+ * 카탈로그(ALL_PNT_PRODUCTS)에 모두 존재하는지 검증하고 누락분을 반환합니다.
+ */
+export const validateProductCatalog = (
+    rules: ProductRecommendationRule[] = DEFAULT_PRODUCT_RULES,
+    catalogIds: string[] = Object.keys(ALL_PNT_PRODUCTS)
+): string[] => {
+    const catalog = new Set(catalogIds);
+    const referenced = new Set<string>();
+    for (const rule of rules || []) {
+        if (rule?.productId) referenced.add(rule.productId);
+    }
+    for (const ids of Object.values(CARETYPE_ESSENTIAL_MAP)) {
+        for (const id of ids || []) referenced.add(id);
+    }
+    for (const id of BASE_ESSENTIALS_GLOBAL) referenced.add(id);
+    return [...referenced].filter(id => !catalog.has(id));
+};
+
+const BASE_ESSENTIALS_GLOBAL = [
+    'hl_focus_booster',
+    'active_b_complex',
+    'probiotics_complete',
+    'rtg_omega3_plus',
+    'every_d_plus',
+    'magnesium_capsule',
+    'immune_one'
+];
 
 
 
@@ -965,16 +1001,16 @@ export const calculateConditionScoreDetails = (
     let partialScore = 0;
 
     // 건강 균형형(HEALTHY)은 배제 진단(Diagnosis of Exclusion):
-    // 불안(BAI >= 15), 불면(ISI >= 15), 피로(>= 60), 신체스트레스(>= 60), 뇌건강도 저하(< 60), 환경스트레스(>= 7) 등
-    // 명백한 병리적 이상 지표가 하나라도 있으면 건강 균형형(Healthy Balance)이 될 수 없음.
+    // 임계값 연동 (하드코딩 제거)
     if (rule.result === CareType.HEALTHY) {
-        const isAbnormal = 
-            (data.survey?.bai && data.survey.bai >= 15) ||
-            (data.survey?.isi && data.survey.isi >= 15) ||
+        const th = DEFAULT_THRESHOLDS;
+        const isAbnormal =
+            (data.survey?.bai && data.survey.bai >= th.baiHigh) ||
+            (data.survey?.isi && data.survey.isi >= th.isiHigh) ||
             (data.hrv?.fatigue && data.hrv.fatigue >= 60) ||
             (data.hrv?.physicalStress && data.hrv.physicalStress >= 60) ||
-            (data.hrv?.brainScore && data.hrv.brainScore < 60) ||
-            (data.protocol?.stressLevel && data.protocol.stressLevel >= 7);
+            (data.hrv?.brainScore && data.hrv.brainScore < th.brainScoreLow) ||
+            (data.protocol?.stressLevel && data.protocol.stressLevel >= th.stressHigh);
         if (isAbnormal) {
             return { score: 0, matchedConditions: 0, totalConditions: activeConditions.length };
         }
@@ -1015,6 +1051,14 @@ export const calculateConditionScoreDetails = (
         if (rule.result === CareType.HEALTHY && p.ansBalanceType === 'normal') {
             return { score: 85, matchedConditions: 1, totalConditions: 1 };
         }
+    }
+
+    // [F1] 미검사 analytics 참조 규칙은 평가 불가 (0값 오발화 방지):
+    // 효율성 검사를 시행하지 않으면 analytics 수치(순공율·집중시간·수면시간 등)가
+    // 0 기본값으로 남아 `<` 조건을 무조건 만족해 버리므로 해당 규칙을 0점 처리한다.
+    const needsTestedAnalytics = rule.conditions.some(c => c.field === 'analytics' || c.field.startsWith('analytics.'));
+    if (needsTestedAnalytics && !(data.analytics && (data.analytics as any).isTested)) {
+        return { score: 0, matchedConditions: 0, totalConditions: activeConditions.length };
     }
 
     // 조건 평가 루프
@@ -1068,13 +1112,17 @@ export const calculateConditionScoreDetails = (
         const matchRatio = matchedConditions / totalConditions;
         const baseScore = partialScore / totalConditions;
         const finalScore = Math.round(baseScore * (0.4 + 0.6 * matchRatio));
-        const score = !useBrainBody ? Math.min(100, Math.round(finalScore * 1.2)) : finalScore;
+        const score = Math.min(100, finalScore);
         return { score, matchedConditions, totalConditions };
     }
 
-    // OR 조합기: 하나만 충족해도 점수 부여
-    const finalScoreOr = Math.round(partialScore / Math.max(1, matchedConditions > 0 ? 1 : totalConditions));
-    const score = !useBrainBody ? Math.min(100, Math.round(finalScoreOr * 1.2)) : finalScoreOr;
+    // OR 조합기: 하나만 충족해도 점수 부여 (일치 조건 평균 → 전체 조건 대비 비율로 최종 산출)
+    // partialScore = 완전 일치 시 100점 + 부분 일치 시 0~50점 누적
+    // 최종 점수 = (일치 조건들의 평균 점수) × (일치 비율) → 0~100 범위로 캡핑
+    const avgMatchScore = partialScore / Math.max(1, matchedConditions > 0 ? matchedConditions : totalConditions);
+    const matchRatioOr = matchedConditions / Math.max(1, totalConditions);
+    const finalScoreOr = Math.round(avgMatchScore * (0.3 + 0.7 * matchRatioOr));
+    const score = Math.min(100, finalScoreOr);
     return { score, matchedConditions, totalConditions };
 };
 
@@ -1099,6 +1147,36 @@ export const evaluateClassificationWithScores = (
     cognitive?: any
 ): ClassificationResult => {
     const data = { hrv, survey, protocol, analytics, bloodTest, cognitive };
+
+    // [F3] 입력 근거가 전혀 없으면 UNASSESSED (무입력 HEALTHY-100 방지):
+    // 설문 응답·검사 시행·센서 실측·혈액 데이터가 하나도 없을 때는
+    // 기본값(0) 매칭으로 건강 판정을 내리지 않고 미평가로 반환한다.
+    const sv: any = survey || {};
+    const numEvidence = [
+        sv.bai, sv.isi, sv.concentrationScore, sv.adrenalFatigueScore,
+        sv.fatigueSymptomsCount, sv.sympatheticSymptomsCount, sv.parasympatheticSymptomsCount,
+        sv.circulationScore, sv.circulationSymptomsCount,
+        sv.testAnxietyCognitive, sv.testAnxietySomatic, sv.digitalAddictionScore, sv.chronotypeScore,
+    ];
+    const arrEvidence = [sv.symptoms, sv.sympatheticSymptoms, sv.parasympatheticSymptoms, sv.circulationSymptoms];
+    const hasSurveyEvidence =
+        numEvidence.some(v => typeof v === 'number' && v !== 0) ||
+        arrEvidence.some(a => Array.isArray(a) && a.length > 0);
+    const an: any = analytics || {};
+    const hv: any = hrv || {};
+    const hasOtherEvidence = Boolean(an.isTested) ||
+        Boolean(hv.isSensorMeasured || hv.isHrvTested || hv.isEegTested || hv.portableHrv) ||
+        hasRealBloodData(bloodTest);
+    if (!hasSurveyEvidence && !hasOtherEvidence) {
+        return {
+            primary: CareType.UNASSESSED,
+            primaryScore: 0,
+            secondary: [],
+            secondaryScores: [],
+            secondaryDetails: [],
+            allScores: [{ type: CareType.UNASSESSED, score: 0 }]
+        };
+    }
 
     // 모든 분류에 대해 점수 및 조건 일치 수 계산
     const scores: {
@@ -1143,8 +1221,9 @@ export const evaluateClassificationWithScores = (
     let primaryScore = 0;
     let finalAllScores: { type: CareType; score: number }[] = [];
 
-    // 유효한 점수가 있는 분류가 없거나, 최고 점수가 0점 이하인 경우에만 UNASSESSED 처리
-    if (scores.length === 0 || scores[0].score <= 0) {
+    // 유효한 점수가 있는 분류가 없거나, 최고 점수가 0점 이하이거나,
+    // 단 하나의 조건도 실제로 일치하지 않은 경우 UNASSESSED 처리
+    if (scores.length === 0 || scores[0].score <= 0 || scores[0].matchedConditions === 0) {
         primary = CareType.UNASSESSED;
         primaryScore = 0;
         finalAllScores = [{ type: CareType.UNASSESSED, score: 0 }];

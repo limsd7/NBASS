@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StudentInfo, GradeRecord, GradeGoal, AssessmentResult } from "../../types";
 import { getCareTypeDetail } from "../../data/careTypesData";
 import { CareTypeModal } from "./CareTypeModal";
@@ -11,6 +11,7 @@ import {
   QuotaInfo,
 } from "../../services/aiGradePlanEngine";
 import { DatabaseService } from "../../services/database";
+import { resolveEffectiveStudentId } from "../../services/studentIdentity";
 import { MembershipTier } from "../../utils/featureGate";
 import { SUNEUNG_SUBJECTS } from "../../data/suneungSubjects";
 
@@ -28,14 +29,14 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
   records,
   goals,
   latestAssessment,
-  membershipTier = "premium",
+  membershipTier = "free",
   onRefreshGoals,
 }) => {
   const [isGoalModalOpen, setIsGoalModalOpen] = useState<boolean>(false);
   const [editingGoal, setEditingGoal] = useState<GradeGoal | null>(null);
   const [isCareModalOpen, setIsCareModalOpen] = useState<boolean>(false);
 
-  const hasAssessment = !!latestAssessment?.careType && (latestAssessment.careType as any) !== 'Unassessed' && (latestAssessment.careType as any) !== '알 수 없음';
+  const hasAssessment = !!latestAssessment?.careType && (latestAssessment.careType as any) !== 'Unassessed' && (latestAssessment.careType as any) !== 'UNASSESSED' && (latestAssessment.careType as any) !== '알 수 없음';
   const careTypeCode = (hasAssessment ? latestAssessment?.careType : "HEALTHY")?.toString() || "HEALTHY";
   const currentCare = getCareTypeDetail(careTypeCode);
 
@@ -52,15 +53,29 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
   const [quotaInfo, setQuotaInfo] = useState<QuotaInfo>(() =>
     getAIPlanQuota(student.id, membershipTier)
   );
+  // 신규 성적 반영 알림 (규칙 플랜은 자동 재생성되므로 갱신 사실만 고지)
+  const initialRecordCount = useRef(records.length);
+  const [showRefreshNotice, setShowRefreshNotice] = useState(false);
 
-  // 성적 데이터 단순화 변환
+  useEffect(() => {
+    if (records.length > initialRecordCount.current) {
+      initialRecordCount.current = records.length;
+      setShowRefreshNotice(true);
+    }
+  }, [records.length]);
+
+  // 성적 데이터 단순화 변환 (점수·등급 모두 없는 과목은 제외 — 80점/3등급 날조 금지)
   const simplifiedGrades = records.flatMap((r) =>
-    r.subjects.map((s) => ({
-      subjectName: SUNEUNG_SUBJECTS.find((sub) => sub.id === s.subjectId)?.name || s.subjectId,
-      category: SUNEUNG_SUBJECTS.find((sub) => sub.id === s.subjectId)?.category || "기타",
-      score: s.rawScore || (s.grade ? 100 - (s.grade - 1) * 10 : 80),
-      grade: s.grade ? `${s.grade}` : "3",
-    }))
+    r.subjects
+      .filter((s) => Number.isFinite(Number(s.rawScore)) || (typeof s.grade === 'number' && Number.isFinite(s.grade)))
+      .map((s) => ({
+        subjectName: SUNEUNG_SUBJECTS.find((sub) => sub.id === s.subjectId)?.name || s.subjectId,
+        category: SUNEUNG_SUBJECTS.find((sub) => sub.id === s.subjectId)?.category || "기타",
+        score: Number.isFinite(Number(s.rawScore))
+          ? Number(s.rawScore)
+          : 100 - ((s.grade as number) - 1) * 10,
+        grade: typeof s.grade === 'number' ? `${s.grade}` : undefined,
+      }))
   );
 
   const simplifiedGoals = goals.map((g) => ({
@@ -70,8 +85,22 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
     memo: g.memo,
   }));
 
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  const safeUUID = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `goal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  };
+
+  const getTargetStudentId = () => {
+    return resolveEffectiveStudentId(student);
+  };
+
   // 최초 로드 시 100% 로직 엔진 기반 플랜 즉시 생성 (비용 0원)
   useEffect(() => {
+    const studentId = getTargetStudentId();
     const defaultPlan = generateRuleBasedStudyPlan(
       student.name,
       student.grade || "고등학교 2학년",
@@ -80,38 +109,75 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
       careTypeCode
     );
     setPlanResult(defaultPlan);
-    setQuotaInfo(getAIPlanQuota(student.id, membershipTier));
+    setQuotaInfo(getAIPlanQuota(studentId, membershipTier));
   }, [student.id, records.length, goals.length, careTypeCode]);
 
-  // Goal Save Handler
+  // Goal Save Handler (1차≥2차≥최종 숫자 검증 + 동일 과목 upsert)
   const handleSaveGoal = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newGoal: GradeGoal = {
-      id: editingGoal?.id || crypto.randomUUID(),
-      studentId: student.id,
-      subjectId: selectedSubjectId,
-      tier1Target: targetTier1,
-      tier2Target: targetTier2,
-      tier3Target: targetTier3,
-      memo: goalMemo,
-    };
+    const t1 = Number(targetTier1);
+    const t2 = Number(targetTier2);
+    const t3 = Number(targetTier3);
+    if (![t1, t2, t3].every(n => Number.isFinite(n) && n >= 1 && n <= 9)) {
+      alert("목표 등급은 1~9 사이의 숫자로 입력해주세요.");
+      return;
+    }
+    // 숫자가 작을수록 우수 등급: 1차(현실적) ≥ 2차(도전) ≥ 최종(궁극) 이어야 함
+    if (!(t1 >= t2 && t2 >= t3)) {
+      alert("단계별 목표는 1차 ≥ 2차 ≥ 최종 등급 순이어야 합니다. (숫자가 작을수록 우수한 등급)\n예: 1차 3등급 → 2차 2등급 → 최종 1등급");
+      return;
+    }
+    const existingSameSubject = goals.find(g => g.subjectId === selectedSubjectId && g.id !== editingGoal?.id);
+    let goalId = editingGoal?.id;
+    if (existingSameSubject && !goalId) {
+      const subjectLabel = SUNEUNG_SUBJECTS.find(s => s.id === selectedSubjectId)?.name || selectedSubjectId;
+      if (!confirm(`이미 '${subjectLabel}' 과목의 목표가 있습니다. 기존 목표를 새 값으로 덮어쓰시겠습니까?`)) {
+        return;
+      }
+      goalId = existingSameSubject.id;
+    }
+    if (!goalId) goalId = safeUUID();
+    setIsSaving(true);
+    try {
+      const studentId = getTargetStudentId();
+      const newGoal: GradeGoal = {
+        id: goalId,
+        studentId,
+        subjectId: selectedSubjectId,
+        tier1Target: t1,
+        tier2Target: t2,
+        tier3Target: t3,
+        memo: goalMemo?.trim() || "",
+      };
 
-    await DatabaseService.upsertGradeGoal(newGoal);
-
-    setIsGoalModalOpen(false);
-    onRefreshGoals();
+      await DatabaseService.upsertGradeGoal(newGoal);
+      setIsGoalModalOpen(false);
+      await onRefreshGoals();
+    } catch (err) {
+      console.error("Failed to save grade goal:", err);
+      alert("과목별 목표 저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteGoal = async (goalId: string) => {
     if (confirm("이 학습 목표를 삭제하시겠습니까?")) {
-      await DatabaseService.deleteGradeGoal(goalId);
-      onRefreshGoals();
+      try {
+        await DatabaseService.deleteGradeGoal(goalId);
+        await onRefreshGoals();
+      } catch (err) {
+        console.error("Failed to delete grade goal:", err);
+        alert("목표 삭제 중 오류가 발생했습니다.");
+      }
     }
   };
 
   const openAddModal = () => {
     setEditingGoal(null);
-    setSelectedSubjectId("math");
+    const existingSubjectIds = new Set(goals.map((g) => g.subjectId));
+    const firstAvailable = SUNEUNG_SUBJECTS.find((s) => !existingSubjectIds.has(s.id))?.id || "math";
+    setSelectedSubjectId(firstAvailable);
     setTargetTier1(3);
     setTargetTier2(2);
     setTargetTier3(1);
@@ -131,7 +197,8 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
 
   // AI 심층 플랜 요청 (Tier 쿼터 검증 후 호출)
   const handleRequestGeminiPlan = async () => {
-    const quota = getAIPlanQuota(student.id, membershipTier);
+    const studentId = getTargetStudentId();
+    const quota = getAIPlanQuota(studentId, membershipTier);
     if (!quota.canUseAI) {
       alert(`[AI 호출 제한 안내]\n현재 회원님의 등급(${membershipTier.toUpperCase()})에서 제공되는 AI 생성 쿼터(${quota.periodLabel})를 모두 소진하셨습니다.\n(정밀 로직 엔진 플랜은 언제나 무제한으로 이용 가능합니다.)`);
       return;
@@ -147,10 +214,14 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
         simplifiedGoals,
         careTypeCode
       );
-      recordAIPlanUsage(student.id);
+      recordAIPlanUsage(studentId);
       setPlanResult(aiPlan);
-      setQuotaInfo(getAIPlanQuota(student.id, membershipTier));
-      alert("🤖 Gemini AI 심층 학습 플랜 생성이 완료되었습니다!");
+      setQuotaInfo(getAIPlanQuota(studentId, membershipTier));
+      if (aiPlan.generatedBy === "gemini_ai") {
+        alert("🤖 Gemini AI 심층 학습 플랜 생성이 완료되었습니다!");
+      } else {
+        alert("⚙️ AI 서버에 연결되지 않아 정밀 로직 엔진 플랜으로 생성되었습니다. (서버 연결 후 Gemini AI 생성 가능)");
+      }
     } catch (err) {
       alert("AI 플랜 생성 중 오류가 발생하여 기본 로직 플랜으로 유지됩니다.");
     } finally {
@@ -190,63 +261,83 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {goals.map((goal) => {
-            const subjectName = SUNEUNG_SUBJECTS.find((s) => s.id === goal.subjectId)?.name || goal.subjectId;
-            return (
-              <div
-                key={goal.id}
-                className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-300 transition-all"
-              >
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-800 text-base">{subjectName}</span>
-                    <span className="px-3 py-1 rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-100">
-                      최종 {goal.tier3Target}등급 목표
-                    </span>
+        {goals.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-300 text-center space-y-3 shadow-sm">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mx-auto">
+              🎯
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 text-base">설정된 과목별 목표가 없습니다</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                국어, 수학, 영어, 탐구 등 목표 등급을 단계별(1차/2차/최종)로 설정하고 맞춤 AI 실천 플랜을 수립해보세요.
+              </p>
+            </div>
+            <button
+              onClick={openAddModal}
+              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-2xl text-xs shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>+ 첫 과목별 목표 추가하기</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {goals.map((goal) => {
+              const subjectName = SUNEUNG_SUBJECTS.find((s) => s.id === goal.subjectId)?.name || goal.subjectId;
+              return (
+                <div
+                  key={goal.id}
+                  className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-300 transition-all"
+                >
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-slate-800 text-base">{subjectName}</span>
+                      <span className="px-3 py-1 rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-100">
+                        최종 {goal.tier3Target}등급 목표
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 my-3 text-[11px] text-center">
+                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <span className="text-slate-400 block text-[9px]">1차 목표</span>
+                        <strong className="text-slate-700">{goal.tier1Target}등급</strong>
+                      </div>
+                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <span className="text-slate-400 block text-[9px]">2차 목표</span>
+                        <strong className="text-indigo-600">{goal.tier2Target}등급</strong>
+                      </div>
+                      <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
+                        <span className="text-emerald-500 block text-[9px]">최종 목표</span>
+                        <strong className="text-emerald-700">{goal.tier3Target}등급</strong>
+                      </div>
+                    </div>
+                    {goal.memo && (
+                      <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                        💬 {goal.memo}
+                      </p>
+                    )}
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 my-3 text-[11px] text-center">
-                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                      <span className="text-slate-400 block text-[9px]">1차 목표</span>
-                      <strong className="text-slate-700">{goal.tier1Target}등급</strong>
-                    </div>
-                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                      <span className="text-slate-400 block text-[9px]">2차 목표</span>
-                      <strong className="text-indigo-600">{goal.tier2Target}등급</strong>
-                    </div>
-                    <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
-                      <span className="text-emerald-500 block text-[9px]">최종 목표</span>
-                      <strong className="text-emerald-700">{goal.tier3Target}등급</strong>
-                    </div>
-                  </div>
-                  {goal.memo && (
-                    <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                      💬 {goal.memo}
-                    </p>
-                  )}
-                </div>
 
-                <div className="flex justify-between items-center pt-3 border-t border-slate-100 text-xs mt-3">
-                  <span className="text-[10px] text-slate-400">실천 관리 중</span>
-                  <div className="space-x-1">
-                    <button
-                      onClick={() => openEditModal(goal)}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer text-xs"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGoal(goal.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-xs"
-                    >
-                      🗑️
-                    </button>
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-100 text-xs mt-3">
+                    <span className="text-[10px] text-slate-400">실천 관리 중</span>
+                    <div className="space-x-1">
+                      <button
+                        onClick={() => openEditModal(goal)}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer text-xs"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGoal(goal.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-xs"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* AI & Rule Engine Integrated Action Plan Card */}
@@ -296,6 +387,18 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
         </div>
 
         {/* Plan Content */}
+        {showRefreshNotice && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+            <span className="font-bold">✅ 새 성적이 반영되어 플랜이 갱신되었습니다.</span>
+            <button
+              type="button"
+              onClick={() => setShowRefreshNotice(false)}
+              className="font-black text-emerald-700 hover:text-emerald-900 shrink-0 cursor-pointer"
+            >
+              확인
+            </button>
+          </div>
+        )}
         {planResult && (
           <div className="space-y-5">
             {/* Overall Summary */}
@@ -377,7 +480,7 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
 
       {/* Goal Add/Edit Modal */}
       {isGoalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-slate-200">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-800 text-base">
@@ -407,13 +510,28 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">1차 목표 (현실적)</label>
+              {/* 단계별 목표 설정 안내 박스 */}
+              <div className="p-3 bg-gradient-to-r from-blue-50/70 to-indigo-50/70 rounded-2xl border border-blue-200/80 text-[11px] text-slate-600 space-y-1">
+                <div className="font-bold text-blue-900 flex items-center gap-1.5 text-xs">
+                  <span>🎯</span> 단계별 목표 설정 가이드
+                </div>
+                <div className="space-y-0.5 text-[10.5px] leading-relaxed text-slate-600 pl-0.5">
+                  <p>• <strong>1차 (현실적):</strong> 지금 나의 공부량으로 1~2개월 내에 달성 가능한 목표</p>
+                  <p>• <strong>2차 (도전적):</strong> 취약 단원 보완 및 집중 학습 시 도달 가능한 도전선</p>
+                  <p>• <strong className="text-emerald-700">최종 (궁극적):</strong> 이번 학년 또는 수능에서 반드시 이루고자 하는 최종 목표</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="p-2.5 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1.5">
+                  <div>
+                    <label className="font-bold text-slate-800 block text-xs">1차 목표 (현실적)</label>
+                    <span className="text-[10px] text-slate-500 block leading-tight">지금 공부로 가능한 목표</span>
+                  </div>
                   <select
                     value={targetTier1}
                     onChange={(e) => setTargetTier1(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold text-xs focus:ring-2 focus:ring-blue-500/20"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                       <option key={n} value={n}>
@@ -421,13 +539,20 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
                       </option>
                     ))}
                   </select>
+                  <p className="text-[9.5px] text-blue-600 font-medium leading-tight">
+                    단기 실현선 (다음 시험)
+                  </p>
                 </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">2차 목표 (도전적)</label>
+
+                <div className="p-2.5 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1.5">
+                  <div>
+                    <label className="font-bold text-slate-800 block text-xs">2차 목표 (도전적)</label>
+                    <span className="text-[10px] text-slate-500 block leading-tight">약점 보완 시 도달 목표</span>
+                  </div>
                   <select
                     value={targetTier2}
                     onChange={(e) => setTargetTier2(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold text-xs focus:ring-2 focus:ring-blue-500/20"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                       <option key={n} value={n}>
@@ -435,13 +560,20 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
                       </option>
                     ))}
                   </select>
+                  <p className="text-[9.5px] text-indigo-600 font-medium leading-tight">
+                    중기 도약선 (취약점 극복)
+                  </p>
                 </div>
-                <div>
-                  <label className="font-bold text-emerald-700 block mb-1">최종 목표 (궁극적)</label>
+
+                <div className="p-2.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-1.5">
+                  <div>
+                    <label className="font-bold text-emerald-800 block text-xs">최종 목표 (궁극적)</label>
+                    <span className="text-[10px] text-emerald-700 block leading-tight">수능/대입 합격 목표</span>
+                  </div>
                   <select
                     value={targetTier3}
                     onChange={(e) => setTargetTier3(Number(e.target.value))}
-                    className="w-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-bold"
+                    className="w-full p-2 bg-white border border-emerald-300 rounded-xl text-emerald-800 font-black text-xs focus:ring-2 focus:ring-emerald-500/20"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                       <option key={n} value={n}>
@@ -449,6 +581,9 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
                       </option>
                     ))}
                   </select>
+                  <p className="text-[9.5px] text-emerald-700 font-bold leading-tight">
+                    꿈의 최종 골든선
+                  </p>
                 </div>
               </div>
 
@@ -472,9 +607,10 @@ export const StudyGoalsAndAIPlan: React.FC<StudyGoalsAndAIPlanProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  저장하기
+                  {isSaving ? "저장 중..." : "저장하기"}
                 </button>
               </div>
             </form>

@@ -192,11 +192,35 @@ export const CARE_TYPE_ALIAS_MAP: Record<string, string> = {
   '건강': 'HEALTHY',
   '집중력 저하형': 'ATTENTION_DEFICIT',
   '집중력저하': 'ATTENTION_DEFICIT',
+
+  // 미평가 상태 (오진 방지: 미상 입력의 HEALTHY 오분류 금지)
+  'Unassessed': 'UNASSESSED',
+  'UNASSESSED': 'UNASSESSED',
+  '알 수 없음': 'UNASSESSED',
+  '데이터 부족': 'UNASSESSED',
+  '미평가': 'UNASSESSED',
+  '진단 미완료': 'UNASSESSED',
 };
 
+export const UNASSESSED_CARE_DETAIL: CareTypeDetail = {
+  code: "UNASSESSED",
+  emoji: "❓",
+  title: "미평가 (진단 미완료)",
+  subtitle: "검사 데이터 부족 - 표준 전략 적용",
+  physiology: "진단 데이터가 없어 신체·인지 상태를 확정할 수 없습니다. 건강 판정을 가정하지 않습니다.",
+  studyImpact: "컨디션 연계 분석 없이 표준 학습 전략이 적용됩니다. 진단 완료 후 맞춤 처방으로 전환됩니다.",
+  prescription: "표준 학습 루틴(규칙적 수면·25~50분 집중 블록·취약 단원 우선)을 유지하고 정밀 검진을 완료하세요.",
+  color: "bg-slate-500/10 text-slate-700 border-slate-500/20",
+};
+
+export function isAssessedCareTypeCode(code?: string): boolean {
+  return normalizeCareTypeCode(code) !== "UNASSESSED";
+}
+
 export function normalizeCareTypeCode(code?: string): string {
-  if (!code) return "HEALTHY";
+  if (!code) return "UNASSESSED";
   const trimmed = code.trim();
+  if (!trimmed) return "UNASSESSED";
   
   // 1. Direct Alias Map
   if (CARE_TYPE_ALIAS_MAP[trimmed]) {
@@ -218,12 +242,13 @@ export function normalizeCareTypeCode(code?: string): string {
   );
   if (matched) return matched.code;
 
-  return "HEALTHY";
+  return "UNASSESSED";
 }
 
 export function getCareTypeDetail(code?: string): CareTypeDetail {
-  if (!code) return CARE_TYPES.find((c) => c.code === "HEALTHY") || CARE_TYPES[0];
+  if (!code) return { ...UNASSESSED_CARE_DETAIL };
   const normalizedCode = normalizeCareTypeCode(code);
+  if (normalizedCode === "UNASSESSED") return { ...UNASSESSED_CARE_DETAIL };
   const found = CARE_TYPES.find((c) => c.code === normalizedCode);
-  return found || CARE_TYPES.find((c) => c.code === "HEALTHY") || CARE_TYPES[0];
+  return found || { ...UNASSESSED_CARE_DETAIL };
 }

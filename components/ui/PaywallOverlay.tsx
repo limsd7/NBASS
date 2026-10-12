@@ -60,9 +60,9 @@ export const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
     prediction_engine: '뇌-신체 위험 예측 분석 엔진',
     nutritional_prescription: '1:1 맞춤 영양제 처방 발급',
     ai_study_plan: 'AI 맞춤 공부 시간표',
-    full_vip_features: 'VIP 전 기능 무제한',
+    full_vip_features: '전 기능 무제한',
     unlimited_ai_consultation: '실시간 AI 1:1 학습 클리닉',
-    hrv_eeg_precision_analysis: 'VIP 심층 신경인지 & 멘탈 분석',
+    hrv_eeg_precision_analysis: '심층 신경인지 & 멘탈 분석',
     medical_report_pdf: '병의원/센터 연동 정밀 리포트',
   };
 

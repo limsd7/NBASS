@@ -180,7 +180,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
                     <h3 className="font-black text-white text-base">카카오톡 주간 안심 리포트 알림톡 (미리보기)</h3>
                   </div>
                   <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                    PREMIUM / VIP 케어
+                    PREMIUM 케어
                   </span>
                 </div>
 

@@ -116,7 +116,7 @@ GET    /api/notifications          알림 목록
 Users (사용자)
 ├── id, email, password_hash, name, phone
 ├── role: STUDENT | PARENT | EXPERT | ADMIN
-├── subscription_plan: FREE | BASIC | PREMIUM | VIP
+├── subscription_plan: FREE | BASIC | PREMIUM
 ├── subscription_expires_at
 └── created_at, updated_at
 
@@ -153,7 +153,7 @@ StudyPlans (학습 계획)
 
 Subscriptions (구독 이력)
 ├── id, user_id
-├── plan: BASIC | PREMIUM | VIP
+├── plan: BASIC | PREMIUM
 ├── payment_provider, payment_id
 ├── starts_at, expires_at, status
 └── amount, currency
@@ -227,18 +227,18 @@ web-app/
 
 ### 2-3. 구독 등급별 기능 접근 제어
 
-| 기능 | FREE | BASIC (₩19,900/월) | PREMIUM (₩29,900/월) | VIP (₩49,900/월) |
-|------|------|------|---------|-----|
-| 기본 설문 검사 | ✅ (1회) | ✅ 5회 | ✅ 10회 | ✅ 무제한 |
-| 간단 성향 분석 | ✅ | ✅ | ✅ | ✅ |
-| 상세 진단 리포트 | ❌ | ✅ | ✅ | ✅ |
-| 성적 입력 & 추이 | ❌ | ✅ | ✅ | ✅ |
-| AI 맞춤 공부 Plan | ❌ | ❌ | ✅ | ✅ |
-| 모바일 앱 루틴 관리 | ❌ | ❌ | ✅ | ✅ |
-| HRV/EEG 정밀 진단 | ❌ | ❌ | ❌ | ✅ (센터 방문) |
-| 전문가 1:1 상담 | ❌ | ❌ | ❌ | ✅ |
-| 학부모 리포트 공유 | ❌ | ❌ | ✅ | ✅ |
-| 검사 이력 보관 | 30일 | 1년 | 무제한 | 무제한 |
+| 기능 | FREE | BASIC (₩19,900/월) | PREMIUM (₩29,900/월) |
+|------|------|------|---------|
+| 기본 설문 검사 | ✅ (1회) | ✅ 5회 | ✅ 10회 |
+| 간단 성향 분석 | ✅ | ✅ | ✅ |
+| 상세 진단 리포트 | ❌ | ✅ | ✅ |
+| 성적 입력 & 추이 | ❌ | ✅ | ✅ |
+| AI 맞춤 공부 Plan | ❌ | ❌ | ✅ |
+| 모바일 앱 루틴 관리 | ❌ | ❌ | ✅ |
+| HRV/EEG 정밀 진단 | ❌ | ❌ | ✅ (센터 방문) |
+| 전문가 1:1 상담 | ❌ | ❌ | ✅ |
+| 학부모 리포트 공유 | ❌ | ❌ | ✅ |
+| 검사 이력 보관 | 30일 | 1년 | 무제한 |
 
 ---
 

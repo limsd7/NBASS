@@ -100,17 +100,18 @@ export const safeStorage = {
    */
   cleanupQuota(targetKeyToKeep?: string): void {
     try {
-      // 1. If sn1_history exists and is not the key being saved, prune it to max 3 items
-      if (targetKeyToKeep !== 'sn1_history') {
-        const rawHistory = window.localStorage.getItem('sn1_history');
+      // 1. 히스토리 미러는 단일 상수로 절삭 (분산된 3/5/50 문제 해소)
+      const { HISTORY_MIRROR_KEY, HISTORY_MIRROR_MAX } = { HISTORY_MIRROR_KEY: 'sn1_history', HISTORY_MIRROR_MAX: 10 };
+      if (targetKeyToKeep !== HISTORY_MIRROR_KEY) {
+        const rawHistory = window.localStorage.getItem(HISTORY_MIRROR_KEY);
         if (rawHistory) {
           try {
             const parsed = JSON.parse(rawHistory);
-            if (Array.isArray(parsed) && parsed.length > 3) {
-              window.localStorage.setItem('sn1_history', JSON.stringify(parsed.slice(0, 3)));
+            if (Array.isArray(parsed) && parsed.length > HISTORY_MIRROR_MAX) {
+              window.localStorage.setItem(HISTORY_MIRROR_KEY, JSON.stringify(parsed.slice(0, HISTORY_MIRROR_MAX)));
             }
           } catch {
-            window.localStorage.removeItem('sn1_history');
+            window.localStorage.removeItem(HISTORY_MIRROR_KEY);
           }
         }
       }

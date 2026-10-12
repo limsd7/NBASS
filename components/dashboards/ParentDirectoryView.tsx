@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
 import type { HistoryRecord } from '../../services/database';
 import { UserTierService } from '../../services/userTierService';
-import { MembershipTier, TIER_INFO } from '../../utils/featureGate';
+import { MembershipTier, TIER_INFO, normalizeTier } from '../../utils/featureGate';
 import { AssessmentResult } from '../../types';
 
 export interface ParentDirectoryItem {
@@ -87,7 +87,21 @@ export const ParentDirectoryView: React.FC<ParentDirectoryViewProps> = ({
           studentGrade: '고3',
           studentSchool: '대치 미래탐구',
           careType: '몰입저하형',
-          tier: 'vip'
+          tier: 'premium'
+        },
+        {
+          id: 'PAR-2026-003',
+          parentName: 'limsd7 학부모님 (보호자)',
+          phone: '010-8872-9104',
+          email: 'limsd7.parent@gmail.com',
+          registeredDate: '2026-09-10',
+          kakaotalkAlertEnabled: true,
+          studentId: 'limsd7',
+          studentName: 'limsd7',
+          studentGrade: '고3',
+          studentSchool: '대치 미래탐구 (PRO 집중케어반)',
+          careType: '뇌피로 집중곤란 (Brain Fatigue)',
+          tier: 'pro'
         }
       ];
 
@@ -114,7 +128,7 @@ export const ParentDirectoryView: React.FC<ParentDirectoryViewProps> = ({
             phone: '010-****-****',
             email: undefined,
             registeredDate: record.date || student.testDate || new Date().toISOString().split('T')[0],
-            kakaotalkAlertEnabled: effTier === 'premium' || effTier === 'vip' || effTier === 'expert',
+            kakaotalkAlertEnabled: effTier === 'premium' || effTier === 'expert',
             studentId: student.id || studentKey,
             studentName: student.name || '무명 학생',
             studentGrade: student.grade || '고3',
@@ -159,7 +173,7 @@ export const ParentDirectoryView: React.FC<ParentDirectoryViewProps> = ({
       studentGrade: newStudentGrade,
       studentSchool: newStudentSchool.trim(),
       careType: '신규 자녀 매핑',
-      tier: 'vip'
+      tier: 'premium'
     };
 
     setParents(prev => [newParentItem, ...prev]);
@@ -336,7 +350,7 @@ export const ParentDirectoryView: React.FC<ParentDirectoryViewProps> = ({
                   </tr>
                 ) : (
                   filteredParents.map((item, idx) => {
-                    const tierInfo = TIER_INFO[item.tier] || TIER_INFO.free;
+                    const tierInfo = TIER_INFO[normalizeTier(item.tier)] || TIER_INFO.free;
                     return (
                       <tr 
                         key={item.id + idx}
@@ -381,10 +395,9 @@ export const ParentDirectoryView: React.FC<ParentDirectoryViewProps> = ({
                         {/* Tier Badge */}
                         <td className="py-3.5 px-4 text-center">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            item.tier === 'expert' ? 'bg-purple-600/30 text-purple-200 border border-purple-400' :
-                            item.tier === 'vip' ? 'bg-amber-500/20 text-amber-300 border border-amber-400' :
-                            item.tier === 'premium' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-400' :
-                            item.tier === 'pro' ? 'bg-blue-600/20 text-blue-300 border border-blue-400' :
+                            normalizeTier(item.tier) === 'expert' ? 'bg-purple-600/30 text-purple-200 border border-purple-400' :
+                            normalizeTier(item.tier) === 'premium' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-400' :
+                            normalizeTier(item.tier) === 'pro' ? 'bg-blue-600/20 text-blue-300 border border-blue-400' :
                             'bg-slate-800 text-slate-400 border border-slate-700'
                           }`}>
                             <span>{tierInfo.icon}</span>

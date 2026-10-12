@@ -103,7 +103,7 @@
                 <div>
                     <div
                         class="bg-gradient-to-r from-rose-500 to-rose-600 text-white px-4 py-3 rounded-t-2xl font-bold">
-                        Sympathetic
+                        Sympathetic (교감신경)
                     </div>
                     <div class="bg-white rounded-b-2xl border border-slate-200 border-t-0 divide-y divide-slate-100"
                         id="sym-list"></div>
@@ -112,10 +112,20 @@
                 <div>
                     <div
                         class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-t-2xl font-bold">
-                        Parasympathetic
+                        Parasympathetic (부교감신경)
                     </div>
                     <div class="bg-white rounded-b-2xl border border-slate-200 border-t-0 divide-y divide-slate-100"
                         id="para-list"></div>
+                </div>
+                <!-- Circulation -->
+                <div class="col-span-2">
+                    <div
+                        class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-3 rounded-t-2xl font-bold flex items-center justify-between">
+                        <span>말초 혈액순환 (Circulation & Vascular Tone)</span>
+                        <span class="text-xs opacity-90 font-normal">해당하는 증상을 선택하세요</span>
+                    </div>
+                    <div class="bg-white rounded-b-2xl border border-slate-200 border-t-0 divide-y divide-slate-100"
+                        id="circ-list"></div>
                 </div>
             </div>
         </div>
@@ -184,6 +194,12 @@
             "속쓰림 (Heartburn)", "설사 (Diarrhea)", "무기력 (Lethargy)",
             "우울감 (Depression)", "졸림 (Drowsiness)", "감정반응 둔화 (Emotional Blunting)",
             "빈뇨 (Frequent Urination)"
+        ];
+
+        const CIRCULATION_SYMPTOMS = [
+            "수족냉증 (Cold Extremities)", "하지부종 및 쥐 (Leg Edema & Cramps)",
+            "기립성 어지러움 (Orthostatic Dizziness)", "경견부 긴장·두중감 (Neck Stiffness & Heaviness)",
+            "피부 창백 및 멍 (Pale Complexion & Bruising)"
         ];
 
         const BAI_QUESTIONS = [
@@ -268,6 +284,7 @@
         let surveyData = {
             sympathetic: [],
             parasympathetic: [],
+            circulation: [],
             bai: new Array(21).fill(0),
             isi: new Array(7).fill(0),
             concentration: new Array(7).fill(0),
@@ -289,6 +306,7 @@
         function renderANS() {
             const symList = document.getElementById('sym-list');
             const paraList = document.getElementById('para-list');
+            const circList = document.getElementById('circ-list');
 
             symList.innerHTML = SYMPATHETIC_SYMPTOMS.map((s, i) => `
                 <label class="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 transition-colors">
@@ -305,6 +323,16 @@
                     <span class="text-sm text-slate-700">${s}</span>
                 </label>
             `).join('');
+
+            if (circList) {
+                circList.innerHTML = CIRCULATION_SYMPTOMS.map((s, i) => `
+                    <label class="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 transition-colors">
+                        <input type="checkbox" class="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
+                               onchange="toggleSymptom('circulation', ${i})" id="circ-${i}">
+                        <span class="text-sm text-slate-700">${s}</span>
+                    </label>
+                `).join('');
+            }
         }
 
         function renderBAI() {
@@ -393,7 +421,7 @@
 
         // Event Handlers
         function toggleSymptom(type, index) {
-            const symptomArray = type === 'sympathetic' ? SYMPATHETIC_SYMPTOMS : PARASYMPATHETIC_SYMPTOMS;
+            const symptomArray = type === 'sympathetic' ? SYMPATHETIC_SYMPTOMS : (type === 'parasympathetic' ? PARASYMPATHETIC_SYMPTOMS : CIRCULATION_SYMPTOMS);
             const symptom = symptomArray[index];
             const arr = surveyData[type];
             const idx = arr.indexOf(symptom);
@@ -464,6 +492,7 @@
                 scores: {
                     sympathetic: surveyData.sympathetic.length,
                     parasympathetic: surveyData.parasympathetic.length,
+                    circulation: surveyData.circulation.length,
                     bai: surveyData.bai.reduce((a, b) => a + b, 0),
                     isi: surveyData.isi.reduce((a, b) => a + b, 0),
                     concentration: surveyData.concentration.reduce((a, b) => a + b, 0),

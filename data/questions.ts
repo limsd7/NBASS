@@ -150,3 +150,12 @@ export const ADRENAL_QUESTIONS = [
     ]
   }
 ];
+
+export const CIRCULATION_SYMPTOMS = [
+  { label: "수족냉증 (Cold Extremities)", desc: "계절과 상관없이 손이나 발이 자주 차갑고 시린 증상" },
+  { label: "하지부종 및 쥐 (Leg Edema & Cramps)", desc: "오래 앉아있으면 다리가 붓고 단단해지거나 저림·쥐가 자주 나는 증상" },
+  { label: "기립성 어지러움 (Orthostatic Dizziness)", desc: "앉아 있다가 갑자기 일어설 때 핑 돌거나 시야가 흐려지는 증상" },
+  { label: "경견부 긴장·두중감 (Neck Stiffness & Heaviness)", desc: "어깨와 뒷목이 뻐근하게 뭉치고 머리가 맑지 않고 무거운 증상" },
+  { label: "피부 창백 및 멍 (Pale Complexion & Bruising)", desc: "안색이 창백하거나 혈색이 없고, 사소한 부딪힘에도 쉽게 멍이 드는 증상" }
+];
+

@@ -6,3 +6,4 @@ export { MindPrescriptionCard } from './MindPrescriptionCard';
 export { ExamStrategySection } from './ExamStrategySection';
 export { AdminMemoSection } from './AdminMemoSection';
 export { ResultsStep } from './ResultsStep';
+export { ResultsHeroHeader } from './ResultsHeroHeader';

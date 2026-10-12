@@ -83,7 +83,7 @@ export const CROSS_MATCH_PATTERNS: CrossMatchPattern[] = [
         surveyConditions: { chronicFatigue: true, isi: 'high' },
         interpretation: 'MCV 상승(B12 결핍), 비타민D 부족, CRP 상승이 동시에 나타나는 전형적인 만성피로 패턴입니다. 수면 장애와 함께 복합적인 영양 결핍이 의심됩니다.',
         severity: 'severe',
-        recommendations: ['💊 종합 영양제 + B12 + 비타민D 병용', '🩺 내과 전문의 상담 권장', '📊 3개월 후 재검사 필수']
+        recommendations: ['💊 필수 비타민(B12, 비타민D) 균형 섭취', '🩺 내과 전문의 상담 권장', '📊 3개월 후 재검사 권장']
     },
     {
         id: 'liver_stress',
@@ -406,12 +406,32 @@ const generateRecommendations = (findings: MedicalFinding[]): string[] => {
     return [...new Set(recommendations)];
 };
 
+// 혈액검사 입력 여부 판정 (입력 UI 제거 이후: 미입력 0값은 분석 대상이 아님)
+export const hasRealBloodData = (bloodTest?: BloodTestData | null): boolean => {
+    if (!bloodTest) return false;
+    if (bloodTest.testDate) return true;
+    const core = [
+        bloodTest.wbc, bloodTest.hemoglobin, bloodTest.hematocrit, bloodTest.mcv,
+        bloodTest.nkActivity, bloodTest.vitaminD, bloodTest.crp, bloodTest.hba1c,
+        bloodTest.ast, bloodTest.alt, bloodTest.creatinine, bloodTest.bun,
+    ];
+    return core.some(v => typeof v === 'number' && v !== 0);
+};
+
 // Main analysis function
 export const analyzeMedicalData = (
     bloodTest: BloodTestData,
     careType: CareType,
     gender: 'Male' | 'Female' | 'Other' = 'Male'
 ): MedicalAnalysis => {
+    if (!hasRealBloodData(bloodTest)) {
+        return {
+            abnormalFindings: [],
+            careTypeCorrelation: '',
+            recommendations: [],
+            followUpAdvice: '혈액검사 데이터가 입력되지 않아 의학 분석을 생략합니다.'
+        };
+    }
     const findings: MedicalFinding[] = [
         analyzeItem('wbc', bloodTest.wbc, gender),
         analyzeItem('hemoglobin', bloodTest.hemoglobin, gender),

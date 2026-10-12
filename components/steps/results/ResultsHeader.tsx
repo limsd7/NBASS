@@ -5,7 +5,7 @@ import { PsychologicalAssessment } from '../../PsychologicalAssessment';
 import { useState } from 'react';
 import { PromptModal } from '../../modals/PromptModal';
 import { DataConfidenceBadge } from '../../common/DataConfidenceBadge';
-import { computeAdherence } from '../../../services/treatmentAdherence';
+import { computeAdherence, computeHabitAdherence } from '../../../services/treatmentAdherence';
 import { FreeTrialPaywallBanner } from '../../common/FreeTrialPaywallBanner';
 
 interface ResultsHeaderProps {
@@ -46,6 +46,8 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
 
   // [P1-1] 처방 이행률 요약 (처방 대비 완료 체크 비율)
   const adherence = computeAdherence(result);
+  // Habit 분리 지표 (전문가 처방 %와 분리 표기, 기존 % 산식 유지)
+  const habitAdherence = computeHabitAdherence(result?.completedExpertGuideItems);
 
   // Print style extraction for new window
   const printStyle = typeof document !== 'undefined'
@@ -106,6 +108,12 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
             처방 이행률: {adherence.rate}% ({adherence.completedCount}/{adherence.prescribedCount})
           </span>
         )}
+        <span
+          className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200"
+          title={habitAdherence.label}
+        >
+          Habit 실천: {habitAdherence.completedCount}/{habitAdherence.totalCount}
+        </span>
       </div>
 
       {/* [소프트 게이트] 무료 진단 1회 사용 후 업그레이드 유도 (사용 전에는 미표시) */}

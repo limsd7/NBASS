@@ -111,7 +111,7 @@ export const GrowthTimelineView: React.FC<GrowthTimelineViewProps> = ({
             </section>
 
             {/* HistoryCharts 통합 (성장 스코어보드/인지/설문/학업) */}
-            {trend && (
+            {trend && trend.summary && trend.summary.length > 0 && (
                 <section className="space-y-6">
                     <h3 className="text-lg font-bold text-slate-800">종합 성장 스코어보드</h3>
                     <SummaryView data={trend.summary} />

@@ -12,7 +12,29 @@ interface SleepAnalysisViewProps {
 export const SleepAnalysisView: React.FC<SleepAnalysisViewProps> = ({ records, currentAssessment, aiModels }) => {
   const careType = currentAssessment?.careType;
   const isiScore = currentAssessment?.survey?.isi;
-  const chronotype = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+  const rawChrono = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+  const getChronotypeLabel = (raw: any): string => {
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+      const lower = raw.toLowerCase();
+      if (lower.includes('morning') || lower.includes('아침') || lower.includes('종달새')) return '아침형 (Morning)';
+      if (lower.includes('evening') || lower.includes('저녁') || lower.includes('올빼미')) return '저녁형 (Evening)';
+      if (lower.includes('intermediate') || lower.includes('중간') || lower.includes('주간')) return '중간형 (Intermediate)';
+      return raw;
+    }
+    if (typeof raw === 'object' && raw.result) {
+      const res = String(raw.result).toLowerCase();
+      if (res.includes('morning') || res.includes('아침') || res.includes('종달새')) return '아침형 (Morning)';
+      if (res.includes('evening') || res.includes('저녁') || res.includes('올빼미')) return '저녁형 (Evening)';
+      if (res.includes('intermediate') || res.includes('중간') || res.includes('주간')) return '중간형 (Intermediate)';
+      return String(raw.result);
+    }
+    return '';
+  };
+  const chronotypeLabel = getChronotypeLabel(rawChrono);
+  const chronotypeStr = typeof rawChrono === 'object' && rawChrono ? String(rawChrono.result || '') : String(rawChrono || '');
+  const isMorningChrono = chronotypeStr.toLowerCase().includes('morning') || chronotypeLabel.includes('아침');
+  const isEveningChrono = chronotypeStr.toLowerCase().includes('evening') || chronotypeLabel.includes('저녁');
   const baselineSleepHours = currentAssessment?.analytics?.avgSleepHours;
   
   // Real metrics calculation from records
@@ -69,8 +91,8 @@ export const SleepAnalysisView: React.FC<SleepAnalysisViewProps> = ({ records, c
   const normalDeepScore = (() => {
     if (careType === CareType.BURNOUT || careType === CareType.ADRENAL) return 86;
     if (careType === CareType.STRESS_OVERLOAD) return 88;
-    if (chronotype === 'Morning' || chronotype === 'morning') return 95;
-    if (chronotype === 'Evening' || chronotype === 'evening') return 90;
+    if (isMorningChrono) return 95;
+    if (isEveningChrono) return 90;
     return 92;
   })();
   const lowDeepScore = Math.max(55, Math.min(normalDeepScore, Math.round(normalDeepScore - Math.max(0, 20 - avgDeepSleepPct) * 1.6)));
@@ -98,7 +120,7 @@ export const SleepAnalysisView: React.FC<SleepAnalysisViewProps> = ({ records, c
       const prompt = `
 [수험생 신경수면 & 학습 효율성 심층 분석 요청]
 - 진단 케어타입: ${careType || '미지정 (표준)'}
-- 크로노타입: ${chronotype || '표준형'}
+- 크로노타입: ${chronotypeLabel || '표준형'}
 - 불면증 지수 (ISI): ${isiScore !== undefined ? `${isiScore}점` : '미측정'}
 - 실측 평균 수면시간: ${averageSleep.toFixed(1)}시간 (권장: ${targetHours}시간)
 - 주간 수면 부채: ${sleepDebt.toFixed(1)}시간
@@ -141,9 +163,9 @@ export const SleepAnalysisView: React.FC<SleepAnalysisViewProps> = ({ records, c
             <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-xs font-bold rounded-lg">
               진단 유형: {careType}
             </span>
-            {chronotype && (
+            {chronotypeLabel && (
               <span className="px-3 py-1 bg-purple-500/20 border border-purple-400/40 text-purple-300 text-xs font-bold rounded-lg">
-                크로노타입: {chronotype}
+                크로노타입: {chronotypeLabel}
               </span>
             )}
             {isiScore !== undefined && (

@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GradeRecord, ExamType, SubjectGrade } from '../../types';
 import { SUNEUNG_SUBJECTS } from '../../data/suneungSubjects';
-import { MOCK_EXAM_CUTOFFS, getCutoffData } from '../../data/gradeCutoffs';
+import { getMockExamCutoffs, getCutoffData, ExamCutoff } from '../../data/gradeCutoffs';
 import { getUnitsByGradeAndSubject } from '../../data/curriculumUnits';
+import { recognizeGradeImage, parseGradeScores, OcrGradeCandidate } from '../../services/gradeOcrService';
+import { deriveGradeFromRawScore } from '../../services/gradeSimulationEngine';
 
 interface GradeInputModalProps {
     isOpen: boolean;
@@ -31,14 +33,40 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
     const [examType, setExamType] = useState<ExamType>('mock_exam');
     const [examDate, setExamDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedExamCutoffId, setSelectedExamCutoffId] = useState<string>('');
+    const [availableCutoffs, setAvailableCutoffs] = useState<ExamCutoff[]>(() => getMockExamCutoffs());
     const [targetGradeLevel, setTargetGradeLevel] = useState<string>(studentGrade || '고등학교 3학년');
     const [memo, setMemo] = useState('');
     const [subjectsData, setSubjectsData] = useState<SubjectGrade[]>([]);
+    const [ocrStatus, setOcrStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+    const [ocrProgress, setOcrProgress] = useState(0);
+    const [ocrCandidates, setOcrCandidates] = useState<(OcrGradeCandidate & { selected: boolean })[]>([]);
+    const [ocrError, setOcrError] = useState('');
+    const ocrFileRef = useRef<HTMLInputElement>(null);
+    // 자동완성된 등급/백분위/표준점수 추적 (컷오프 변경 시 재계산·stale 무효화용, 수동 입력과 구분)
+    const autoFilledRef = useRef<Set<string>>(new Set());
+
+    // 원점수 → 등급/백분위/표준점수 파생 (컷오프 DB 우선, 없으면 일반곡선 추정치)
+    const deriveFromRawScore = (subjectId: string, rawScore: number): { grade?: number; percentile?: number; standardScore?: number; auto: boolean } => {
+        if (selectedExamCutoffId) {
+            const cutoff = getCutoffData(selectedExamCutoffId, subjectId, rawScore, availableCutoffs);
+            if (cutoff) {
+                return { grade: cutoff.grade, percentile: cutoff.percentile, standardScore: cutoff.standardScore, auto: true };
+            }
+        }
+        const derived = deriveGradeFromRawScore(subjectId, rawScore);
+        if (derived) {
+            return { grade: derived.grade, auto: true };
+        }
+        return { auto: false };
+    };
 
     useEffect(() => {
         if (isOpen) {
+            autoFilledRef.current = new Set();
+            setAvailableCutoffs(getMockExamCutoffs());
             const baseSubjects = ['korean', 'math', 'english'];
-            const allSubjectIds = Array.from(new Set([...baseSubjects, ...selectedSubjectIds]));
+            const recordSubjectIds = existingRecord ? existingRecord.subjects.map(s => s.subjectId) : [];
+            const allSubjectIds = Array.from(new Set([...baseSubjects, ...selectedSubjectIds, ...recordSubjectIds]));
 
             if (studentGrade) {
                 setTargetGradeLevel(studentGrade);
@@ -84,25 +112,68 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
     if (!isOpen) return null;
 
     const handleSubjectChange = (subjectId: string, field: keyof SubjectGrade, value: string) => {
-        const numValue = value === '' ? undefined : Number(value);
-        
+        const parsed = value === '' ? undefined : Number(value);
+        const numValue = parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
+
         setSubjectsData(prev => prev.map(s => {
             if (s.subjectId === subjectId) {
                 const updated = { ...s, [field]: numValue };
-                
+
                 // Feature 4: Auto-fill from Cutoff DB if rawScore is updated
-                if (field === 'rawScore' && numValue !== undefined && selectedExamCutoffId) {
-                    const cutoff = getCutoffData(selectedExamCutoffId, subjectId, numValue);
-                    if (cutoff) {
-                        updated.grade = cutoff.grade;
-                        updated.percentile = cutoff.percentile;
-                        updated.standardScore = cutoff.standardScore;
+                if (field === 'rawScore' && numValue !== undefined) {
+                    const derived = deriveFromRawScore(subjectId, numValue);
+                    if (derived.auto) {
+                        if (derived.grade !== undefined) updated.grade = derived.grade;
+                        if (derived.percentile !== undefined) updated.percentile = derived.percentile;
+                        if (derived.standardScore !== undefined) updated.standardScore = derived.standardScore;
+                        autoFilledRef.current.add(subjectId);
+                    } else if (autoFilledRef.current.has(subjectId)) {
+                        // 파생 불가 + 이전 자동완성값 존재 → stale 등급 방치 금지
+                        updated.grade = undefined;
+                        updated.percentile = undefined;
+                        updated.standardScore = undefined;
+                        autoFilledRef.current.delete(subjectId);
                     }
                 }
-                
+                // 수동으로 등급 계열을 고치면 자동완성 추적에서 제외 (덮어쓰기 보호)
+                if ((field === 'grade' || field === 'percentile' || field === 'standardScore') && numValue !== undefined) {
+                    autoFilledRef.current.delete(subjectId);
+                }
+
                 return updated;
             }
             return s;
+        }));
+    };
+
+    // 컷오프 시험 변경 시: 자동완성분이거나 등급이 비어 있는 과목만 재계산 (수동 입력 보호)
+    const recalcAutoFilledGrades = (cutoffId: string) => {
+        setSubjectsData(prev => prev.map(s => {
+            const raw = s.rawScore;
+            if (raw === undefined) return s;
+            if (s.grade !== undefined && !autoFilledRef.current.has(s.subjectId)) return s;
+            let grade: number | undefined;
+            let percentile: number | undefined;
+            let standardScore: number | undefined;
+            if (cutoffId) {
+                const cutoff = getCutoffData(cutoffId, s.subjectId, raw, availableCutoffs);
+                if (cutoff) {
+                    grade = cutoff.grade;
+                    percentile = cutoff.percentile;
+                    standardScore = cutoff.standardScore;
+                }
+            }
+            if (grade === undefined) {
+                const derived = deriveGradeFromRawScore(s.subjectId, raw);
+                if (derived) grade = derived.grade;
+            }
+            if (grade === undefined) {
+                autoFilledRef.current.delete(s.subjectId);
+                return s;
+            }
+            autoFilledRef.current.add(s.subjectId);
+            // 일반곡선 폴백 시 컷오프 전용 백분위/표준점수는 비움 (stale 방지)
+            return { ...s, grade, percentile, standardScore };
         }));
     };
 
@@ -154,13 +225,24 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
             }
         }
 
-        const subjectsToSave = subjectsData.filter(s => 
-            s.grade !== undefined || 
-            s.rawScore !== undefined || 
-            s.standardScore !== undefined || 
+        const subjectsToSave = subjectsData.filter(s =>
+            s.grade !== undefined ||
+            s.rawScore !== undefined ||
+            s.standardScore !== undefined ||
             s.percentile !== undefined ||
             (s.weakUnits && s.weakUnits.length > 0)
         );
+
+        if (subjectsToSave.length === 0) {
+            alert('저장할 성적 내용이 없습니다. 최소 1개 과목의 점수·등급·취약단원 중 하나를 입력해주세요.');
+            return;
+        }
+
+        const parsedDate = new Date(examDate);
+        if (!examDate || !Number.isFinite(parsedDate.getTime())) {
+            alert('시험 날짜가 올바르지 않습니다. 날짜를 다시 선택해주세요.');
+            return;
+        }
 
         for (const s of subjectsToSave) {
             if (s.grade !== undefined && (s.grade < 1 || s.grade > 9)) {
@@ -211,6 +293,88 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
         }]);
     };
 
+    const handleOcrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        setOcrStatus('working');
+        setOcrProgress(0);
+        setOcrError('');
+        setOcrCandidates([]);
+        try {
+            const text = await recognizeGradeImage(file, setOcrProgress);
+            const parsed = parseGradeScores(text);
+            if (parsed.length === 0) {
+                setOcrStatus('error');
+                setOcrError('인식된 과목 점수가 없습니다. 글자가 선명한 사진으로 다시 시도해주세요.');
+                return;
+            }
+            setOcrCandidates(parsed.map(c => ({ ...c, selected: true })));
+            setOcrStatus('done');
+        } catch (err) {
+            console.error('Grade OCR failed:', err);
+            setOcrStatus('error');
+            setOcrError('사진 인식 중 오류가 발생했습니다. 직접 입력으로 진행해주세요.');
+        }
+    };
+
+    const applyOcrCandidates = () => {
+        const picked = ocrCandidates.filter(c => c.selected);
+        if (picked.length === 0) {
+            alert('반영할 과목을 1개 이상 선택해주세요.');
+            return;
+        }
+        // 기존 수동 입력값과 충돌 시 덮어쓰기 확인 (OCR 오인식 파괴 방지)
+        const conflicts = picked.filter(c => {
+            const existing = subjectsData.find(s => s.subjectId === c.subjectId);
+            return existing && (
+                (existing.rawScore !== undefined && existing.rawScore !== c.rawScore) ||
+                existing.grade !== undefined || existing.percentile !== undefined || existing.standardScore !== undefined
+            );
+        });
+        if (conflicts.length > 0) {
+            const names = conflicts.map(c => {
+                const info = SUNEUNG_SUBJECTS.find(s => s.id === c.subjectId);
+                return info?.name || c.subjectId;
+            }).join(', ');
+            if (!confirm(`다음 과목에 이미 입력된 값이 있습니다: ${names}\nOCR 결과로 덮어쓰시겠습니까? (취소하면 해당 과목은 건너뜁니다)`)) {
+                return;
+            }
+        }
+        setSubjectsData(prev => {
+            let next = [...prev];
+            for (const c of picked) {
+                let idx = next.findIndex(s => s.subjectId === c.subjectId);
+                if (idx < 0) {
+                    next = [...next, {
+                        subjectId: c.subjectId,
+                        grade: undefined,
+                        rawScore: undefined,
+                        standardScore: undefined,
+                        percentile: undefined,
+                        weakUnits: []
+                    }];
+                    idx = next.length - 1;
+                }
+                const updated: SubjectGrade = { ...next[idx], rawScore: c.rawScore };
+                // 컷오프 DB 우선, 없으면 일반곡선 추정치로 등급 파생 (저장 전 확인 단계라 추정치 표시와 동등)
+                const derived = deriveFromRawScore(c.subjectId, c.rawScore);
+                if (derived.grade !== undefined) {
+                    updated.grade = derived.grade;
+                }
+                if (derived.percentile !== undefined) updated.percentile = derived.percentile;
+                if (derived.standardScore !== undefined) updated.standardScore = derived.standardScore;
+                next[idx] = updated;
+            }
+            return next;
+        });
+        for (const c of picked) {
+            autoFilledRef.current.add(c.subjectId);
+        }
+        setOcrCandidates([]);
+        setOcrStatus('idle');
+    };
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -257,15 +421,17 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                         onChange={e => {
                                             setSelectedExamCutoffId(e.target.value);
                                             // Automatically update exam name if selecting a known mock
-                                            const mock = MOCK_EXAM_CUTOFFS.find(m => m.examId === e.target.value);
+                                            const mock = availableCutoffs.find(m => m.examId === e.target.value);
                                             if (mock) {
                                                 setExamName(mock.examName);
                                             }
+                                            // 컷오프 변경 시 자동완성분 재계산 (수동 입력은 보호)
+                                            recalcAutoFilledGrades(e.target.value);
                                         }}
                                         className="w-full px-3 py-2 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50 text-blue-800"
                                     >
                                         <option value="">직접 입력 (자동완성 안함)</option>
-                                        {MOCK_EXAM_CUTOFFS.map(mock => (
+                                        {availableCutoffs.map(mock => (
                                             <option key={mock.examId} value={mock.examId}>{mock.examName}</option>
                                         ))}
                                     </select>
@@ -301,7 +467,68 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
 
                     {/* 과목별 성적 입력 */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 className="text-sm font-black text-slate-500 uppercase">과목별 성적 (선택한 수능 과목 기준)</h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <h3 className="text-sm font-black text-slate-700 uppercase">과목별 성적 (선택한 수능 과목 기준)</h3>
+                            <button
+                                type="button"
+                                onClick={() => ocrFileRef.current?.click()}
+                                disabled={ocrStatus === 'working'}
+                                className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                {ocrStatus === 'working' ? `📷 인식 중... ${ocrProgress}%` : '📷 성적표 사진 인식'}
+                            </button>
+                            <input
+                                ref={ocrFileRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleOcrFile}
+                            />
+                        </div>
+
+                        {(ocrStatus === 'error' || ocrCandidates.length > 0) && (
+                            <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                                {ocrStatus === 'error' ? (
+                                    <p className="text-xs text-rose-600 font-bold">{ocrError}</p>
+                                ) : (
+                                    <>
+                                        <p className="text-xs font-bold text-indigo-900">
+                                            인식 결과 ({ocrCandidates.filter(c => c.selected).length}개 선택) — 반드시 확인 후 반영하세요
+                                        </p>
+                                        <div className="space-y-1.5">
+                                            {ocrCandidates.map(c => (
+                                                <label key={c.subjectId} className="flex items-center gap-2 text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={c.selected}
+                                                        onChange={() => setOcrCandidates(prev => prev.map(p => p.subjectId === c.subjectId ? { ...p, selected: !p.selected } : p))}
+                                                        className="w-4 h-4 accent-indigo-600"
+                                                    />
+                                                    <span className="font-black text-slate-800">{c.subjectName}</span>
+                                                    <span className="font-mono font-bold text-indigo-700">{c.rawScore}점</span>
+                                                    <span className="text-slate-400 truncate">/{c.maxScore} · {c.context}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={applyOcrCandidates}
+                                            className="w-full py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            선택 항목 반영하기
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 4가지 중 1가지 입력 안내 멘트 */}
+                        <div className="flex items-start sm:items-center gap-2.5 p-3.5 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed shadow-sm">
+                            <span className="text-base flex-shrink-0">💡</span>
+                            <div>
+                                <strong className="font-bold text-blue-950">입력 안내:</strong> 등급, 백분위, 표준점수, 원점수 4가지 중 <strong className="text-blue-700 underline underline-offset-2">1가지만 입력해도</strong> 정상 저장됩니다. (모두 채우실 필요 없이 보유하고 계신 점수만 입력하시면 됩니다.)
+                            </div>
+                        </div>
                         
                         {selectedSubjectIds.length === 0 ? (
                             <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 text-sm">
@@ -309,14 +536,39 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                             </div>
                         ) : (
                             <div className="space-y-3">
+                                {/* 데스크톱 컬럼 헤더 */}
+                                <div className="hidden md:grid grid-cols-12 gap-3 px-3 py-1.5 text-[11px] font-bold text-slate-500 border-b border-slate-100">
+                                    <div className="col-span-3">과목</div>
+                                    <div className="col-span-2 text-center">등급 (1~9)</div>
+                                    <div className="col-span-2 text-center">백분위 (0~100)</div>
+                                    <div className="col-span-2 text-center">표준점수</div>
+                                    <div className="col-span-3 text-center">원점수</div>
+                                </div>
                                 {subjectsData.map(subject => {
-                                    const info = SUNEUNG_SUBJECTS.find(s => s.id === subject.subjectId);
-                                    if (!info) return null;
+                                    const info = SUNEUNG_SUBJECTS.find(s => s.id === subject.subjectId)
+                                        || { id: subject.subjectId, name: subject.subjectId, maxScore: 100 };
+                                    const isCustomId = !SUNEUNG_SUBJECTS.some(s => s.id === subject.subjectId);
                                     
                                     return (
                                         <div key={subject.subjectId} className="grid grid-cols-12 gap-3 items-center p-3 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-200 transition-colors">
                                             <div className="col-span-12 md:col-span-3 font-bold text-slate-800 flex flex-col">
-                                                <span>{info.name}</span>
+                                                <span className="flex items-center gap-2">
+                                                    <span>{info.name}</span>
+                                                    {isCustomId && (
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">직접 입력</span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!confirm(`'${info.name}' 과목을 이 시험 기록에서 제거하시겠습니까?`)) return;
+                                                            setSubjectsData(prev => prev.filter(s => s.subjectId !== subject.subjectId));
+                                                        }}
+                                                        className="ml-auto text-slate-300 hover:text-red-500 text-xs font-bold cursor-pointer"
+                                                        title="과목 제거"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </span>
                                                 <span className="text-[10px] text-slate-400 font-normal">만점: {info.maxScore}점</span>
                                             </div>
                                             
@@ -324,7 +576,7 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                                 <label className="text-[10px] font-bold text-slate-500 md:hidden">등급</label>
                                                 <input 
                                                     type="number" min="1" max="9" placeholder="등급 (1-9)"
-                                                    value={subject.grade || ''}
+                                                    value={subject.grade ?? ''}
                                                     onChange={e => handleSubjectChange(subject.subjectId, 'grade', e.target.value)}
                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                                 />
@@ -334,7 +586,7 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                                 <label className="text-[10px] font-bold text-slate-500 md:hidden">백분위</label>
                                                 <input 
                                                     type="number" min="0" max="100" placeholder="백분위"
-                                                    value={subject.percentile || ''}
+                                                    value={subject.percentile ?? ''}
                                                     onChange={e => handleSubjectChange(subject.subjectId, 'percentile', e.target.value)}
                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                                 />
@@ -344,7 +596,7 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                                 <label className="text-[10px] font-bold text-slate-500 md:hidden">표준점수</label>
                                                 <input 
                                                     type="number" placeholder="표준점수"
-                                                    value={subject.standardScore || ''}
+                                                    value={subject.standardScore ?? ''}
                                                     onChange={e => handleSubjectChange(subject.subjectId, 'standardScore', e.target.value)}
                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                                 />
@@ -354,7 +606,7 @@ export const GradeInputModal: React.FC<GradeInputModalProps> = ({
                                                 <label className="text-[10px] font-bold text-slate-500 md:hidden">원점수</label>
                                                 <input 
                                                     type="number" min="0" max={info.maxScore} placeholder={`원점수 (/${info.maxScore})`}
-                                                    value={subject.rawScore || ''}
+                                                    value={subject.rawScore ?? ''}
                                                     onChange={e => handleSubjectChange(subject.subjectId, 'rawScore', e.target.value)}
                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white"
                                                 />

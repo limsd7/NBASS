@@ -1,9 +1,6 @@
 import React from 'react';
-import { AssessmentResult, CareType, StrategyMap } from '../../types';
-import { AnalystConfig, getAnalystDisplayText } from '../../utils/analystConfig';
+import { CareType } from '../../types';
 import { CARE_TYPE_LABELS } from '../../logicEngine';
-import { evaluateBrainBodyCoherence } from '../../services/brainBodyEngine';
-import { generateSleepPrescription } from '../../utils/sleepLogic';
 import CircularSchedule from '../ui/CircularSchedule';
 import {
     getChronotypeAdvice,
@@ -13,41 +10,29 @@ import {
     getMetacognitionAdvice
 } from '../../data/studyEfficiencyAdvice';
 import { generateAISchedule } from '../../services/schedulingEngine';
-import { SubjectCircadianPlan, getSubjectCircadianPlan } from '../../services/chronobiologyEngine';
+import { SubjectCircadianPlan } from '../../services/chronobiologyEngine';
 
-import { PNT_PRODUCTS, PntProduct } from '../../data/pntProducts';
+import { PNT_PRODUCTS, PntProduct, getStandard6ProductLineup } from '../../data/pntProducts';
 import { generateNutritionalPrescription } from '../../services/prescriptionEngine';
-import { MembershipTier } from '../../utils/featureGate';
 import { DETAILED_INSIGHTS } from '../../data/detailedInsights';
 import { EXPERT_CONTENTS, WEEKLY_PLANS, SUCCESS_INDICATORS } from '../ExpertOverlay';
 import { generateConsultingReport } from '../../services/consultingEngine';
 import { generateConsultationScripts } from '../../services/consultationScriptEngine';
-import { getLearningStrategy, DETAILED_CARETYPE_STRATEGIES } from '../../data/learningStrategies';
-import { getDynamicSubjectRoadmap } from '../../services/studyStrategyEngine';
+import { DETAILED_CARETYPE_STRATEGIES } from '../../data/learningStrategies';
 import { isLearningAnalyticsTested } from '../../utils/constants';
-import { inferLearningTraitsFromProfile } from '../../data/learningTraitsData';
+import { generateDailyTodoPlan } from '../../services/todoPlanService';
+import { ReportPage } from './medical/reportChrome';
+import { EvidenceSummary } from './medical/EvidenceSummary';
 
-interface MedicalReportProps {
-    result: AssessmentResult;
-    analystConfig?: AnalystConfig;
-    strategies?: StrategyMap;
-    selectedSubjectOptions?: any;
-    adminMemo?: string;
-    recommendedProducts?: any[];
-    isPremiumOrAbove?: boolean;
-    membershipTier?: MembershipTier;
-    config?: {
-        useBrainBody?: boolean;
-        usePortable?: boolean;
-        isMedicalMode?: boolean;
-        currentExaminerId?: string | null;
-        examiners?: import('../../types').Examiner[];
-    };
-}
+import type { MedicalReportProps } from './medical/medicalReportTypes';
+import { resolveReportTier, tierDisplayLabel as getTierDisplayLabel, tierBadgeStyle as getTierBadgeStyle } from './medical/reportTier';
+import { resolveTraits, resolveCareStrategy, resolveSubjectRoadmap, resolveBrainBody, resolveValidScores } from './medical/clinicalSelectors';
+import { resolveExaminerDisplay, resolveBmi, resolveScorePanel, resolveSleepSchedule, resolveDemographics, resolveEfficiencyData } from './medical/reportMetrics';
+import { resolveSubjectPlan, resolveVulnerableStrategy } from './medical/reportPlans';
 
 
 
-export const MedicalReport: React.FC<MedicalReportProps> = ({
+const MedicalReportView: React.FC<MedicalReportProps> = ({
     result,
     strategies,
     selectedSubjectOptions,
@@ -58,336 +43,74 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
     config
 }) => {
     const { student, hrv, classificationResult, protocol, analytics, survey, studyEfficiencyResults, cognitiveResults } = result;
-    const rawTraits = student?.learningTraits || survey?.learningTraits;
-    const isDefaultFlat50 = !rawTraits || !rawTraits.scores || (
-        rawTraits.scores.gritPlan === 50 &&
-        rawTraits.scores.mentalResilience === 50 &&
-        rawTraits.scores.temperament === 50 &&
-        rawTraits.scores.metaCognition === 50 &&
-        rawTraits.scores.internalMotivation === 50
-    );
-    const traits = React.useMemo(() => {
-        if (isDefaultFlat50) {
-            return inferLearningTraitsFromProfile({
-                careType: result.careType,
-                survey,
-                studyEfficiency: studyEfficiencyResults as any,
-                student
-            });
-        }
-        return rawTraits;
-    }, [isDefaultFlat50, rawTraits, result.careType, survey, studyEfficiencyResults, student]);
+    const traits = React.useMemo(() => resolveTraits(result), [result]);
 
-    const effectiveReportTier: MembershipTier = membershipTier || (student.membershipTier as MembershipTier) || 'free';
-    const isProTier = effectiveReportTier === 'pro';
-    const isPlusOrAbove = effectiveReportTier === 'premium_plus' || effectiveReportTier === 'vip' || effectiveReportTier === 'expert';
-    const isPremiumLevelOrAbove = effectiveReportTier === 'premium' || isPlusOrAbove || (isPremiumOrAbove && effectiveReportTier !== 'pro' && effectiveReportTier !== 'free');
-    const isProOrAbove = isProTier || isPremiumLevelOrAbove;
+    const { effectiveReportTier, isProTier, isPlusOrAbove, isPremiumLevelOrAbove, isProOrAbove } = resolveReportTier(membershipTier, student.membershipTier, isPremiumOrAbove);
 
-    const detailedCareStrategy = React.useMemo(() => {
-        try {
-            return getLearningStrategy(traits, result.careType);
-        } catch (e) {
-            console.error("getLearningStrategy error in MedicalReport:", e);
-            return null;
-        }
-    }, [traits, result.careType]);
+    const detailedCareStrategy = React.useMemo(() => resolveCareStrategy(traits, result.careType), [traits, result.careType]);
 
-    const dynamicSubjectRoadmap = React.useMemo(() => {
-        try {
-            return getDynamicSubjectRoadmap(student, result.careType, result.gradeHistory);
-        } catch (e) {
-            console.error("getDynamicSubjectRoadmap error in MedicalReport:", e);
-            return null;
-        }
-    }, [student, result.careType, result.gradeHistory]);
+    const dynamicSubjectRoadmap = React.useMemo(() => resolveSubjectRoadmap(result), [result]);
 
-    const brainBodyState = React.useMemo(() => {
-        try {
-            return evaluateBrainBodyCoherence(result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults);
-        } catch (e) {
-            console.error("BrainBodyEngine error in MedicalReport:", e);
-            return null;
-        }
-    }, [result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults]);
+    const brainBodyState = React.useMemo(() => resolveBrainBody(result), [result]);
 
     // Extract top 3 valid scores for the cards
-    const validScores = classificationResult?.allScores?.filter(s => s.type !== CareType.UNASSESSED).slice(0, 3) || [];
-    const primaryScoreData = validScores.length > 0 ? validScores[0] : null;
-    const secondary1Data = validScores.length > 1 ? validScores[1] : null;
-    const secondary2Data = validScores.length > 2 ? validScores[2] : null;
+    const { validScores, primaryScoreData, secondary1Data, secondary2Data } = resolveValidScores(classificationResult);
 
     // Examiner logic
-    const getCurrentExaminer = () => {
-        if (!config?.currentExaminerId || !config?.examiners) return null;
-        return config.examiners.find(e => e.id === config.currentExaminerId);
-    };
-    const examiner = getCurrentExaminer();
-    const examinerDisplay = examiner
-        ? `${examiner.id}${examiner.position ? ` (${examiner.position})` : ''}`
-        : (result.analystConfig ? getAnalystDisplayText(result.analystConfig) : 'Dr. Lim');
+    const { examiner, examinerDisplay } = resolveExaminerDisplay(config, result);
 
     // BMI
-    const bmi = student.bmi || (student.weight && student.height ? student.weight / ((student.height / 100) ** 2) : 0);
-    const bmiStatus = bmi > 25 ? '비만 (Obese)' : bmi > 23 ? '과체중 (Overweight)' : '정상 (Normal)';
+    const { bmi, bmiStatus } = resolveBmi(student);
 
     // Dynamic bio-metric scores
-    const hasHRV = Boolean(
-        hrv.isHrvTested ?? (
-            (config?.usePortable && hrv.portableHrv && hrv.portableHrv.pulseVariability > 0) ||
-            Boolean((hrv.hrvIndex && hrv.hrvIndex > 0) || (hrv.meanHr && hrv.meanHr > 0))
-        )
-    );
-
-    const surveyStressVal = survey?.bai && survey.bai > 0 ? Math.round(Math.min(95, (survey.bai / 63) * 100)) : (protocol?.stressLevel && protocol.stressLevel > 0 ? protocol.stressLevel * 10 : 42);
-    const stressScore = hasHRV ? (hrv.physicalStress || 50) : surveyStressVal;
-
-    const sleepDeficit = protocol?.sleepHours && protocol.sleepHours > 0 ? Math.max(0, (8 - protocol.sleepHours) * 12) : 15;
-    const insomniaVal = survey?.isi && survey.isi > 0 ? Math.round((survey.isi / 28) * 50) : 15;
-    const surveyFatigueVal = Math.min(95, Math.max(15, sleepDeficit + insomniaVal + 10));
-    const fatigueScore = hasHRV ? (hrv.fatigue || 45) : surveyFatigueVal;
-
-    const vitalityScore = hasHRV ? (hrv.vitality || Math.max(15, 100 - fatigueScore)) : Math.max(15, Math.min(95, 100 - fatigueScore));
-
-    const pureRatioVal = analytics?.pureStudyRatio && analytics.pureStudyRatio > 0 ? analytics.pureStudyRatio : 65;
-    const cognitiveVal = cognitiveResults?.attention?.accuracy ? cognitiveResults.attention.accuracy : (cognitiveResults?.processingSpeed?.averageAccuracy || 70);
-    const surveyConcentrationVal = Math.round(pureRatioVal * 0.5 + cognitiveVal * 0.5);
-    const concentrationScore = hrv.concentrationLevel || surveyConcentrationVal;
-
-    const ansBalanceScore = Math.max(20, Math.min(95, Math.round(100 - (stressScore * 0.45) - (fatigueScore * 0.35))));
-
-    const calculatedSns = Math.min(85, Math.max(25, Math.round(40 + (stressScore * 0.45) - (vitalityScore * 0.15))));
-    const calculatedPns = 100 - calculatedSns;
-    const snsScore = (hrv.sns && hrv.sns > 0) ? hrv.sns : calculatedSns;
-    const pnsScore = (hrv.pns && hrv.pns > 0) ? hrv.pns : calculatedPns;
-
-    const ansStatusText = snsScore > 60
-        ? '교감신경 우세 (긴장)'
-        : pnsScore > 60
-            ? '부교감 우세 (나른)'
-            : '자율신경 균형 양호';
-    const ansScoreText = `${ansBalanceScore}점`;
+    const {
+        hasHRV, stressScore, fatigueScore, vitalityScore, concentrationScore,
+        ansBalanceScore, snsScore, pnsScore, ansStatusText, ansScoreText,
+    } = resolveScorePanel({ hrv, survey, protocol, analytics, cognitiveResults, usePortable: config?.usePortable });
 
     // Brain Peak Time calculation (100% synchronized with chronobiologyEngine)
-    const sleepPrescription = React.useMemo(() => {
-        return generateSleepPrescription(result.careType, result.analytics);
-    }, [result.careType, result.analytics]);
-
-    const parseTimeHour = (timeStr: string) => parseInt(timeStr.split(':')[0], 10);
-    const bedHour = parseTimeHour(sleepPrescription.recommendedBedtime) || 23;
-    const wakeHour = parseTimeHour(sleepPrescription.recommendedWakeTime) || 7;
-
-    const isMorningType = wakeHour <= 7;
-    let goldenStartNum = isMorningType ? 10 : 14;
-    if (analytics?.goldenTimeStart) {
-        const parsed = parseInt(analytics.goldenTimeStart.split(':')[0], 10);
-        if (!isNaN(parsed)) goldenStartNum = parsed;
-    }
-    let goldenEndNum = goldenStartNum + 2;
-    if (hrv.brainScore && hrv.brainScore > 70) {
-        goldenEndNum += 1;
-    }
-
-    const slumpStartNum = goldenStartNum + 4;
-    const slumpEndNum = slumpStartNum + 1;
-    const secondStartNum = slumpEndNum + 2;
-    const secondEndNum = 22;
-
-    const formatHour = (h: number) => `${h.toString().padStart(2, '0')}:00`;
-    const goldenStart = formatHour(goldenStartNum);
-    const goldenEnd = formatHour(goldenEndNum);
+    const {
+        sleepPrescription, bedHour, wakeHour, isMorningType,
+        goldenStartNum, goldenEndNum, slumpStartNum, slumpEndNum,
+        secondStartNum, secondEndNum, formatHour, goldenStart, goldenEnd,
+    } = React.useMemo(() => resolveSleepSchedule(result), [result]);
 
     // Date & Age
-    const today = student.testDate || new Date().toISOString().split('T')[0];
-    const age = student.age || (new Date().getFullYear() - new Date(student.birthDate).getFullYear());
-    const genderStr = student.gender === 'Male' ? 'M' : 'F';
+    const { today, age, genderStr } = resolveDemographics(student);
     const careType = result.careType;
 
     const getWidth = (val: number) => ({ width: `${Math.min(100, Math.max(0, val))}%` });
 
     // Subject theme mapping for circadian & focus learning
-    const subjectPlan = React.useMemo(() => {
-        const key = student.weakSubject || student.focusSubjects?.[0] || student.selectedSubjects?.[0] || 'general';
-        return getSubjectCircadianPlan(key);
-    }, [student.weakSubject, student.focusSubjects, student.selectedSubjects]);
+    const subjectPlan = React.useMemo(() => resolveSubjectPlan(student), [student]);
 
     // Parsed Vulnerable Time Strategy from DETAILED_INSIGHTS (100% CareType synchronized)
-    const parsedVulnerableStrategy = React.useMemo(() => {
-        const insight = DETAILED_INSIGHTS[careType as CareType] || DETAILED_INSIGHTS[CareType.BURNOUT];
-        const raw = insight?.vulnerableTimeStrategy || '';
-        const sectionRegex = /\*\*\[(.*?)\]\*\*\s*([\s\S]*?)(?=(?:\*\*\[|$))/g;
-        const matches: { title: string; text: string }[] = [];
-        let m;
-        while ((m = sectionRegex.exec(raw)) !== null) {
-            matches.push({
-                title: m[1].trim(),
-                text: m[2].replace(/\*\*/g, '').replace(/\n+/g, ' ').trim()
-            });
-        }
-
-        if (matches.length >= 4) {
-            return {
-                vulnerableTime: { title: matches[0].title, text: matches[0].text },
-                correlation: { title: matches[1].title, text: matches[1].text },
-                mindset: { title: matches[2].title, text: matches[2].text },
-                recommendation: { title: matches[3].title, text: matches[3].text },
-            };
-        }
-
-        return {
-            vulnerableTime: { title: '취약 구간 분석', text: '오후 1시~3시(식후 슬럼프) 및 기상 직후 에너지 저하 구간에 집중적인 주의가 필요합니다.' },
-            correlation: { title: '학습 상관관계', text: '에너지가 고갈된 구간에 고난도 문제를 풀면 학습 회피 반응이 강화되므로 가벼운 학습으로 전환하세요.' },
-            mindset: { title: '마인드셋', text: '"지금은 뇌가 회복하는 시간"으로 재정의하고 자책 대신 15분 파워냅이나 가벼운 스트레칭을 취하세요.' },
-            recommendation: { title: '추천 공부법', text: '인지 부하가 낮은 어휘 복습, 암기 카드 넘기기, 인강 복습 등 수동적 학습을 배치하세요.' },
-        };
-    }, [careType]);
+    const parsedVulnerableStrategy = React.useMemo(() => resolveVulnerableStrategy(careType), [careType]);
 
     // Tier Display Label
-    const tierDisplayLabel = (() => {
-        switch (effectiveReportTier) {
-            case 'expert': return 'EXPERT';
-            case 'vip': return 'VIP';
-            case 'premium_plus': return 'PREMIUM+';
-            case 'premium': return 'PREMIUM';
-            case 'pro': return 'PRO';
-            case 'basic': return 'BASIC';
-            default: return 'FREE';
-        }
-    })();
+    const tierDisplayLabel = getTierDisplayLabel(effectiveReportTier);
 
-    const tierBadgeStyle = (() => {
-        switch (effectiveReportTier) {
-            case 'expert': return 'bg-purple-100 text-purple-800 border-purple-300';
-            case 'vip': return 'bg-amber-100 text-amber-900 border-amber-300';
-            case 'premium_plus': return 'bg-purple-100 text-purple-800 border-purple-300';
-            case 'premium': return 'bg-indigo-100 text-indigo-800 border-indigo-300';
-            case 'pro': return 'bg-blue-100 text-blue-800 border-blue-300';
-            default: return 'bg-slate-100 text-slate-700 border-slate-300';
-        }
-    })();
+    const tierBadgeStyle = getTierBadgeStyle(effectiveReportTier);
 
     // 5대 학습 효율성 검사 시행 여부 및 데이터 추출 (survey 필드와의 듀얼 폴백 보장)
-    const chronoData = studyEfficiencyResults?.chronotype || (survey?.chronotypeScore !== undefined && survey?.chronotypeResult ? {
-        score: survey.chronotypeScore,
-        result: survey.chronotypeResult as any
-    } : undefined);
-    const isChronoTested = Boolean(chronoData?.result);
+    const {
+        chronoData, isChronoTested, varkData, varkStyle, isVarkTested,
+        taiData, isTaiTested, digitalData, isDigitalTested,
+        metaData, metaLevel, isMetaTested, completedEffCount,
+    } = resolveEfficiencyData(studyEfficiencyResults, survey);
 
-    const varkData = studyEfficiencyResults?.vark || (survey?.varkPrimary && survey?.varkScores ? {
-        ...survey.varkScores,
-        primary: survey.varkPrimary as any,
-        primaryStyle: survey.varkPrimary as any
-    } : undefined);
-    const varkStyle = varkData?.primaryStyle || varkData?.primary;
-    const isVarkTested = Boolean(varkStyle);
+    // FREE 결과 표시 게이트: 5종 수행은 전 등급 가능하나 결과 표시는 TAI만 (PRO 이상 전체 표시)
+    const showChronoResult = isChronoTested && isProOrAbove;
+    const showVarkResult = isVarkTested && isProOrAbove;
+    const showDigitalResult = isDigitalTested && isProOrAbove;
+    const showMetaResult = isMetaTested && isProOrAbove;
 
-    const taiData = studyEfficiencyResults?.testAnxiety || studyEfficiencyResults?.tai || (survey?.testAnxietyCognitive !== undefined && survey?.testAnxietySomatic !== undefined ? {
-        cognitiveScore: survey.testAnxietyCognitive,
-        somaticScore: survey.testAnxietySomatic,
-        totalScore: survey.testAnxietyCognitive + survey.testAnxietySomatic,
-        dominantType: survey.testAnxietyType || 'balanced',
-        severity: (survey.testAnxietyCognitive + survey.testAnxietySomatic) <= 21 ? 'low' : (survey.testAnxietyCognitive + survey.testAnxietySomatic) <= 35 ? 'moderate' : 'high'
-    } : undefined);
-    const isTaiTested = Boolean(taiData && (taiData.totalScore !== undefined || taiData.result || taiData.severity));
-
-    const digitalData = studyEfficiencyResults?.digitalAddiction || (survey?.digitalAddictionLevel ? {
-        totalScore: survey.digitalAddictionScore ?? 0,
-        level: survey.digitalAddictionLevel as any,
-        dopamineStatus: survey.digitalAddictionLevel === 'healthy' ? '정상: 도파민 보상 체계가 건강합니다.' :
-            survey.digitalAddictionLevel === 'caution' ? '주의: 도파민 민감도가 다소 저하되었을 수 있습니다.' :
-                survey.digitalAddictionLevel === 'risk' ? '경계: 도파민 수용체 둔감화가 진행 중일 수 있습니다.' :
-                    '위험: 즉각적 보상에 길들여져 지연된 보상(공부)이 어렵습니다.',
-        toleranceScore: 0,
-        withdrawalScore: 0,
-        controlScore: 0,
-        impactScore: 0
-    } : undefined);
-    const isDigitalTested = Boolean(digitalData?.level);
-
-    const metaData = studyEfficiencyResults?.metacognition || (survey?.metacognitionLevel && survey?.metacognitionScores ? {
-        learnerLevel: survey.metacognitionLevel as any,
-        level: survey.metacognitionLevel as any,
-        rehearsalScore: survey.metacognitionScores.rehearsal,
-        elaborationScore: survey.metacognitionScores.elaboration,
-        organizationScore: survey.metacognitionScores.organization,
-        metacognitiveScore: survey.metacognitionScores.metacognitive,
-        dominantStrategy: 'balanced'
-    } : undefined);
-    const metaLevel = metaData?.level || metaData?.learnerLevel;
-    const isMetaTested = Boolean(metaLevel);
-
-    const completedEffCount = [isChronoTested, isVarkTested, isTaiTested, isDigitalTested, isMetaTested].filter(Boolean).length;
-
-    // Header component
-    const ReportHeader = () => (
-        <div className="flex flex-row justify-between items-start border-b-2 border-slate-200 pb-2 mb-2">
-            <div>
-                <div className="text-blue-700 font-bold text-[11px] tracking-widest uppercase">Neuro-Bio Academic Strategy System</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                    <h1 className="text-xl font-black text-slate-800">NBASS 정밀 진단 보고서</h1>
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-black border tracking-wider uppercase ${tierBadgeStyle}`}>
-                        {tierDisplayLabel}
-                    </span>
-                </div>
-                <p className="text-slate-500 text-[10px] italic mt-0.5">Official Diagnostic &amp; Neuro-Insight Comprehensive Report</p>
-            </div>
-            <div className="text-right">
-                <div className="inline-block bg-slate-100 px-2.5 py-0.5 rounded text-[10px] font-mono text-slate-600 mb-0.5">Ver 2.6.0-Precision</div>
-                <div className="text-[11px] font-medium">분석책임자: <span className="text-blue-700 font-bold">{examinerDisplay}</span></div>
-            </div>
-        </div>
-    );
-
-    // Patient Info Grid
-    const PatientInfoGrid = () => (
-        <div
-            className="bg-slate-50 px-3 py-2 rounded-xl mb-3 border border-slate-200 text-xs"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' }}
-        >
-            <div>
-                <label className="block text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">피검자 성명</label>
-                <div className="text-xs font-black text-slate-800">{student.name} <span className="text-[10px] font-normal text-slate-500">({genderStr} / {age}세)</span></div>
-            </div>
-            <div>
-                <label className="block text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">진단 코드</label>
-                <div className="text-xs font-mono font-bold text-slate-700">ID-{today.replace(/-/g, '').substring(2)}-{student.id.substring(0, 4)}</div>
-            </div>
-            <div>
-                <label className="block text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">검사 일시</label>
-                <div className="text-xs font-bold text-slate-700">{today}</div>
-            </div>
-            <div>
-                <label className="block text-[9px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">중점 분석 분야</label>
-                <div className="text-xs font-black text-blue-700">{student.weakSubject ? student.weakSubject.toUpperCase() : 'GENERAL'} (학습 최적화)</div>
-            </div>
-        </div>
-    );
-
-    // Standardized Footer with page numbering
-    const ReportFooter = ({ pageNum, title }: { pageNum: number, title: string }) => (
-        <div className="mt-auto pt-2 border-t border-slate-200 flex flex-col md:flex-row justify-between text-[9px] text-slate-400 font-medium">
-            <p>© 2026 NEURO-EDULAB. All data is encrypted and confidential.</p>
-            <p className="mt-0.5 md:mt-0 uppercase tracking-widest font-bold text-slate-500">{title} : PAGE {String(pageNum).padStart(2, '0')}</p>
-        </div>
-    );
-
-    // Page wrapper
-    const ReportPage = ({ children, pageNum, footerTitle, breakBefore = true }: { children: React.ReactNode, pageNum: number, footerTitle: string, breakBefore?: boolean }) => (
-        <div className={`page ${breakBefore ? 'page-break-before' : ''}`}>
-            <div className="report-card">
-                <ReportHeader />
-                <PatientInfoGrid />
-                <div className="report-content-wrapper flex-1 flex flex-col justify-between">{children}</div>
-                <ReportFooter pageNum={pageNum} title={footerTitle} />
-            </div>
-        </div>
-    );
+    // Page chrome moved to ./medical/reportChrome.tsx (same DOM output)
 
     return (
         <div className="medical-report-root bg-white text-slate-900 font-sans" style={{ width: '210mm', margin: '0 auto' }}>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Roboto+Mono&display=swap');
-                .medical-report-root { font-family: 'Noto Sans KR', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                .medical-report-root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 
                 .page { 
                     width: 210mm !important;
@@ -496,175 +219,251 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             `}</style>
 
             {/* ================= PAGE 1: DIAGNOSTIC EXECUTIVE SUMMARY ================= */}
-            <ReportPage pageNum={1} footerTitle="DIAGNOSTIC EXECUTIVE SUMMARY" breakBefore={false}>
-                <div>
-                    <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
-                        <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
-                        1. 핵심 진단 및 일차 케어타입 분류 (Primary Classification)
-                    </h2>
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={1} footerTitle="DIAGNOSTIC EXECUTIVE SUMMARY" breakBefore={false}>
+                <EvidenceSummary result={result} />
+                <div className="flex-1 flex flex-col justify-between py-1">
+                    {/* 섹션 1: 핵심 진단 및 일차 케어타입 분류 */}
+                    <div>
+                        <h2 className="text-[15px] font-black flex items-center mb-2 text-slate-800">
+                            <span className="w-1.5 h-4.5 bg-blue-700 mr-2 rounded-sm"></span>
+                            1. 핵심 진단 및 일차 케어타입 분류 (Primary Classification)
+                        </h2>
 
-                    <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl mb-2 text-[11px] text-blue-900 leading-relaxed font-medium">
-                        📌 <strong>핵심 진단 분류의 의미</strong>: {effectiveReportTier === 'free'
-                            ? 'NBASS 정밀 진단 알고리즘은 피검자의 자율신경계 반응성, 신체 피로도, 인지 제어 역량을 종합 분석하여 8대 케어타입 중 가장 시급한 핵심 케어 영역(1차 진단)을 도출합니다.'
-                            : 'NBASS 정밀 진단 알고리즘은 피검자의 자율신경계 반응성, 신체 피로도, 인지 제어 역량을 종합 분석하여 8대 케어타입 중 가장 시급한 개선 영역(1차 진단)과 잠재 위험 요인(2차 진단)을 도출합니다.'}
-                    </div>
+                        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl mb-3 text-xs text-blue-900 leading-relaxed font-medium">
+                            📌 <strong>핵심 진단 분류의 의미</strong>: {effectiveReportTier === 'free'
+                                ? 'NBASS 정밀 진단 알고리즘은 피검자의 설문 응답, 학습 습관, 인지 검사 결과를 종합 분석하여 12대 케어타입 중 가장 시급한 핵심 케어 영역(1차 진단)을 도출합니다.'
+                                : 'NBASS 정밀 진단 알고리즘은 피검자의 설문 응답, 학습 습관, 인지 검사 결과를 종합 분석하여 12대 케어타입 중 가장 시급한 개선 영역(1차 진단)과 잠재 위험 요인(2차 진단)을 도출합니다.'}
+                        </div>
 
-                    {effectiveReportTier === 'free' ? (
-                        <div className="mb-2.5">
-                            {primaryScoreData ? (
-                                <div className="border border-red-200 bg-red-50/40 p-3 rounded-xl">
-                                    <div className="flex justify-between items-center mb-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-md border border-red-200">
-                                                1차 핵심 진단 (최우선 케어 영역)
-                                            </span>
-                                            <span className="text-sm font-black text-red-700">
-                                                {CARE_TYPE_LABELS[primaryScoreData.type]?.name || primaryScoreData.type}
-                                            </span>
+                        {effectiveReportTier === 'free' ? (
+                            <div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.65rem' }}>
+                                    {primaryScoreData ? (
+                                        <div className="border border-red-200 bg-red-50/40 p-3 rounded-xl flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex justify-between items-end mb-1">
+                                                    <span className="text-xs font-black text-red-700 truncate">{CARE_TYPE_LABELS[primaryScoreData.type]?.name || primaryScoreData.type}</span>
+                                                    <span className="text-lg font-black text-red-600 leading-none">{Math.round(primaryScoreData.score)}<span className="text-[10px]">/100</span></span>
+                                                </div>
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <span className="text-[9px] text-red-700 font-bold bg-red-100 px-1.5 py-0.5 rounded">1차 핵심 진단 (최우선)</span>
+                                                    <span className="text-[9px] font-bold text-red-600">위험도 상위 15%</span>
+                                                </div>
+                                                <div className="metric-bar mb-2"><div className="h-full metric-fill-red" style={getWidth(primaryScoreData.score)}></div></div>
+                                            </div>
+                                            <p className="text-[10.5px] text-slate-700 leading-relaxed font-medium">{CARE_TYPE_LABELS[primaryScoreData.type]?.publicDescription || CARE_TYPE_LABELS[primaryScoreData.type]?.description}</p>
                                         </div>
-                                        <span className="text-base font-black text-red-600">
-                                            {Math.round(primaryScoreData.score)}<span className="text-[10px]">/100</span>
-                                        </span>
+                                    ) : (
+                                        <div className="border border-slate-200 bg-slate-50 p-3 rounded-xl flex items-center justify-center text-xs text-slate-400">데이터 미입력</div>
+                                    )}
+
+                                    {/* Free Lock Card 1: 2차 진단 동반 위험 블러 */}
+                                    <div className="relative border border-slate-200 bg-slate-50/80 p-3 rounded-xl flex flex-col justify-between overflow-hidden">
+                                        <div className="filter blur-[3px] select-none pointer-events-none opacity-60">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <span className="text-xs font-black text-slate-700">심리적 불안·긴장형</span>
+                                                <span className="text-lg font-black text-slate-600 leading-none">72<span className="text-[10px]">/100</span></span>
+                                            </div>
+                                            <div className="metric-bar mb-2"><div className="h-full bg-slate-400" style={{ width: '72%' }}></div></div>
+                                            <p className="text-[10.5px] text-slate-500 leading-relaxed">시험 당일 긴장으로 인한 기억 인출 저하 위험...</p>
+                                        </div>
+                                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-2 text-center text-white">
+                                            <span className="text-base mb-1">🔒</span>
+                                            <span className="text-[10px] font-black text-amber-300">2차 동반 위험 진단</span>
+                                            <span className="text-[8.5px] text-slate-200 mt-0.5">PRO 정기결제 시 잠금 해제</span>
+                                        </div>
                                     </div>
-                                    <div className="metric-bar mb-1.5">
-                                        <div className="h-full metric-fill-red" style={getWidth(primaryScoreData.score)}></div>
+
+                                    {/* Free Lock Card 2: 3차 진단 잠재 요인 블러 */}
+                                    <div className="relative border border-slate-200 bg-slate-50/80 p-3 rounded-xl flex flex-col justify-between overflow-hidden">
+                                        <div className="filter blur-[3px] select-none pointer-events-none opacity-60">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <span className="text-xs font-black text-slate-700">작업기억 과부하형</span>
+                                                <span className="text-lg font-black text-slate-600 leading-none">65<span className="text-[10px]">/100</span></span>
+                                            </div>
+                                            <div className="metric-bar mb-2"><div className="h-full bg-slate-400" style={{ width: '65%' }}></div></div>
+                                            <p className="text-[10.5px] text-slate-500 leading-relaxed">수학 킬러 문항 풀이 시 전두엽 인지 과부하...</p>
+                                        </div>
+                                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-2 text-center text-white">
+                                            <span className="text-base mb-1">🔒</span>
+                                            <span className="text-[10px] font-black text-amber-300">3차 잠재 요인 분석</span>
+                                            <span className="text-[8.5px] text-slate-200 mt-0.5">PRO 정기결제 시 잠금 해제</span>
+                                        </div>
                                     </div>
-                                    <p className="text-[11px] text-slate-700 leading-snug font-medium">
-                                        {CARE_TYPE_LABELS[primaryScoreData.type]?.publicDescription || CARE_TYPE_LABELS[primaryScoreData.type]?.description}
-                                    </p>
                                 </div>
-                            ) : (
-                                <div className="border border-slate-200 bg-slate-50 p-2.5 rounded-xl flex items-center justify-center text-[10px] text-slate-400">데이터 미입력</div>
-                            )}
-                        </div>
-                    ) : (
+
+                                {/* [Pain Point Focus] Free 회원 전용 취약 과목 두뇌 과부하 위험 경고 */}
+                                {(() => {
+                                    const weakSubj = student.weakSubject || (student.focusSubjects && student.focusSubjects[0]) || (student.selectedSubjects && student.selectedSubjects[0]) || 'korean';
+                                    const weakSubjName = weakSubj === 'korean' ? '국어' : weakSubj === 'math' ? '수학' : weakSubj === 'english' ? '영어' : '주요 과목';
+                                    return (
+                                        <div className="mt-2.5 p-3 bg-gradient-to-r from-amber-50 via-rose-50 to-orange-50 border border-amber-300 rounded-xl flex items-start gap-2.5">
+                                            <span className="text-lg leading-none shrink-0 mt-0.5">⚠️</span>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <span className="text-[11.5px] font-black text-amber-950">
+                                                        [{weakSubjName} 집중 시] 전두엽 작업기억 소진 및 인지 과부하 주의 경고
+                                                    </span>
+                                                    <span className="text-[9px] font-black px-2 py-0.5 bg-rose-600 text-white rounded-full shrink-0">
+                                                        성적 정체 위험군
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10.5px] text-slate-700 leading-relaxed font-medium m-0">
+                                                    피검자는 현재 <strong>{CARE_TYPE_LABELS[primaryScoreData?.type]?.name || '뇌 피로 누적'}</strong> 상태로 인해, 고난도 킬러 문항 및 {weakSubjName} 실전 문제 풀이 시 뇌 피로도가 급상승하여 <strong>아는 문제도 계산 실수나 시간 부족으로 놓칠 위험</strong>이 매우 높습니다.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        ) : (
+                            <div
+                                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.65rem' }}
+                            >
+                                {primaryScoreData ? (
+                                    <div className="border border-red-200 bg-red-50/40 p-3 rounded-xl flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-end mb-1">
+                                                <span className="text-xs font-black text-red-700 truncate">{CARE_TYPE_LABELS[primaryScoreData.type]?.name || primaryScoreData.type}</span>
+                                                <span className="text-lg font-black text-red-600 leading-none">{Math.round(primaryScoreData.score)}<span className="text-[10px]">/100</span></span>
+                                            </div>
+                                            <div className="metric-bar mb-2"><div className="h-full metric-fill-red" style={getWidth(primaryScoreData.score)}></div></div>
+                                        </div>
+                                        <p className="text-[10.5px] text-slate-700 leading-relaxed font-medium">{CARE_TYPE_LABELS[primaryScoreData.type]?.publicDescription || CARE_TYPE_LABELS[primaryScoreData.type]?.description}</p>
+                                    </div>
+                                ) : (
+                                    <div className="border border-slate-200 bg-slate-50 p-3 rounded-xl flex items-center justify-center text-xs text-slate-400">데이터 미입력</div>
+                                )}
+
+                                {secondary1Data ? (
+                                    <div className="border border-orange-200 bg-orange-50/40 p-3 rounded-xl flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-xs font-black text-orange-700 truncate">{CARE_TYPE_LABELS[secondary1Data.type]?.name || secondary1Data.type}</span>
+                                                <span className="text-lg font-black text-orange-600 leading-none">{Math.round(secondary1Data.score)}<span className="text-[10px]">/100</span></span>
+                                            </div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-[9px] text-slate-500 font-bold">2차 진단 (동반 위험)</span>
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${secondary1Data.score >= 70
+                                                        ? 'bg-orange-100 text-orange-700 border-orange-300'
+                                                        : 'bg-amber-100 text-amber-700 border-amber-300'
+                                                    }`}>
+                                                    {secondary1Data.score >= 70 ? '확정 진단' : '근접 추정'}
+                                                </span>
+                                            </div>
+                                            <div className="metric-bar mb-2"><div className="h-full metric-fill-orange" style={getWidth(secondary1Data.score)}></div></div>
+                                        </div>
+                                        <p className="text-[10.5px] text-slate-700 leading-relaxed font-medium">{CARE_TYPE_LABELS[secondary1Data.type]?.publicDescription || CARE_TYPE_LABELS[secondary1Data.type]?.description}</p>
+                                    </div>
+                                ) : (
+                                    <div className="border border-slate-200 bg-slate-50 p-3 rounded-xl flex items-center justify-center text-xs text-slate-400">추가 위험 요인 없음</div>
+                                )}
+
+                                {secondary2Data ? (
+                                    <div className="border border-emerald-200 bg-emerald-50/40 p-3 rounded-xl flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-xs font-black text-emerald-700 truncate">{CARE_TYPE_LABELS[secondary2Data.type]?.name || secondary2Data.type}</span>
+                                                <span className="text-lg font-black text-emerald-600 leading-none">{Math.round(secondary2Data.score)}<span className="text-[10px]">/100</span></span>
+                                            </div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-[9px] text-slate-500 font-bold">3차 진단 (잠재 요인)</span>
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${secondary2Data.score >= 70
+                                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                        : 'bg-amber-100 text-amber-700 border-amber-300'
+                                                    }`}>
+                                                    {secondary2Data.score >= 70 ? '확정 진단' : '근접 추정'}
+                                                </span>
+                                            </div>
+                                            <div className="metric-bar mb-2"><div className="h-full metric-fill-green" style={getWidth(secondary2Data.score)}></div></div>
+                                        </div>
+                                        <p className="text-[10.5px] text-slate-700 leading-relaxed font-medium">{CARE_TYPE_LABELS[secondary2Data.type]?.publicDescription || CARE_TYPE_LABELS[secondary2Data.type]?.description}</p>
+                                    </div>
+                                ) : (
+                                    <div className="border border-slate-200 bg-slate-50 p-3 rounded-xl flex items-center justify-center text-xs text-slate-400">추가 위험 요인 없음</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 섹션 2: 6가지 지표 종합 분석 */}
+                    <div>
+                        <h2 className="text-[15px] font-black flex items-center mb-2 text-slate-800">
+                            <span className="w-1.5 h-4.5 bg-blue-700 mr-2 rounded-sm"></span>
+                            2. 📊 6가지 지표 종합 분석 (Brain & Body Integration)
+                        </h2>
                         <div
-                            className="mb-2.5"
-                            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.625rem' }}
+                            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.65rem' }}
                         >
-                            {primaryScoreData ? (
-                                <div className="border border-red-200 bg-red-50/40 p-2.5 rounded-xl">
-                                    <div className="flex justify-between items-end mb-1">
-                                        <span className="text-[11px] font-black text-red-700 truncate">{CARE_TYPE_LABELS[primaryScoreData.type]?.name || primaryScoreData.type}</span>
-                                        <span className="text-base font-black text-red-600">{Math.round(primaryScoreData.score)}<span className="text-[9px]">/100</span></span>
-                                    </div>
-                                    <div className="metric-bar mb-1.5"><div className="h-full metric-fill-red" style={getWidth(primaryScoreData.score)}></div></div>
-                                    <p className="text-[10px] text-slate-700 leading-snug font-medium">{CARE_TYPE_LABELS[primaryScoreData.type]?.publicDescription || CARE_TYPE_LABELS[primaryScoreData.type]?.description}</p>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">자율신경 (ANS Balance)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-blue-700">{ansStatusText}</span>
+                                    {ansScoreText && <span className="text-[11px] text-slate-500 font-bold">({ansScoreText})</span>}
                                 </div>
-                            ) : (
-                                <div className="border border-slate-200 bg-slate-50 p-2.5 rounded-xl flex items-center justify-center text-[10px] text-slate-400">데이터 미입력</div>
-                            )}
-
-                            {secondary1Data ? (
-                                <div className="border border-orange-200 bg-orange-50/40 p-2.5 rounded-xl">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <span className="text-[11px] font-black text-orange-700 truncate">{CARE_TYPE_LABELS[secondary1Data.type]?.name || secondary1Data.type}</span>
-                                        <span className="text-base font-black text-orange-600">{Math.round(secondary1Data.score)}<span className="text-[9px]">/100</span></span>
-                                    </div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[8px] text-slate-500 font-bold">2차 진단 (동반 위험)</span>
-                                        <span className={`text-[8.5px] font-bold px-1.5 py-0.2 rounded border ${secondary1Data.score >= 70
-                                                ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                                : 'bg-amber-100 text-amber-700 border-amber-300'
-                                            }`}>
-                                            {secondary1Data.score >= 70 ? '확정 진단' : '근접 추정'}
-                                        </span>
-                                    </div>
-                                    <div className="metric-bar mb-1.5"><div className="h-full metric-fill-orange" style={getWidth(secondary1Data.score)}></div></div>
-                                    <p className="text-[10px] text-slate-700 leading-snug font-medium">{CARE_TYPE_LABELS[secondary1Data.type]?.publicDescription || CARE_TYPE_LABELS[secondary1Data.type]?.description}</p>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">신체 활력도 (Vitality)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-emerald-600">{vitalityScore}%</span>
+                                    <span className="text-[11px] text-slate-500 font-medium">({vitalityScore >= 70 ? '높음 🟢' : vitalityScore >= 40 ? '보통 🟡' : '낮음 🔴'})</span>
                                 </div>
-                            ) : (
-                                <div className="border border-slate-200 bg-slate-50 p-2.5 rounded-xl flex items-center justify-center text-[10px] text-slate-400">추가 위험 요인 없음</div>
-                            )}
-
-                            {secondary2Data ? (
-                                <div className="border border-emerald-200 bg-emerald-50/40 p-2.5 rounded-xl">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <span className="text-[11px] font-black text-emerald-700 truncate">{CARE_TYPE_LABELS[secondary2Data.type]?.name || secondary2Data.type}</span>
-                                        <span className="text-base font-black text-emerald-600">{Math.round(secondary2Data.score)}<span className="text-[9px]">/100</span></span>
-                                    </div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[8px] text-slate-500 font-bold">3차 진단 (잠재 요인)</span>
-                                        <span className={`text-[8.5px] font-bold px-1.5 py-0.2 rounded border ${secondary2Data.score >= 70
-                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                                : 'bg-amber-100 text-amber-700 border-amber-300'
-                                            }`}>
-                                            {secondary2Data.score >= 70 ? '확정 진단' : '근접 추정'}
-                                        </span>
-                                    </div>
-                                    <div className="metric-bar mb-1.5"><div className="h-full metric-fill-green" style={getWidth(secondary2Data.score)}></div></div>
-                                    <p className="text-[10px] text-slate-700 leading-snug font-medium">{CARE_TYPE_LABELS[secondary2Data.type]?.publicDescription || CARE_TYPE_LABELS[secondary2Data.type]?.description}</p>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">누적 피로도 (Fatigue)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-orange-600">{fatigueScore}%</span>
+                                    <span className="text-[11px] text-slate-500 font-medium">({fatigueScore <= 30 ? '낮음 🟢' : fatigueScore <= 60 ? '보통 🟡' : '높음 🔴'})</span>
                                 </div>
-                            ) : (
-                                <div className="border border-slate-200 bg-slate-50 p-2.5 rounded-xl flex items-center justify-center text-[10px] text-slate-400">추가 위험 요인 없음</div>
-                            )}
-                        </div>
-                    )}
-
-                    <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
-                        <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
-                        2. 📊 6가지 지표 종합 분석 (Brain & Body Integration)
-                    </h2>
-                    <div
-                        className="mb-2"
-                        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.5rem' }}
-                    >
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">자율신경 (ANS Balance)</span>
-                            <span className="text-xs font-black text-blue-700">{ansStatusText}</span>
-                            {ansScoreText && <span className="text-[10px] text-slate-500 ml-1 font-bold">({ansScoreText})</span>}
-                        </div>
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">신체 활력도 (Vitality)</span>
-                            <span className="text-xs font-black text-emerald-600">{vitalityScore}%</span>
-                            <span className="text-[10px] text-slate-500 ml-1">({vitalityScore >= 70 ? '높음 🟢' : vitalityScore >= 40 ? '보통 🟡' : '낮음 🔴'})</span>
-                        </div>
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">누적 피로도 (Fatigue)</span>
-                            <span className="text-xs font-black text-orange-600">{fatigueScore}%</span>
-                            <span className="text-[10px] text-slate-500 ml-1">({fatigueScore <= 30 ? '낮음 🟢' : fatigueScore <= 60 ? '보통 🟡' : '높음 🔴'})</span>
-                        </div>
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">신체/심리 스트레스 (Stress)</span>
-                            <span className="text-xs font-black text-rose-600">{stressScore}점</span>
-                            <span className="text-[10px] text-slate-500 ml-1">(설문/자율신경 기반)</span>
-                        </div>
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">두뇌 집중도 (Concentration)</span>
-                            <span className="text-xs font-black text-indigo-600">{concentrationScore}점</span>
-                            <span className="text-[10px] text-slate-500 ml-1">(인지검사 기반)</span>
-                        </div>
-                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                            <span className="text-[9px] text-slate-400 font-bold block">신체 프로파일 (BMI)</span>
-                            <span className="text-xs font-black text-slate-800">{bmi.toFixed(1)}</span>
-                            <span className={`text-[10px] font-bold ml-1 ${bmi > 23 ? 'text-red-500' : 'text-emerald-600'}`}>({bmiStatus})</span>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">신체/심리 스트레스 (Stress)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-rose-600">{stressScore}점</span>
+                                    <span className="text-[11px] text-slate-500 font-medium">(설문/자율신경)</span>
+                                </div>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">두뇌 집중도 (Concentration)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-indigo-600">{concentrationScore}점</span>
+                                    <span className="text-[11px] text-slate-500 font-medium">(인지검사)</span>
+                                </div>
+                            </div>
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <span className="text-[10px] text-slate-400 font-bold block mb-0.5">신체 프로파일 (BMI)</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-sm font-black text-slate-800">{bmi.toFixed(1)}</span>
+                                    <span className={`text-[11px] font-bold ${bmi > 23 ? 'text-red-500' : 'text-emerald-600'}`}>({bmiStatus})</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Full Comprehensive Diagnostic Overview from DETAILED_INSIGHTS */}
-                    <div className="border border-indigo-200 bg-indigo-50/40 rounded-xl p-2.5 mb-2">
-                        <div className="flex items-center justify-between border-b border-indigo-200 pb-1 mb-1.5">
-                            <h3 className="text-[10.5px] font-black text-indigo-950 flex items-center gap-1.5">
+                    {/* 섹션 3: 피검자 맞춤형 정밀 신경생리학적 진단 소견 */}
+                    <div className="border border-indigo-200 bg-indigo-50/40 rounded-xl p-3.5">
+                        <div className="flex items-center justify-between border-b border-indigo-200 pb-1.5 mb-2">
+                            <h3 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
                                 <span>📋</span>
                                 <span>피검자 맞춤형 정밀 신경생리학적 진단 소견 (Clinical Diagnostic Overview)</span>
                             </h3>
-                            <span className="text-[8.5px] font-mono text-indigo-700 font-bold">CARE-TYPE : {CARE_TYPE_LABELS[careType as CareType]?.name || careType}</span>
+                            <span className="text-[9.5px] font-mono text-indigo-700 font-bold">CARE-TYPE : {CARE_TYPE_LABELS[careType as CareType]?.name || careType}</span>
                         </div>
-                        <p className="text-[9.5px] text-slate-800 leading-relaxed font-medium whitespace-pre-wrap">
+                        <p className="text-[11px] text-slate-800 leading-[1.65] font-medium whitespace-pre-wrap">
                             {DETAILED_INSIGHTS[careType as CareType]?.overviewAnalysis ||
                                 "현재 검사 결과 피검자의 자율신경 조절 능력과 뇌 피로도가 복합적으로 작용하고 있습니다. 신체 에너지와 인지 처리 역량의 균형을 맞추기 위해 시간대별 인지 부하 관리와 적절한 회복 루틴의 도입이 시급합니다."}
                         </p>
                     </div>
 
-                    {/* Integrated 3-Stage Assessment Box */}
-                    <div className="bg-slate-900 text-white p-2.5 rounded-xl">
-                        <div className="flex items-center justify-between border-b border-slate-700 pb-1 mb-1">
-                            <h3 className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    {/* 섹션 4: 신체-정신-인지 3단계 서술식 종합 소견 및 임상 실행 가이드 */}
+                    <div className="bg-slate-900 text-white p-3.5 rounded-xl">
+                        <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2">
+                            <h3 className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <span>🔬</span> 신체-정신-인지 3단계 서술식 종합 소견 및 임상 실행 가이드
                             </h3>
-                            <span className="text-[8px] text-slate-400 font-mono">NEURO-INTEGRATION PROTOCOL</span>
+                            <span className="text-[9px] text-slate-400 font-mono">NEURO-INTEGRATION PROTOCOL</span>
                         </div>
-                        <p className="text-[9px] text-slate-200 leading-relaxed">
+                        <p className="text-[10.5px] text-slate-200 leading-[1.65]">
                             {vitalityScore >= 60
                                 ? '피검 학생은 현재 신체 에너지와 인지 처리 용량이 안정적으로 유지되고 있어, 오전 두뇌 골든타임(오전 9~12시)에 수학 킬러 및 과학 고난도 추론 문항에 집중적으로 딥워크(Deep Work)할 수 있는 최적의 신체-두뇌 컨디션을 갖추고 있습니다. 고난도 문제 해결 시 50분 집중 후 10분 이완을 엄격히 준수하여 인지 피로 누적을 방지하십시오.'
                                 : '피검 학생은 누적된 피로 및 시험 스트레스로 인해 뇌의 에너지 배터리가 부분적으로 방전된 상태입니다. 무리한 심야 연속 학습보다는 15분 파워 낮잠(Power Nap)과 25분 뽀모도로 타임어택을 적용하여 뇌 피로를 리셋하는 전략이 최우선입니다. 코르티솔 분비 안정을 위한 규칙적 수면 리듬 확보를 강력 권고합니다.'}
@@ -674,15 +473,17 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             </ReportPage>
 
             {/* ================= PAGE 2: ANS & NEURO-COGNITIVE DETAIL ================= */}
-            <ReportPage pageNum={2} footerTitle="ANS & NEURO-COGNITIVE DETAIL">
-                <div>
-                    <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
-                        <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
-                        1. 자율신경 반응성 및 신경인지 정밀 분석 (ANS & Cognitive Balance)
-                    </h2>
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={2} footerTitle="ANS & NEURO-COGNITIVE DETAIL">
+                <div className="flex-1 flex flex-col justify-between py-1">
+                    <div>
+                        <h2 className="text-[15px] font-black flex items-center mb-2 text-slate-800">
+                            <span className="w-1.5 h-4.5 bg-blue-700 mr-2 rounded-sm"></span>
+                            1. 자율신경 반응성 및 신경인지 정밀 분석 (ANS & Cognitive Balance)
+                        </h2>
 
-                    <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl mb-2.5 text-[11px] text-slate-700 leading-relaxed font-medium">
-                        📌 <strong>자율신경과 인지 조절의 학습 연계성</strong>: 자율신경계는 몸의 가속 페달(교감신경)과 브레이크(부교감신경)의 조화를 측정하며, 인지 제어 역량은 집중력과 스트레스 회복력을 나타냅니다. 최적의 공부 효율은 신체적 긴장도가 완화되고(높은 PNS) 두뇌 각성도가 안정적으로 유지될 때 극대화됩니다.
+                        <div className="p-3 bg-slate-100 border border-slate-200 rounded-xl mb-3 text-xs text-slate-700 leading-relaxed font-medium">
+                            📌 <strong>자율신경과 인지 조절의 학습 연계성</strong>: 자율신경계는 몸의 가속 페달(교감신경)과 브레이크(부교감신경)의 조화를 측정하며, 인지 제어 역량은 집중력과 스트레스 회복력을 나타냅니다. 최적의 공부 효율은 신체적 긴장도가 완화되고(높은 PNS) 두뇌 각성도가 안정적으로 유지될 때 극대화됩니다.
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5 mb-2.5">
@@ -811,8 +612,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             </ReportPage>
 
             {/* ================= PAGE 3: CIRCADIAN PEAK TIME & DAILY SCHEDULE ================= */}
-            <ReportPage pageNum={3} footerTitle="CIRCADIAN PEAK TIME & SCHEDULE">
-                <div className="flex flex-col h-full font-sans text-slate-800 text-xs">
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={3} footerTitle="CIRCADIAN PEAK TIME & SCHEDULE">
+                <div className="flex-1 flex flex-col justify-between py-1 font-sans text-slate-800 text-xs">
                     <div className="flex justify-between items-center mb-1">
                         <h2 className="text-base font-black flex items-center text-slate-800">
                             <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
@@ -1019,22 +820,103 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                 </div>
             </ReportPage>
 
-            {/* ================= PAGE 4: STUDY DENSITY & ANALYTICS (PRO 이상) ================= */}
-            {isProOrAbove && (
-                <ReportPage pageNum={4} footerTitle="STUDY DENSITY & ANALYTICS">
-                    <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                            <h2 className="text-base font-black flex items-center text-slate-800">
-                                <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
-                                1. 학습 밀도 및 패턴 분석 (순공 시간 & 방해 요인)
-                            </h2>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLearningAnalyticsTested(analytics) ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'}`}>
-                                {isLearningAnalyticsTested(analytics) ? '검사 완료' : '미검사 (검사 미시행)'}
-                            </span>
+            {/* ================= PAGE 4 PREVIEW FOR FREE USERS: 14P IN-DEPTH REPORT PREVIEW ================= */}
+            {!isProOrAbove && (
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={4} footerTitle="14P IN-DEPTH REPORT & SOLUTION PREVIEW">
+                    <div className="flex-1 flex flex-col justify-between py-2">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <h2 className="text-[15px] font-black flex items-center text-slate-800">
+                                    <span className="w-1.5 h-4.5 bg-indigo-600 mr-2 rounded-sm"></span>
+                                    14P 전두엽 활성 &amp; 신경인지 심층 솔루션 리포트북 안내
+                                </h2>
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                    정기결제 회원 전용
+                                </span>
+                            </div>
+
+                            <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl mb-3 text-xs text-indigo-900 leading-relaxed font-medium">
+                                📌 <strong>{student.name} 학생 전용 14P 정밀 분석서가 생성 완료되었습니다.</strong><br/>
+                                단건 ₩24,900 상당의 신경인지 클리닉 전문 리포트북으로, 4대 과목별 뇌 피로도 처방과 수능 당일 맞춤 바이오리듬 시간표가 수록되어 있습니다.
+                            </div>
+
+                            {/* 4대 핵심 구성 목차 그리드 */}
+                            <div className="grid grid-cols-2 gap-2.5 mb-3">
+                                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm">📘</span>
+                                        <span className="text-xs font-black text-slate-800">1. 과목별 뇌인지 학습 처방전</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">국어/수학/영어 취약 영역별 두뇌 과부하 극복 학습 루틴 및 문제풀이 처방</p>
+                                </div>
+                                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm">⏰</span>
+                                        <span className="text-xs font-black text-slate-800">2. 실전 1:1 골든타임 시간표</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">실제 기상/취침 및 학원 일정 맞춤 24시간 바이오리듬 &amp; 90분 수면 사이클</p>
+                                </div>
+                                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm">🧠</span>
+                                        <span className="text-xs font-black text-slate-800">3. 전두엽 활성 &amp; 작업기억 매트릭스</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">좌우 뇌파 밸런스 및 킬러 문항 풀이 시 인지 저해요인 차단 솔루션</p>
+                                </div>
+                                <div className="p-3 bg-white border border-slate-200 rounded-xl shadow-xs">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm">🎓</span>
+                                        <span className="text-xs font-black text-slate-800">4. 목표 대학 실전 합격 시뮬레이션</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed m-0">뇌 컨디션 최적화 시 수능 등급 상승 시뮬레이터 및 입시 멘탈 케어 가이드</p>
+                                </div>
+                            </div>
+
+                            {/* 블러 샘플 차트 티저 */}
+                            <div className="relative p-4 bg-slate-900 text-white rounded-2xl overflow-hidden border border-slate-800">
+                                <div className="filter blur-[4px] select-none opacity-40">
+                                    <div className="h-24 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
+                                        <span className="text-xs">실시간 인지-바이오마커 상관분석 그래프</span>
+                                    </div>
+                                </div>
+                                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
+                                    <span className="text-2xl mb-1">🔒</span>
+                                    <h4 className="text-sm font-black text-amber-300 mb-0.5">14P 심층 리포트북 잠금 해제 혜택</h4>
+                                    <p className="text-[10.5px] text-slate-300 max-w-sm leading-relaxed mb-2">
+                                        1회 리포트(₩24,900) 금액 중 5,000원을 즉시 차감하여 <strong>첫 달 단 ₩14,900원</strong>에 전체 14P 심층 리포트북 및 시간표를 즉시 열람하실 수 있습니다.
+                                    </p>
+                                    <div className="px-4 py-2 bg-gradient-to-r from-amber-500 to-indigo-600 rounded-xl text-white font-black text-xs shadow-lg">
+                                        ⭐ 첫 달 ₩14,900원에 전체 솔루션 즉시 열람
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl mb-2.5 text-[11px] text-blue-900 leading-relaxed font-medium">
-                            📌 <strong>순공 시간 비율(Pure Study Ratio)의 의미</strong>: 책상에 앉아 있는 총 착석 시간 중 스마트폰 확인, 잡념, 단순 멍때림을 제외하고 실질적으로 뇌 회로가 몰입한 시간 비율입니다. 100분 학습 시 70분을 집중했다면 70%가 됩니다.
+                        <div className="text-center text-[10px] text-slate-400 mt-2">
+                            NBASS Neuro-Bio Academic Strategy System · Chief Analyst: Dr Lim
+                        </div>
+                    </div>
+                </ReportPage>
+            )}
+
+            {/* ================= PAGE 4: STUDY DENSITY & ANALYTICS (PRO 이상) ================= */}
+            {isProOrAbove && (
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={4} footerTitle="STUDY DENSITY & ANALYTICS">
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                        <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                                <h2 className="text-[15px] font-black flex items-center text-slate-800">
+                                    <span className="w-1.5 h-4.5 bg-blue-700 mr-2 rounded-sm"></span>
+                                    1. 학습 밀도 및 패턴 분석 (순공 시간 & 방해 요인)
+                                </h2>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLearningAnalyticsTested(analytics) ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'}`}>
+                                    {isLearningAnalyticsTested(analytics) ? '검사 완료' : '미검사 (검사 미시행)'}
+                                </span>
+                            </div>
+
+                            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl mb-2.5 text-xs text-blue-900 leading-relaxed font-medium">
+                                📌 <strong>순공 시간 비율(Pure Study Ratio)의 의미</strong>: 책상에 앉아 있는 총 착석 시간 중 스마트폰 확인, 잡념, 단순 멍때림을 제외하고 실질적으로 뇌 회로가 몰입한 시간 비율입니다. 100분 학습 시 70분을 집중했다면 70%가 됩니다.
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2.5 mb-2.5 text-center">
@@ -1150,8 +1032,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= PAGE 5: LEARNING TRAITS & NEURO-COGNITIVE MECHANISM (PRO 이상) ================= */}
             {isProOrAbove && (
-                <ReportPage pageNum={5} footerTitle="LEARNING TRAITS & NEURO-MECHANISM">
-                    <div className="space-y-2 text-xs">
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={5} footerTitle="LEARNING TRAITS & NEURO-MECHANISM">
+                    <div className="flex-1 flex flex-col justify-between py-1 text-xs">
                         {/* 1. 5대 과학적 학습 기질 & 맞춤 전략 (Image 1) */}
                         <div className="bg-slate-900 text-white rounded-xl p-3 border border-purple-500/30">
                             <div className="flex justify-between items-center border-b border-slate-700 pb-1.5 mb-2">
@@ -1182,39 +1064,39 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                     <div key={idx} className="bg-white/10 p-1.5 rounded-lg border border-white/10">
                                         <span className="text-slate-300 block truncate text-[8px]">{item.label}</span>
                                         <span className="font-black text-white text-[10px]">{item.score}점</span>
-                                        <div className="w-full bg-slate-700 h-1 rounded-full overflow-hidden mt-0.5">
+                                        <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden mt-0.5">
                                             <div className={`h-full ${item.color}`} style={{ width: `${item.score}%` }}></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
 
-                            <p className="text-[9px] text-slate-300 leading-snug bg-white/5 p-1.5 rounded-lg border border-white/10 mb-2">
+                            <p className="text-[9.5px] text-slate-300 leading-snug bg-white/5 p-2 rounded-lg border border-white/10 mb-2">
                                 {traits?.archetypeDescription || '자신의 앎과 모름을 정확히 꿰뚫어 보며, 오답의 근본 원인을 끝까지 파고들어 개념을 완벽하게 재구성하는 분석적 학습자입니다.'}
                             </p>
 
-                            <div className="grid grid-cols-3 gap-1.5 text-[8.5px]">
-                                <div className="bg-emerald-950/50 p-1.5 rounded-lg border border-emerald-500/30 text-emerald-200">
-                                    <strong className="text-emerald-300 block mb-0.5 text-[9px]">🌟 핵심 인지 강점</strong>
+                            <div className="grid grid-cols-3 gap-2 text-[8.5px]">
+                                <div className="bg-emerald-950/50 p-2 rounded-lg border border-emerald-500/30 text-emerald-200">
+                                    <strong className="text-emerald-300 block mb-0.5 text-[9.5px]">🌟 핵심 인지 강점</strong>
                                     {traits?.coreStrength || '정밀한 메타인지 능력, 심층 오답 분석, 빈틈없는 개념 단권화'}
                                 </div>
-                                <div className="bg-rose-950/50 p-1.5 rounded-lg border border-rose-500/30 text-rose-200">
-                                    <strong className="text-rose-300 block mb-0.5 text-[9px]">⚠️ 주의 & 병목 요인</strong>
+                                <div className="bg-rose-950/50 p-2 rounded-lg border border-rose-500/30 text-rose-200">
+                                    <strong className="text-rose-300 block mb-0.5 text-[9.5px]">⚠️ 주의 & 병목 요인</strong>
                                     {traits?.cautionPoint || '세부 디테일에 지나치게 매몰되어 전체 문제풀이 진도가 지연될 수 있습니다.'}
                                 </div>
-                                <div className="bg-blue-950/50 p-1.5 rounded-lg border border-blue-500/30 text-blue-200">
-                                    <strong className="text-blue-300 block mb-0.5 text-[9px]">🏰 기질별 최적 환경</strong>
+                                <div className="bg-blue-950/50 p-2 rounded-lg border border-blue-500/30 text-blue-200">
+                                    <strong className="text-blue-300 block mb-0.5 text-[9.5px]">🏰 기질별 최적 환경</strong>
                                     {traits?.recommendedEnvironment || '화이트보드 요약 공간, 백지 인출 노트, 소음이 완벽 차단된 독립 공간'}
                                 </div>
                             </div>
                         </div>
 
                         {/* 2. 케어타입 신경인지 기전 & 학습 병목 정밀 분석 (Image 2) */}
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                             <div className="flex justify-between items-center border-b border-slate-200 pb-1">
                                 <div className="flex items-center gap-1.5">
                                     <span className="w-1.5 h-4 bg-indigo-600 rounded-sm"></span>
-                                    <h3 className="text-[11px] font-black text-slate-900">
+                                    <h3 className="text-xs font-black text-slate-900">
                                         케어타입 신경인지 기전 & 학습 병목 정밀 분석
                                     </h3>
                                 </div>
@@ -1224,35 +1106,50 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                             </div>
 
                             {/* 3 Top Cards */}
-                            <div className="grid grid-cols-3 gap-1.5 text-[8.5px]">
+                            <div className="grid grid-cols-3 gap-2 text-[8.5px]">
                                 <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
-                                    <strong className="text-indigo-800 font-bold block text-[9px]">🧠 두뇌 신경생리 메커니즘</strong>
+                                    <strong className="text-indigo-800 font-bold block text-[9.5px]">🧠 두뇌 신경생리 메커니즘</strong>
                                     <p className="text-slate-600 leading-snug">{detailedCareStrategy?.neuroCognitiveProfile?.brainMechanism || '중뇌 복측피개구역(VTA)의 도파민 기초 분비율 저하 및 부교감신경 무기력 우세'}</p>
                                 </div>
                                 <div className="bg-rose-50/70 p-2 rounded-lg border border-rose-200 space-y-0.5">
-                                    <strong className="text-rose-800 font-bold block text-[9px]">⚠️ 학습 시 핵심 병목 (Bottleneck)</strong>
+                                    <strong className="text-rose-800 font-bold block text-[9.5px]">⚠️ 학습 시 핵심 병목 (Bottleneck)</strong>
                                     <p className="text-rose-900 leading-snug font-medium">{detailedCareStrategy?.neuroCognitiveProfile?.learningBottleneck || '공부를 시작하기까지 1~2시간 이상 멍하니 휴대폰을 보거나 침대에 누워 시동 지연'}</p>
                                 </div>
                                 <div className="bg-emerald-50/70 p-2 rounded-lg border border-emerald-200 space-y-0.5">
-                                    <strong className="text-emerald-800 font-bold block text-[9px]">🌟 잠재 인지 강점 & 돌파구</strong>
+                                    <strong className="text-emerald-800 font-bold block text-[9.5px]">🌟 잠재 인지 강점 & 돌파구</strong>
                                     <p className="text-emerald-900 leading-snug">{detailedCareStrategy?.neuroCognitiveProfile?.coreCognitiveStrength || '일단 재미나 경쟁 요소로 도파민 시동이 걸리면 잡념 없이 우직하게 깊은 흡수력 발휘'}</p>
                                 </div>
                             </div>
 
                             {/* 3 Bottom Cards */}
-                            <div className="grid grid-cols-3 gap-1.5 text-[8.5px]">
+                            <div className="grid grid-cols-3 gap-2 text-[8.5px]">
                                 <div className="bg-indigo-50/70 p-2 rounded-lg border border-indigo-200">
-                                    <strong className="text-indigo-900 font-bold block text-[9px]">⏱️ 권장 세션 사이클</strong>
+                                    <strong className="text-indigo-900 font-bold block text-[9.5px]">⏱️ 권장 세션 사이클</strong>
                                     <p className="text-slate-700 leading-snug">{detailedCareStrategy?.timeArchitecture?.recommendedCycle || '20분 퀘스트 몰입 + 3분 도파민 보상 (게임화 스터디)'}</p>
                                 </div>
                                 <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-200">
-                                    <strong className="text-amber-900 font-bold block text-[9px]">📌 착석 3단계 스타트 루틴</strong>
+                                    <strong className="text-amber-900 font-bold block text-[9.5px]">📌 착석 3단계 스타트 루틴</strong>
                                     <p className="text-slate-700 leading-snug">{detailedCareStrategy?.timeArchitecture?.startRitual || (detailedCareStrategy?.timeArchitecture as any)?.startRoutine || '책상 정리, 물 한 잔 등 10초짜리 초소형 퀘스트 3개 연속 클리어로 도파민 공급'}</p>
                                 </div>
                                 <div className="bg-purple-50/70 p-2 rounded-lg border border-purple-200">
-                                    <strong className="text-purple-900 font-bold block text-[9px]">⚖️ 인풋 vs 아웃풋 황금 비율</strong>
+                                    <strong className="text-purple-900 font-bold block text-[9.5px]">⚖️ 인풋 vs 아웃풋 황금 비율</strong>
                                     <p className="text-slate-700 leading-snug">{detailedCareStrategy?.timeArchitecture?.inputOutputRatio || '인풋 40% : 아웃풋 60%'}</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* 3. 기질 기반 1등급 도약 마스터 액션 가이드 */}
+                        <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-900 text-white rounded-xl p-3 flex items-center justify-between text-[9px]">
+                            <div className="space-y-0.5">
+                                <p className="font-bold text-amber-300 flex items-center gap-1.5 text-[10px]">
+                                    <span>🏆</span> 5대 기질 최적화 학습 시너지 솔루션 (Master Neuro-Protocol)
+                                </p>
+                                <p className="text-slate-300 leading-tight">
+                                    피검자의 인지 기질({traits?.archetypeTitle || '탐구형'})과 진단 유형({CARE_TYPE_LABELS[careType as CareType]?.name || careType})의 상호작용을 고려할 때, 시작 장벽을 낮추는 <strong>초단기 마이크로 목표 설정</strong>과 <strong>주기적 성취 보상</strong>을 병행할 때 학습 흡수율이 최대화됩니다.
+                                </p>
+                            </div>
+                            <div className="text-right shrink-0 ml-3 font-mono text-[8.5px] text-slate-400">
+                                NBASS COGNITIVE ARCHITECTURE
                             </div>
                         </div>
                     </div>
@@ -1260,8 +1157,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             )}
 
             {/* ================= PAGE 6: 4-SUBJECT ROADMAP & ACTION PRESCRIPTIONS (PRO 이상) ================= */}
-            <ReportPage pageNum={6} footerTitle="4-SUBJECT STRATEGY ROADMAP">
-                <div className="space-y-2 text-xs">
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={6} footerTitle="4-SUBJECT STRATEGY ROADMAP">
+                <div className="flex-1 flex flex-col justify-between py-1 text-xs">
                     <div className="flex justify-between items-center mb-0.5">
                         <h2 className="text-base font-black flex items-center text-slate-800">
                             <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
@@ -1397,8 +1294,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             </ReportPage>
 
             {/* ================= PAGE 7: STUDY EFFICIENCY ASSESSMENTS I ================= */}
-            <ReportPage pageNum={7} footerTitle="STUDY EFFICIENCY ASSESSMENTS I">
-                <div className="space-y-2">
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={7} footerTitle="STUDY EFFICIENCY ASSESSMENTS I">
+                <div className="flex-1 flex flex-col justify-between py-1">
                     <div className="flex justify-between items-center mb-1">
                         <h2 className="text-base font-black flex items-center text-slate-800">
                             <span className="w-1.5 h-4 bg-indigo-600 mr-2 rounded-sm"></span>
@@ -1413,30 +1310,32 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                         📌 <strong>학습 효율성 진단의 의의</strong>: 공부 방법은 개인의 선천적 생체 리듬(크로노타입), 감각 수용 채널(VARK), 정서 조절력(TAI)과 동기화되어야 비로소 최소 시간 투자로 최대 성적 향상을 이끌어낼 수 있습니다.
                         <br />
                         <span className="text-indigo-800 font-bold">
-                            ※ 실제 시행한 검사 결과만 정밀 분석되어 표기되며, 미시행 검사는 '미검사'로 구분됩니다.
+                            {isProOrAbove
+                                ? `※ 실제 시행한 검사 결과만 정밀 분석되어 표기되며, 미시행 검사는 '미검사'로 구분됩니다.`
+                                : `※ FREE 등급에서는 TAI 결과만 표시되며, 나머지 검사는 수행 후에도 PRO 이상에서 확인 가능합니다.`}
                         </span>
                     </div>
 
                     {/* 1. Chronotype */}
-                    <div className={`p-2.5 rounded-xl transition-colors ${isChronoTested
+                    <div className={`p-2.5 rounded-xl transition-colors ${showChronoResult
                             ? 'bg-slate-50 border border-slate-200'
                             : 'bg-slate-50/50 border border-dashed border-slate-300'
                         }`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isChronoTested ? 'bg-indigo-600' : 'bg-slate-400'}`}></span>
-                                <h3 className={`text-[11px] font-black ${isChronoTested ? 'text-slate-800' : 'text-slate-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${showChronoResult ? 'bg-indigo-600' : 'bg-slate-400'}`}></span>
+                                <h3 className={`text-[11px] font-black ${showChronoResult ? 'text-slate-800' : 'text-slate-500'}`}>
                                     1. 크로노타입 수면 생체리듬 (MEQ)
                                 </h3>
                             </div>
-                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${isChronoTested
+                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${showChronoResult
                                     ? 'bg-indigo-100 text-indigo-800'
                                     : 'bg-slate-200 text-slate-500'
                                 }`}>
-                                {isChronoTested ? chronoData!.result.toUpperCase() : '미검사 (검사 미시행)'}
+                                {showChronoResult ? chronoData!.result.toUpperCase() : (isChronoTested ? 'PRO 전용 🔒' : '미검사 (검사 미시행)')}
                             </span>
                         </div>
-                        {isChronoTested ? (
+                        {showChronoResult ? (
                             <>
                                 <p className="text-[10px] text-slate-600 leading-relaxed mb-1">
                                     {getChronotypeAdvice(chronoData!.result, careType)}
@@ -1445,6 +1344,11 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                     <strong>⏰ 생체 시계 고정법</strong>: 주말에도 기상 시각을 평일과 1시간 이내로 유지하여 '사회적 시차증(Social Jetlag)'을 방지하세요.
                                 </div>
                             </>
+                        ) : isChronoTested ? (
+                            <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
+                                <span>🔒 PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)</span>
+                                <span className="text-[8.5px] text-indigo-600 font-bold">PRO 해금 필요</span>
+                            </div>
                         ) : (
                             <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
                                 <span>🔒 해당 설문을 시행하지 않아 분석 데이터가 없습니다.</span>
@@ -1454,25 +1358,25 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     </div>
 
                     {/* 2. VARK */}
-                    <div className={`p-2.5 rounded-xl transition-colors ${isVarkTested
+                    <div className={`p-2.5 rounded-xl transition-colors ${showVarkResult
                             ? 'bg-slate-50 border border-slate-200'
                             : 'bg-slate-50/50 border border-dashed border-slate-300'
                         }`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isVarkTested ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
-                                <h3 className={`text-[11px] font-black ${isVarkTested ? 'text-slate-800' : 'text-slate-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${showVarkResult ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
+                                <h3 className={`text-[11px] font-black ${showVarkResult ? 'text-slate-800' : 'text-slate-500'}`}>
                                     2. VARK 4대 감각 학습 양식
                                 </h3>
                             </div>
-                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${isVarkTested
+                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${showVarkResult
                                     ? 'bg-blue-100 text-blue-800'
                                     : 'bg-slate-200 text-slate-500'
                                 }`}>
-                                {isVarkTested ? `${varkStyle}형 우세` : '미검사 (검사 미시행)'}
+                                {showVarkResult ? `${varkStyle}형 우세` : (isVarkTested ? 'PRO 전용 🔒' : '미검사 (검사 미시행)')}
                             </span>
                         </div>
-                        {isVarkTested ? (
+                        {showVarkResult ? (
                             <>
                                 <p className="text-[10px] text-slate-600 leading-relaxed mb-1">
                                     {getVARKAdvice(varkStyle!, careType)}
@@ -1481,6 +1385,11 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                     <strong>🎨 감각 채널 극대화</strong>: 텍스트를 읽을 때 핵심 키워드 3개에 형광펜을 칠하고 여백에 화살표 도식으로 요약하세요.
                                 </div>
                             </>
+                        ) : isVarkTested ? (
+                            <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
+                                <span>🔒 PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)</span>
+                                <span className="text-[8.5px] text-indigo-600 font-bold">PRO 해금 필요</span>
+                            </div>
                         ) : (
                             <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
                                 <span>🔒 해당 설문을 시행하지 않아 분석 데이터가 없습니다.</span>
@@ -1526,7 +1435,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     </div>
 
                     {/* VARK 4대 감각 결합 학습 공식 */}
-                    {isVarkTested ? (
+                    {showVarkResult ? (
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
                             <div className="flex justify-between items-center border-b border-slate-200 pb-1">
                                 <h3 className="text-[10.5px] font-black text-slate-800 flex items-center gap-1">
@@ -1550,9 +1459,9 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     ) : (
                         <div className="p-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl text-[9px] flex items-center justify-between text-slate-400">
                             <span className="flex items-center gap-1.5">
-                                <span>🎨</span> <strong>VARK 감각 채널 결합 공식</strong>: VARK 검사 미시행 (검사 완료 시 맞춤형 감각 결합 공식 활성화)
+                                <span>🎨</span> <strong>VARK 감각 채널 결합 공식</strong>: {isVarkTested ? 'PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)' : 'VARK 검사 미시행 (검사 완료 시 맞춤형 감각 결합 공식 활성화)'}
                             </span>
-                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">미검사</span>
+                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">{isVarkTested ? 'PRO 전용 🔒' : '미검사'}</span>
                         </div>
                     )}
 
@@ -1611,8 +1520,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
             </ReportPage>
 
             {/* ================= PAGE 8: STUDY EFFICIENCY ASSESSMENTS II ================= */}
-            <ReportPage pageNum={8} footerTitle="STUDY EFFICIENCY ASSESSMENTS II">
-                <div className="space-y-2">
+            <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={8} footerTitle="STUDY EFFICIENCY ASSESSMENTS II">
+                <div className="flex-1 flex flex-col justify-between py-1">
                     <div className="flex justify-between items-center mb-1">
                         <h2 className="text-base font-black flex items-center text-slate-800">
                             <span className="w-1.5 h-4 bg-indigo-600 mr-2 rounded-sm"></span>
@@ -1627,30 +1536,32 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                         📌 <strong>전두엽 실행 제어와 메타인지</strong>: 숏폼 도파민 자극을 억제하고 자신의 인지 과정을 스스로 모니터링(Self-Monitoring)하는 메타인지 능력이 상위 1% 고난도 킬러 문항 해결력을 결정짓습니다.
                         <br />
                         <span className="text-indigo-800 font-bold">
-                            ※ 실제 시행한 검사 결과만 정밀 분석되어 표기되며, 미시행 검사는 '미검사'로 구분됩니다.
+                            {isProOrAbove
+                                ? `※ 실제 시행한 검사 결과만 정밀 분석되어 표기되며, 미시행 검사는 '미검사'로 구분됩니다.`
+                                : `※ FREE 등급에서는 TAI 결과만 표시되며, 나머지 검사는 수행 후에도 PRO 이상에서 확인 가능합니다.`}
                         </span>
                     </div>
 
                     {/* 4. Digital Addiction */}
-                    <div className={`p-2.5 rounded-xl transition-colors ${isDigitalTested
+                    <div className={`p-2.5 rounded-xl transition-colors ${showDigitalResult
                             ? 'bg-slate-50 border border-slate-200'
                             : 'bg-slate-50/50 border border-dashed border-slate-300'
                         }`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isDigitalTested ? 'bg-amber-600' : 'bg-slate-400'}`}></span>
-                                <h3 className={`text-[11px] font-black ${isDigitalTested ? 'text-slate-800' : 'text-slate-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${showDigitalResult ? 'bg-amber-600' : 'bg-slate-400'}`}></span>
+                                <h3 className={`text-[11px] font-black ${showDigitalResult ? 'text-slate-800' : 'text-slate-500'}`}>
                                     4. 디지털 도파민 중독 척도
                                 </h3>
                             </div>
-                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${isDigitalTested
+                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${showDigitalResult
                                     ? 'bg-amber-100 text-amber-800'
                                     : 'bg-slate-200 text-slate-500'
                                 }`}>
-                                {isDigitalTested ? (digitalData?.level ? digitalData.level.toUpperCase() : '검사 완료') : '미검사 (검사 미시행)'}
+                                {showDigitalResult ? (digitalData?.level ? digitalData.level.toUpperCase() : '검사 완료') : (isDigitalTested ? 'PRO 전용 🔒' : '미검사 (검사 미시행)')}
                             </span>
                         </div>
-                        {isDigitalTested ? (
+                        {showDigitalResult ? (
                             <>
                                 <p className="text-[10px] text-slate-600 leading-relaxed mb-1">
                                     {getDigitalAddictionAdvice(digitalData!.level || 'low', careType)}
@@ -1661,6 +1572,11 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                     <p className="text-[9px] text-slate-600">• 2. 휴식 시간 중 유튜브 숏폼/릴스 시청 금지 (뇌 시냅스 피로 급증 방지)</p>
                                 </div>
                             </>
+                        ) : isDigitalTested ? (
+                            <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
+                                <span>🔒 PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)</span>
+                                <span className="text-[8.5px] text-indigo-600 font-bold">PRO 해금 필요</span>
+                            </div>
                         ) : (
                             <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
                                 <span>🔒 해당 설문을 시행하지 않아 분석 데이터가 없습니다.</span>
@@ -1670,25 +1586,25 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     </div>
 
                     {/* 5. Metacognition */}
-                    <div className={`p-2.5 rounded-xl transition-colors ${isMetaTested
+                    <div className={`p-2.5 rounded-xl transition-colors ${showMetaResult
                             ? 'bg-slate-50 border border-slate-200'
                             : 'bg-slate-50/50 border border-dashed border-slate-300'
                         }`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center gap-1.5">
-                                <span className={`w-1.5 h-1.5 rounded-full ${isMetaTested ? 'bg-emerald-600' : 'bg-slate-400'}`}></span>
-                                <h3 className={`text-[11px] font-black ${isMetaTested ? 'text-slate-800' : 'text-slate-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${showMetaResult ? 'bg-emerald-600' : 'bg-slate-400'}`}></span>
+                                <h3 className={`text-[11px] font-black ${showMetaResult ? 'text-slate-800' : 'text-slate-500'}`}>
                                     5. 메타인지 및 자가점검 역량
                                 </h3>
                             </div>
-                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${isMetaTested
+                            <span className={`px-2 py-0.5 rounded font-bold text-[9px] ${showMetaResult
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : 'bg-slate-200 text-slate-500'
                                 }`}>
-                                {isMetaTested ? (metaLevel ? metaLevel.toUpperCase() : '검사 완료') : '미검사 (검사 미시행)'}
+                                {showMetaResult ? (metaLevel ? metaLevel.toUpperCase() : '검사 완료') : (isMetaTested ? 'PRO 전용 🔒' : '미검사 (검사 미시행)')}
                             </span>
                         </div>
-                        {isMetaTested ? (
+                        {showMetaResult ? (
                             <>
                                 <p className="text-[10px] text-slate-600 leading-relaxed mb-1">
                                     {getMetacognitionAdvice(metaLevel || 'moderate', careType)}
@@ -1699,6 +1615,11 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                     <p className="text-[9px] text-slate-600">• 문제 푼 직후: "내가 선택한 정답의 논리적 근거를 남에게 10초 만에 설명할 수 있는가?"</p>
                                 </div>
                             </>
+                        ) : isMetaTested ? (
+                            <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
+                                <span>🔒 PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)</span>
+                                <span className="text-[8.5px] text-indigo-600 font-bold">PRO 해금 필요</span>
+                            </div>
                         ) : (
                             <div className="py-2 px-1 text-[9px] text-slate-400 flex items-center justify-between">
                                 <span>🔒 해당 설문을 시행하지 않아 분석 데이터가 없습니다.</span>
@@ -1708,7 +1629,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     </div>
 
                     {/* 도파민 디톡스 7일 실천 챌린지 */}
-                    {isDigitalTested ? (
+                    {showDigitalResult ? (
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
                             <div className="flex justify-between items-center border-b border-slate-200 pb-1">
                                 <h3 className="text-[10.5px] font-black text-slate-800 flex items-center gap-1">
@@ -1737,14 +1658,14 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     ) : (
                         <div className="p-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl text-[9px] flex items-center justify-between text-slate-400">
                             <span className="flex items-center gap-1.5">
-                                <span>📵</span> <strong>도파민 보호 7일 실천 챌린지</strong>: 디지털 중독 척도 검사 미시행 (검사 완료 시 맞춤형 디톡스 플랜 활성화)
+                                <span>📵</span> <strong>도파민 보호 7일 실천 챌린지</strong>: {isDigitalTested ? 'PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)' : '디지털 중독 척도 검사 미시행 (검사 완료 시 맞춤형 디톡스 플랜 활성화)'}
                             </span>
-                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">미검사</span>
+                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">{isDigitalTested ? 'PRO 전용 🔒' : '미검사'}</span>
                         </div>
                     )}
 
                     {/* 상위 1% 메타인지 오답 분석 4단계 자가 질문 템플릿 */}
-                    {isMetaTested ? (
+                    {showMetaResult ? (
                         <div className="bg-slate-900 text-white p-2.5 rounded-xl text-xs space-y-1">
                             <div className="flex items-center justify-between border-b border-slate-700 pb-1">
                                 <h4 className="text-[10px] font-bold text-emerald-300 flex items-center gap-1">
@@ -1774,9 +1695,9 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                     ) : (
                         <div className="p-2 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl text-[9px] flex items-center justify-between text-slate-400">
                             <span className="flex items-center gap-1.5">
-                                <span>📝</span> <strong>메타인지 4단계 질문 템플릿</strong>: 메타인지 역량 검사 미시행 (검사 완료 시 오답 분석 프레임워크 활성화)
+                                <span>📝</span> <strong>메타인지 4단계 질문 템플릿</strong>: {isMetaTested ? 'PRO 이상 등급에서 확인 가능합니다. (검사 완료됨)' : '메타인지 역량 검사 미시행 (검사 완료 시 오답 분석 프레임워크 활성화)'}
                             </span>
-                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">미검사</span>
+                            <span className="text-[8px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold">{isMetaTested ? 'PRO 전용 🔒' : '미검사'}</span>
                         </div>
                     )}
 
@@ -1799,56 +1720,141 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= PAGE 9: COGNITIVE & WORKING MEMORY (PRO 이상) ================= */}
             {isProOrAbove && (
-                <ReportPage pageNum={9} footerTitle="COGNITIVE & WORKING MEMORY">
-                    <div>
-                        <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
-                            <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
-                            🧠 작업 기억 용량 및 인지 성능 반응 평가
-                        </h2>
-
-                        <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl mb-2.5 text-[11px] text-blue-900 leading-relaxed font-medium">
-                            📌 <strong>작업 기억 용량(Working Memory)의 중요성</strong>: 뇌의 단기 작업대(RAM) 용량으로, 복잡한 킬러 문항을 풀 때 여러 조건과 수식을 머릿속에 유지하며 계산을 이어가는 핵심 능력입니다.
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 mb-2.5">
-                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                                <span className="text-[9px] text-slate-400 font-bold block">1. 작업 기억 (Working Memory)</span>
-                                <span className="text-xs font-black text-indigo-700">
-                                    {cognitiveResults?.workingMemory?.digitSpan?.maxDigits ? `Digit Span: ${cognitiveResults.workingMemory.digitSpan.maxDigits}자리` : 'RAM 용량: 7.2자리 (양호)'}
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={9} footerTitle="COGNITIVE & WORKING MEMORY">
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                        <div>
+                            <div className="flex justify-between items-center mb-1">
+                                <h2 className="text-base font-black flex items-center text-slate-800">
+                                    <span className="w-1.5 h-4 bg-blue-700 mr-2 rounded-sm"></span>
+                                    🧠 작업 기억 용량 및 전두엽 인지 제어 성능 평가
+                                </h2>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold border bg-blue-50 text-blue-800 border-blue-200">
+                                    EXECUTIVE COGNITIVE BATTERY
                                 </span>
-                                <p className="text-[9px] text-slate-500 mt-0.5">복합 문제 풀이 시 단기 정보 유지 능력</p>
                             </div>
 
-                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                                <span className="text-[9px] text-slate-400 font-bold block">2. 도파민 보상 지연 (Patience)</span>
-                                <span className="text-xs font-black text-blue-700">
-                                    {cognitiveResults?.delayDiscounting?.impulsivityScore !== undefined ? `인내도: ${100 - cognitiveResults.delayDiscounting.impulsivityScore}점` : '인내 지수: 78점 (안정)'}
-                                </span>
-                                <p className="text-[9px] text-slate-500 mt-0.5">즉각 보상 유혹 억제 및 장기 목표 집중력</p>
-                            </div>
-
-                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                                <span className="text-[9px] text-slate-400 font-bold block">3. 문해력 / 처리 속도 (Speed)</span>
-                                <span className="text-xs font-black text-emerald-700">
-                                    {cognitiveResults?.processingSpeed?.overallScore ? `${cognitiveResults.processingSpeed.overallScore}점` : '독해 WPM: 380단어/분 (우수)'}
-                                </span>
-                                <p className="text-[9px] text-slate-500 mt-0.5">국어/영어 장문 지문 신속 이해력</p>
-                            </div>
-
-                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                                <span className="text-[9px] text-slate-400 font-bold block">4. 주의력 및 억제력 (Go/No-Go)</span>
-                                <span className="text-xs font-black text-rose-700">
-                                    {cognitiveResults?.attention?.accuracy ? `정확도: ${cognitiveResults.attention.accuracy}%` : '충동 억제력: 92% (우수)'}
-                                </span>
-                                <p className="text-[9px] text-slate-500 mt-0.5">실수 방지 및 시각 자극 선별 억제력</p>
+                            <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-xl mb-2 text-[10px] text-blue-950 leading-relaxed font-medium">
+                                📌 <strong>작업 기억 용량(Working Memory RAM)의 핵심 가치</strong>: 뇌의 단기 작업대 용량으로, 수능 국어 킬러 지문의 복합 조건과 수학 4점 준킬러/킬러의 다단계 수식을 머릿속에 능동적으로 유지하며 오답 함정을 회피하는 최상위 등급 결정 요인입니다.
                             </div>
                         </div>
 
-                        <div className="p-3 bg-slate-900 text-white rounded-xl text-xs space-y-0.5">
-                            <h3 className="text-[11px] font-bold text-indigo-300">💡 작업기억 용량 극대화 훈련 가이드</h3>
-                            <p className="text-slate-300 text-[10px] leading-relaxed">
-                                수학 풀이 시 암산에 과도하게 의존하면 작업기억(RAM)이 쉽게 과부하됩니다. <strong>시험지 여백에 문제 조건과 핵심 식을 1~2줄로 구조화하여 시각적으로 적는 습관</strong>을 들이면 킬러 문항 해결률이 30% 이상 향상됩니다.
-                            </p>
+                        {/* 4대 핵심 인지 성능 지표 카드 (4-Grid) */}
+                        <div className="grid grid-cols-2 gap-2.5 my-1">
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9.5px] text-slate-500 font-bold">1. 작업 기억 (Working Memory)</span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800">Digit Span</span>
+                                </div>
+                                <div className="flex items-baseline justify-between">
+                                    <span className="text-sm font-black text-indigo-700">
+                                        {cognitiveResults?.workingMemory?.digitSpan?.maxDigits ? `RAM 용량: ${cognitiveResults.workingMemory.digitSpan.maxDigits}자리` : 'RAM 용량: 7.2자리'}
+                                    </span>
+                                    <span className="text-[8.5px] font-semibold text-emerald-700">상위 12% 수준 (양호)</span>
+                                </div>
+                                <p className="text-[9px] text-slate-600 leading-tight">
+                                    복합 조건문 및 고난도 수식 풀이 시 단기 기억 휘발 없이 정보를 유지하는 뇌 용량입니다.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9.5px] text-slate-500 font-bold">2. 도파민 보상 지연 (Patience)</span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-blue-100 text-blue-800">Delay Discounting</span>
+                                </div>
+                                <div className="flex items-baseline justify-between">
+                                    <span className="text-sm font-black text-blue-700">
+                                        {cognitiveResults?.delayDiscounting?.impulsivityScore !== undefined ? `인내 지수: ${100 - cognitiveResults.delayDiscounting.impulsivityScore}점` : '인내 지수: 78점'}
+                                    </span>
+                                    <span className="text-[8.5px] font-semibold text-blue-700">장기 몰입 안정권</span>
+                                </div>
+                                <p className="text-[9px] text-slate-600 leading-tight">
+                                    스마트폰 알림, 잡념 등 즉각적 보상 유혹을 억제하고 장기 수능 목표에 집중을 유지하는 힘입니다.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9.5px] text-slate-500 font-bold">3. 정보 처리 속도 (Speed)</span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">Processing Speed</span>
+                                </div>
+                                <div className="flex items-baseline justify-between">
+                                    <span className="text-sm font-black text-emerald-700">
+                                        {cognitiveResults?.processingSpeed?.overallScore ? `${cognitiveResults.processingSpeed.overallScore}점` : '독해 WPM: 380단어/분'}
+                                    </span>
+                                    <span className="text-[8.5px] font-semibold text-emerald-700">신속 독해 등급</span>
+                                </div>
+                                <p className="text-[9px] text-slate-600 leading-tight">
+                                    국어 비문학 긴 지문 및 영어 장문 독해 시 핵심 정보를 누락 없이 신속하게 인출하는 속도입니다.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[9.5px] text-slate-500 font-bold">4. 주의 충동 억제력 (Inhibition)</span>
+                                    <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800">Go / No-Go Test</span>
+                                </div>
+                                <div className="flex items-baseline justify-between">
+                                    <span className="text-sm font-black text-rose-700">
+                                        {cognitiveResults?.attention?.accuracy ? `정확도: ${cognitiveResults.attention.accuracy}%` : '충동 억제력: 94%'}
+                                    </span>
+                                    <span className="text-[8.5px] font-semibold text-rose-700">실수 방어 우수</span>
+                                </div>
+                                <p className="text-[9px] text-slate-600 leading-tight">
+                                    매력적인 오답 선지와 출제자의 함정을 빠르게 간파하고 순간적인 오판 실수를 차단하는 제어력입니다.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 작업기억 & 전두엽 실행제어 강화 4대 임상 훈련 수칙 */}
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 my-1">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+                                <h3 className="text-[10.5px] font-black text-slate-900 flex items-center gap-1.5">
+                                    <span>🧠</span> 전두엽 작업기억(RAM) 및 간섭 억제력 강화를 위한 4대 임상 훈련 수칙
+                                </h3>
+                                <span className="text-[8.5px] font-mono text-indigo-700 font-bold">CLINICAL EXECUTIVE PROTOCOLS</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[9px]">
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-indigo-900 font-bold block text-[9.5px]">✍️ 1. 문제 조건 외재화(Externalization) 필기</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        수학/탐구 문제 풀이 시 암산 의존을 멈추고 <strong>여백에 핵심 조건과 변수 관계를 1~2줄로 도식화</strong>하십시오. 작업기억(RAM)의 과부하를 즉시 40% 이상 덜어내어 계산 실수를 차단합니다.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-blue-900 font-bold block text-[9.5px]">🧩 2. 시각적 의미 청킹(Chunking) 기법</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        국어 긴 지문을 읽을 때 개별 단어가 아닌 <strong>문단별 3대 핵심 키워드를 하나의 덩어리(Chunk)로 묶어 기억</strong>하십시오. 인간의 작업기억 한계(4~7개 단위)를 극복하는 가장 과학적인 독해법입니다.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-emerald-900 font-bold block text-[9.5px]">🛑 3. 스트룹(Stroop) 간섭 억제 시냅스 점화</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        아침 기상 후 3분간 색상-단어 불일치 텍스트 읽기 또는 반대 방향 가리키기 훈련을 시행하여, <strong>매력적인 오답 선지에 반응하려는 무의식적 충동을 억제</strong>하는 전두엽 회로를 점화하세요.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-purple-900 font-bold block text-[9.5px]">🧘 4. 90초 뇌 시냅스 쿨다운 마인드풀니스</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        50분 집중 후 쉬는 시간 첫 90초 동안 <strong>스마트폰을 보지 않고 눈을 감은 채 심호흡</strong>을 진행하세요. 방금 입력된 학습 정보가 해마에서 대뇌피질로 고착화되는 동안 시냅스 간섭을 차단합니다.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 작업기억 닥터 코멘트 & 인증 바 */}
+                        <div className="bg-slate-900 text-white rounded-xl p-2.5 flex items-center justify-between text-xs mt-1">
+                            <div className="space-y-0.5">
+                                <p className="font-bold text-amber-300 flex items-center gap-1.5 text-[10px]">
+                                    <span>💡</span> 임상 신경인지 전문의 최종 종합 소견 (Executive Summary)
+                                </p>
+                                <p className="text-slate-300 text-[9px] leading-tight">
+                                    피검 학생은 작업기억 용량과 충동 억제력이 안정적으로 형성되어 있으므로, <strong>복합 킬러 문항 풀이 시 시각적 외재화 필기</strong>를 습관화하면 수능 당일 긴장 상황에서도 오답률을 0%에 수렴시킬 수 있습니다.
+                                </p>
+                            </div>
+                            <div className="text-right shrink-0 ml-3 font-mono text-[8px] text-slate-400 border-l border-slate-700 pl-2.5">
+                                <p className="text-indigo-400 font-bold">NBASS NEURO-LAB</p>
+                                <p>EXECUTIVE VALIDATION</p>
+                            </div>
                         </div>
                     </div>
                 </ReportPage>
@@ -1856,16 +1862,16 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= PAGE 10: NEURO-NUTRITION & LIFESTYLE PRESCRIPTION (PRO 이상) ================= */}
             {isProOrAbove && (
-                <ReportPage pageNum={10} footerTitle="LIFESTYLE & NUTRITION PRESCRIPTION">
-                    <div>
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={10} footerTitle="LIFESTYLE & NUTRITION PRESCRIPTION">
+                    <div className="flex-1 flex flex-col justify-between py-1">
                         <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
                             <span className="w-1.5 h-4 bg-emerald-600 mr-2 rounded-sm"></span>
-                            💊 1:1 맞춤 뉴로 영양 & 운동/수면 생활 처방
+                            💊 1:1 맞춤 뉴로 영양 가이드 & 생활 습관 루틴
                         </h2>
 
                         <div className="grid grid-cols-2 gap-2 mb-2">
                             <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
-                                <h3 className="text-[11px] font-black text-emerald-900 border-b border-emerald-200 pb-0.5">두뇌 활성화 영양 처방</h3>
+                                <h3 className="text-[11px] font-black text-emerald-900 border-b border-emerald-200 pb-0.5">두뇌 활성화 영양 가이드</h3>
                                 <p className="text-slate-700 text-[10px] leading-snug">• <strong>비타민 B군 복합체</strong>: 뇌 신경 전달 물질 합성 및 포도당 에너지 대사 촉진</p>
                                 <p className="text-slate-700 text-[10px] leading-snug">• <strong>L-테아닌 & 마그네슘</strong>: 교감신경 긴장 완화 및 시험 당일 불안 해소</p>
                                 <p className="text-slate-700 text-[10px] leading-snug">• <strong>오메가-3 (DHA/EPA)</strong>: 뇌세포막 유동성 개선 및 해마 기억력 증진</p>
@@ -1879,71 +1885,116 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                             </div>
                         </div>
 
-                        {/* 추천 영양제 제품 라인업 표 (ResultsView 3-Tier와 100% 동일하게 동적 렌더링) */}
+                        {/* 추천 영양제 제품 라인업 표 (심층 대시보드 및 처방전과 100% 동일한 3-Tier 6종 풀 라인업) */}
                         {(() => {
-                            const essentialProd = recommendedProducts.find(p => p.tier === 'ESSENTIAL' && p.productId !== 'hl_focus_booster');
-                            const recommendedProd = recommendedProducts.find(p => p.tier === 'RECOMMENDED' && p.productId !== 'hl_focus_booster');
-
-                            const p1 = essentialProd ? PNT_PRODUCTS[essentialProd.productId] : (PNT_PRODUCTS['active_b_complex'] || null);
-                            const p2 = recommendedProd ? PNT_PRODUCTS[recommendedProd.productId] : (PNT_PRODUCTS['calm_sleep'] || null);
-                            // 3번째 처방: HL 스마트 아르기닌-카르니틴 부스터 우선 배치
-                            const p3 = PNT_PRODUCTS['hl_focus_booster'] || (recommendedProducts.find(p => p.tier === 'SUPPORTIVE') ? PNT_PRODUCTS[recommendedProducts.find(p => p.tier === 'SUPPORTIVE')!.productId] : null);
+                            const standard = getStandard6ProductLineup(recommendedProducts, result.careType);
+                            const lineupRows = [
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-rose-700">🔴 핵심 영양제</span>
+                                            <div className="text-[7.5px] text-rose-500 font-normal">시급성 1순위</div>
+                                        </div>
+                                    ),
+                                    product: standard.p1,
+                                },
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-amber-800">⚡ 스마트 부스터</span>
+                                            <div className="text-[7.5px] text-amber-600 font-normal">핵심 2순위 (HL 커피)</div>
+                                        </div>
+                                    ),
+                                    product: standard.p2,
+                                },
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-amber-700">🟡 집중 추천 1</span>
+                                            <div className="text-[7.5px] text-amber-500 font-normal">신경·수면 안정</div>
+                                        </div>
+                                    ),
+                                    product: standard.p3,
+                                },
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-amber-700">🟡 집중 추천 2</span>
+                                            <div className="text-[7.5px] text-amber-500 font-normal">두뇌 혈류·인지</div>
+                                        </div>
+                                    ),
+                                    product: standard.p4,
+                                },
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-emerald-700">🟢 보조 시너지 1</span>
+                                            <div className="text-[7.5px] text-emerald-500 font-normal">대사 활성 &amp; B군</div>
+                                        </div>
+                                    ),
+                                    product: standard.p5,
+                                },
+                                {
+                                    badge: (
+                                        <div className="leading-tight">
+                                            <span className="font-bold text-emerald-700">🟢 보조 시너지 2</span>
+                                            <div className="text-[7.5px] text-emerald-500 font-normal">세포 회복 &amp; 장-뇌 축</div>
+                                        </div>
+                                    ),
+                                    product: standard.p6,
+                                },
+                            ];
 
                             return (
-                                <div className="border border-emerald-200 rounded-xl overflow-hidden text-[9.5px] mb-2 bg-emerald-50/20">
+                                <div className="border border-emerald-200 rounded-xl overflow-hidden text-[9px] mb-2 bg-emerald-50/20">
                                     <div className="bg-emerald-800 text-white px-2.5 py-1 flex justify-between items-center">
-                                        <span className="font-black text-[10px]">💊 두뇌 활력 3-Tier 맞춤 영양제 추천 라인업 (Standard Care)</span>
-                                        <span className="text-[8.5px] text-emerald-200">8대 케어타입 진단 연동</span>
+                                        <span className="font-black text-[9.5px]">💊 두뇌 활력 3-Tier 맞춤 영양 설계 라인업 (전 품목 6종 동기화)</span>
+                                        <span className="text-[8px] text-emerald-200">12대 케어타입 진단 연동 • 대시보드 6종 일치</span>
                                     </div>
                                     <table className="w-full text-left">
-                                        <thead className="bg-emerald-900/90 text-white text-[9px]">
+                                        <thead className="bg-emerald-900/90 text-white text-[8.5px]">
                                             <tr>
-                                                <th className="px-2 py-1 w-20">처방 등급</th>
-                                                <th className="px-2 py-1 w-32">추천 제품명</th>
-                                                <th className="px-2 py-1 w-36">핵심 유효 성분</th>
-                                                <th className="px-2 py-1">복용 타이밍 및 기대 효과</th>
+                                                <th className="px-2 py-0.5 w-24">추천 등급</th>
+                                                <th className="px-2 py-0.5 w-40">권장 영양 성분/제품</th>
+                                                <th className="px-2 py-0.5 w-40">핵심 유효 성분</th>
+                                                <th className="px-2 py-0.5">섭취 타이밍 및 기대 효과</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-emerald-100 text-slate-700">
-                                            <tr>
-                                                <td className="px-2 py-1 font-bold text-rose-700">🔴 핵심 영양제<br /><span className="text-[8px] text-rose-500 font-normal">(시급성 1순위)</span></td>
-                                                <td className="px-2 py-1 font-bold text-slate-900">
-                                                    <div className="flex items-center gap-1.5">
-                                                        {p1?.image && (
-                                                            <img src={p1.image} alt={p1.name} className="w-7 h-7 rounded border border-emerald-200 object-contain bg-white flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                                        )}
-                                                        <span>{p1?.name || '액티브 B 컴플렉스'}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-2 py-1 text-slate-600">{p1?.mainIngredients?.slice(0, 3).join(', ') || '활성 비타민 B군 8종'}</td>
-                                                <td className="px-2 py-1"><strong>{p1?.timing || '아침 식후'}</strong>: {p1?.subName || '뇌 포도당 대사 촉진 & 집중력 유지'}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="px-2 py-1 font-bold text-amber-700">🟡 추천 영양제<br /><span className="text-[8px] text-amber-500 font-normal">(집중/안정 지원)</span></td>
-                                                <td className="px-2 py-1 font-bold text-slate-900">
-                                                    <div className="flex items-center gap-1.5">
-                                                        {p2?.image && (
-                                                            <img src={p2.image} alt={p2.name} className="w-7 h-7 rounded border border-emerald-200 object-contain bg-white flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                                        )}
-                                                        <span>{p2?.name || '캄 슬립 (Calm Sleep)'}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-2 py-1 text-slate-600">{p2?.mainIngredients?.slice(0, 3).join(', ') || 'L-테아닌, 쌀마그네슘'}</td>
-                                                <td className="px-2 py-1"><strong>{p2?.timing || '저녁 식후'}</strong>: {p2?.subName || '교감신경 긴장 완화 & 시험불안 진정'}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="px-2 py-1 font-bold text-emerald-700">🟢 보조 영양제<br /><span className="text-[8px] text-emerald-500 font-normal">(컨디션 관리용)</span></td>
-                                                <td className="px-2 py-1 font-bold text-slate-900">
-                                                    <div className="flex items-center gap-1.5">
-                                                        {p3?.image && (
-                                                            <img src={p3.image} alt={p3.name} className="w-7 h-7 rounded border border-emerald-200 object-contain bg-white flex-shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                                        )}
-                                                        <span>{p3?.name || '알티지 오메가3 플러스'}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-2 py-1 text-slate-600">{p3?.mainIngredients?.slice(0, 3).join(', ') || 'EPA/DHA 1000mg'}</td>
-                                                <td className="px-2 py-1"><strong>{p3?.timing || '점심 식후'}</strong>: {p3?.subName || '해마 장기기억 고착 & 시각 피로 완화'}</td>
-                                            </tr>
+                                            {lineupRows.map((row, idx) => {
+                                                const p = row.product;
+                                                const isHl = p?.id === 'HL-COFFEE-001';
+                                                return (
+                                                    <tr key={p?.id || idx} className="hover:bg-emerald-50/50">
+                                                        <td className="px-2 py-0.5 align-middle">
+                                                            {row.badge}
+                                                        </td>
+                                                        <td className="px-2 py-0.5 font-bold text-slate-900 align-middle">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {(isHl || p?.image) ? (
+                                                                    <img 
+                                                                        src={isHl ? '/hl_coffee_circle.png' : p?.image} 
+                                                                        alt={p?.name} 
+                                                                        loading="eager" 
+                                                                        decoding="async" 
+                                                                        className="w-5 h-5 rounded border border-emerald-200 object-contain bg-white flex-shrink-0" 
+                                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-[10px]">💊</span>
+                                                                )}
+                                                                <span className="truncate max-w-[140px]">{p?.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-0.5 text-slate-600 align-middle text-[8.5px]">
+                                                            {p?.mainIngredients?.slice(0, 3).join(', ') || '-'}
+                                                        </td>
+                                                        <td className="px-2 py-0.5 align-middle text-[8.5px]">
+                                                            <strong>{p?.timing || '식후'}</strong>: {p?.subName || '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -2041,60 +2092,130 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= PAGE 11: EXAM STRATEGY & KILLER HACKS (PRO 이상) ================= */}
             {isProOrAbove && (
-                <ReportPage pageNum={11} footerTitle="EXAM STRATEGY & KILLER HACKS">
-                    <div>
-                        <h2 className="text-base font-black flex items-center mb-1.5 text-slate-800">
-                            <span className="w-1.5 h-4 bg-amber-500 mr-2 rounded-sm"></span>
-                            📝 실전 수능 시험 전략 & [SECRET] 킬러 문항 공략 팁
-                        </h2>
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={11} footerTitle="EXAM STRATEGY & KILLER HACKS">
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                        <div>
+                            <div className="flex justify-between items-center mb-1">
+                                <h2 className="text-base font-black flex items-center text-slate-800">
+                                    <span className="w-1.5 h-4 bg-amber-500 mr-2 rounded-sm"></span>
+                                    📝 실전 수능 시험 전략 &amp; [SECRET] 킬러 문항 공략 팁
+                                </h2>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold border bg-amber-50 text-amber-800 border-amber-200">
+                                    EXAM MASTER STRATEGY
+                                </span>
+                            </div>
 
-                        <div className="p-2.5 bg-amber-50/60 border border-amber-200 rounded-xl mb-2 text-xs space-y-1">
-                            <h3 className="text-[11px] font-black text-amber-900 border-b border-amber-200 pb-0.5">🏆 상위 1% 킬러 문항 정복 3단계 알고리즘</h3>
-                            <p className="text-slate-700 text-[10px] leading-snug">
-                                1. <strong>문제 조건 3분 분석</strong>: 문제를 읽자마자 계산에 들어가지 말고, 주어진 조건과 구해야 할 값을 여백에 도식화합니다.<br />
-                                2. <strong>풀이 경로 2가지 설계</strong>: 대수적 접근과 기하학적 접근 중 계산 실수가 적은 경로를 사전에 선택합니다.<br />
-                                3. <strong>3분 정체 시 패스 룰</strong>: 한 풀이에서 3분 이상 진전이 없으면 즉시 별표 치고 다음 문제로 넘어간 후 2회독 때 재도전합니다.
-                            </p>
+                            <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl mb-2 text-xs space-y-1">
+                                <h3 className="text-[11px] font-black text-amber-900 border-b border-amber-200 pb-0.5 flex items-center gap-1.5">
+                                    <span>🏆</span> 상위 1% 킬러 문항 정복 3단계 신경인지 알고리즘
+                                </h3>
+                                <p className="text-slate-700 text-[10px] leading-snug">
+                                    1. <strong>문제 조건 3분 분석 (Externalization)</strong>: 문제를 읽자마자 계산에 들어가지 말고, 주어진 조건과 구해야 할 목표값을 여백에 도식화합니다.<br />
+                                    2. <strong>풀이 경로 2가지 설계 (Dual-Track)</strong>: 대수적 접근과 기하학적 접근 중 계산 실수가 적은 안전 경로를 사전에 선택합니다.<br />
+                                    3. <strong>3분 정체 시 즉시 패스 룰 (3-Min Rule)</strong>: 한 풀이에서 3분 이상 진전이 없으면 즉시 별표 치고 다음 문제로 넘어간 후 2회독 때 재도전합니다.
+                                </p>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1 mb-2">
+                                <h3 className="text-[11px] font-black text-slate-800 border-b pb-0.5 flex items-center gap-1.5">
+                                    <span>🎯</span> D-Day 수능 실전 컨디션 조절 프로토콜
+                                </h3>
+                                <p className="text-slate-700 text-[10px] leading-snug">• <strong>시험 2주 전</strong>: 기상 시각을 시험 당일과 동일한 오전 6시 30분으로 완전 고정하여 코르티솔 피크 동기화.<br />
+                                • <strong>시험 당일 아침</strong>: 뇌 에너지 공급을 위해 소화가 잘되는 복합 탄수화물과 계란 위주의 저혈당 식사 완료.<br />
+                                • <strong>시험 시작 5분 전</strong>: 4-7-8 이완 호흡으로 심박수를 안정시키고 긍정적 자기 확신(Self-Talk)을 실행하여 편도체 흥분 차단.</p>
+                            </div>
                         </div>
 
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1 mb-2">
-                            <h3 className="text-[11px] font-black text-slate-800 border-b pb-0.5">🎯 D-Day 실전 컨디션 조절 프로토콜</h3>
-                            <p className="text-slate-700 text-[10px] leading-snug">• <strong>시험 2주 전</strong>: 기상 시각을 시험 당일과 동일한 오전 6시 30분으로 완전 고정합니다.</p>
-                            <p className="text-slate-700 text-[10px] leading-snug">• <strong>시험 당일 아침</strong>: 뇌 에너지 공급을 위해 소화가 잘되는 복합 탄수화물 식사를 마칩니다.</p>
-                            <p className="text-slate-700 text-[10px] leading-snug">• <strong>시험 시작 5분 전</strong>: 4-7-8 이완 호흡으로 심박수를 안정시키고 긍정적 자기 확신(Self-Talk)을 실행합니다.</p>
-                        </div>
-
-                        <div className="border border-slate-200 rounded-xl overflow-hidden text-[10px]">
+                        {/* 4교시까지 완비된 교시별 실전 타임어택 & OMR 운용표 */}
+                        <div className="border border-slate-200 rounded-xl overflow-hidden text-[9.5px] my-1">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-900 text-white">
                                     <tr>
-                                        <th className="px-2.5 py-1">교시</th>
-                                        <th className="px-2.5 py-1">시험 시간</th>
-                                        <th className="px-2.5 py-1">1회독 돌파 구간</th>
-                                        <th className="px-2.5 py-1">킬러 도전 & OMR 검토</th>
+                                        <th className="px-2.5 py-1.5 w-24">교시</th>
+                                        <th className="px-2.5 py-1.5 w-32">시험 시간</th>
+                                        <th className="px-2.5 py-1.5 w-52">1회독 돌파 구간 (기본/준킬러)</th>
+                                        <th className="px-2.5 py-1.5">킬러 도전 &amp; OMR 안전 검토</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y text-slate-700">
                                     <tr>
-                                        <td className="px-2.5 py-1.5 font-bold">1교시 국어</td>
+                                        <td className="px-2.5 py-1.5 font-bold text-indigo-700">1교시 국어</td>
                                         <td className="px-2.5 py-1.5">80분 (08:40~10:00)</td>
                                         <td className="px-2.5 py-1.5">선택(15분) + 문학(25분) = 40분 완료</td>
                                         <td className="px-2.5 py-1.5">독서 킬러 30분 집중 + OMR 검토 10분</td>
                                     </tr>
                                     <tr>
-                                        <td className="px-2.5 py-1.5 font-bold">2교시 수학</td>
+                                        <td className="px-2.5 py-1.5 font-bold text-blue-700">2교시 수학</td>
                                         <td className="px-2.5 py-1.5">100분 (10:30~12:10)</td>
                                         <td className="px-2.5 py-1.5">2점/3점/쉬운4점 22문항 = 50분 완료</td>
                                         <td className="px-2.5 py-1.5">준킬러/킬러 8문항 40분 + 검산/OMR 10분</td>
                                     </tr>
                                     <tr>
-                                        <td className="px-2.5 py-1.5 font-bold">3교시 영어</td>
+                                        <td className="px-2.5 py-1.5 font-bold text-amber-700">3교시 영어</td>
                                         <td className="px-2.5 py-1.5">70분 (13:10~14:20)</td>
                                         <td className="px-2.5 py-1.5">듣기(25분) + 대의파악/도표(20분) = 45분</td>
                                         <td className="px-2.5 py-1.5">빈칸/순서 20분 + 마킹 5분</td>
                                     </tr>
+                                    <tr>
+                                        <td className="px-2.5 py-1.5 font-bold text-emerald-700">4교시 한국사·탐구</td>
+                                        <td className="px-2.5 py-1.5">107분 (14:50~16:37)</td>
+                                        <td className="px-2.5 py-1.5">한국사 20분 완료 / 탐구 1~15번(18분)</td>
+                                        <td className="px-2.5 py-1.5">탐구 킬러 5문항 10분 + 문항별 즉시 마킹 2분</td>
+                                    </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* 수능 시험장 패닉(Choking) 방지 4대 긴급 처방전 */}
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 my-1">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+                                <h3 className="text-[10.5px] font-black text-slate-900 flex items-center gap-1.5">
+                                    <span>🛡️</span> 실전 시험장 멘탈 붕괴(Choking) 방지 &amp; 타임어택 4대 행동 수칙
+                                </h3>
+                                <span className="text-[8.5px] font-mono text-amber-700 font-bold">EMERGENCY PROTOCOL</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[9px]">
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-indigo-900 font-bold block text-[9.5px]">📖 1. 1교시 국어 독서 패닉 컷</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        첫 독서 지문에서 문장이 눈에 안 들어올 때는 <strong>30초간 펜을 내려놓고 심호흡 3회</strong> 후, 익숙한 EBS 연계 문학 작품부터 먼저 풀어 심리적 안정감을 확보하세요.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-blue-900 font-bold block text-[9.5px]">📐 2. 수학 킬러 3분 미련 차단</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        21·22·29·30번에서 3분간 전개 식이 전진하지 않는다면 <strong>망설이지 말고 별표 친 후 쉬운 4점 검산으로 회귀</strong>하세요. 쉬운 4점 3개를 맞히는 것이 킬러 1개보다 점수가 높습니다.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-amber-900 font-bold block text-[9.5px]">🌐 3. 영어 31~34번 역추적 독해</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        빈칸 추론은 <strong>빈칸이 포함된 문장을 먼저 정독</strong>하여 찾아야 할 정보(Target)를 확정한 뒤, 지문 첫 문장과 연결사(However, Therefore) 뒤의 핵심 주장만을 선별해 대입하세요.
+                                    </p>
+                                </div>
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                    <strong className="text-emerald-900 font-bold block text-[9.5px]">🎯 4. OMR 마킹 2-Step 안전장치</strong>
+                                    <p className="text-slate-600 leading-snug">
+                                        시험 종료 10분 전 반드시 1차 마킹을 완료하고, 남은 킬러 문제는 <strong>풀자마자 1문항씩 즉시 마킹</strong>하세요. 종료 종이 울릴 때 마킹을 미루다 발생하는 밀려 쓰기를 100% 방지합니다.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 하단 마스터 가이드 바 */}
+                        <div className="bg-slate-900 text-white rounded-xl p-2.5 flex items-center justify-between text-xs mt-1">
+                            <div className="space-y-0.5">
+                                <p className="font-bold text-amber-300 flex items-center gap-1.5 text-[10px]">
+                                    <span>🏆</span> NBASS 실전 수능 시뮬레이션 인지 피로 완화 가이드
+                                </p>
+                                <p className="text-slate-300 text-[9px] leading-tight">
+                                    모든 과목 사이 쉬는 시간(20분)마다 <strong>가채점 대화를 절대 금지</strong>하고, 복도 걷기 및 심호흡으로 뇌 시냅스를 완전 리셋한 상태에서 다음 교시에 진입하십시오.
+                                </p>
+                            </div>
+                            <div className="text-right shrink-0 ml-3 font-mono text-[8px] text-slate-400 border-l border-slate-700 pl-2.5">
+                                <p className="text-amber-400 font-bold">GAME-DAY</p>
+                                <p>EXECUTIVE READY</p>
+                            </div>
                         </div>
                     </div>
                 </ReportPage>
@@ -2102,7 +2223,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= PAGE 12: SECRET POINT & CLINICAL CONSULTANT OPINION (PRO 이상) ================= */}
             {isProOrAbove && (
-                <ReportPage pageNum={12} footerTitle="EXPERT CLINICAL OPINION & CONSULTATION MATRIX">
+                <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={12} footerTitle="EXPERT CLINICAL OPINION & CONSULTATION MATRIX">
                     {(() => {
                         const isClinicalGridVisible = isProOrAbove;
 
@@ -2114,7 +2235,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                         );
 
                         return (
-                            <div className="space-y-3">
+                            <div className="flex-1 flex flex-col justify-between py-1">
                                 <div className="border-b-2 border-slate-900 pb-1.5 flex justify-between items-end">
                                     <div>
                                         <div className="flex items-center gap-2 mb-0.5">
@@ -2217,7 +2338,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                                 </p>
                                             </div>
                                             <div className="bg-white/80 p-2 rounded-lg border border-emerald-100 text-[9.5px] text-slate-600">
-                                                <strong className="text-emerald-700 block mb-0.5">💡 식이/영양 처방:</strong>
+                                                <strong className="text-emerald-700 block mb-0.5">💡 식이/영양 가이드:</strong>
                                                 {"거꾸로 식사법(채소→단백질→탄수화물)으로 식곤증 차단, 뇌 대사용 비타민B/마그네슘 보충"}
                                             </div>
                                         </div>
@@ -2264,25 +2385,9 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
             {/* ================= NUTRITIONAL PRESCRIPTION (PRO 이상) ================= */}
             {isProOrAbove && (() => {
-                // 대시보드(TargetedNutritionRecommendation)와 100% 동일하게 핵심 2종(1순위 필수 영양제 + HL 스마트 부스터) 및 추천·보조 동기화
-                const essentialItem = recommendedProducts.find(p => p.tier === 'ESSENTIAL' && p.productId !== 'hl_focus_booster');
-                const recommendedItem = recommendedProducts.find(p => p.tier === 'RECOMMENDED' && p.productId !== 'hl_focus_booster');
-                const supportiveItem = recommendedProducts.find(p => p.tier === 'SUPPORTIVE' && p.productId !== 'hl_focus_booster');
-
-                // 1순위 핵심: 대시보드 핵심 영양제 (ex: 마그네슘 캡슐)
-                const p1 = essentialItem ? PNT_PRODUCTS[essentialItem.productId] : (PNT_PRODUCTS['1000000021'] || PNT_PRODUCTS['active_b_complex']);
-                // 2순위 핵심: HL 아르기닌·카르니틴 스마트 아메리카노 (대시보드 핵심 2종 100% 일치)
-                const p2 = PNT_PRODUCTS['hl_focus_booster'];
-                // 3순위 추천: 대시보드 추천 영양제 (ex: 캄 슬립 L-테아닌)
-                const p3 = recommendedItem ? PNT_PRODUCTS[recommendedItem.productId] : (PNT_PRODUCTS['calm_sleep'] || PNT_PRODUCTS['active_b_complex']);
-                // 4순위 보조: 대시보드 보조 영양제 (ex: 알티지 오메가3 플러스)
-                const p4 = supportiveItem ? PNT_PRODUCTS[supportiveItem.productId] : PNT_PRODUCTS['1000000001'];
-                // 5순위 대사 활성: 비타민C 메가도스 or 활성 B
-                const p5 = PNT_PRODUCTS['1000000008'] || PNT_PRODUCTS['active_b_complex'];
-                // 6순위 세포 회복: 유산균 or 비타민D
-                const p6 = PNT_PRODUCTS['1000000003'] || PNT_PRODUCTS['1000000002'];
-
-                const finalProducts: PntProduct[] = [p1, p2, p3, p4, p5, p6].filter(Boolean) as PntProduct[];
+                // 심층 대시보드(TargetedNutritionRecommendation) 및 Page 10과 100% 동일하게 표준 6종 라인업 동기화
+                const standardLineup = getStandard6ProductLineup(recommendedProducts, result.careType);
+                const finalProducts: PntProduct[] = standardLineup.allProducts;
                 const prescription = generateNutritionalPrescription(result, finalProducts);
 
                 // Category grouping (Matching modal logic exactly)
@@ -2343,8 +2448,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
 
                 return (
                     <React.Fragment>
-                        <ReportPage pageNum={13} footerTitle="CLINICAL PRESCRIPTION : PROTOCOL OVERVIEW">
-                            <div className="flex flex-col h-full font-sans text-slate-800">
+                        <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={13} footerTitle="CLINICAL PRESCRIPTION : PROTOCOL OVERVIEW">
+                            <div className="flex-1 flex flex-col justify-between py-1 font-sans text-slate-800">
                                 {/* Clinical Header */}
                                 <div className="border-b-2 border-slate-900 pb-2 mb-2 flex justify-between items-start">
                                     <div className="flex items-center gap-3">
@@ -2352,16 +2457,16 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                             ℞
                                         </div>
                                         <div>
-                                            <div className="text-[8.5px] font-black tracking-widest text-slate-500 uppercase">Neuro-Endocrine Clinical Nutrition Protocol</div>
-                                            <h1 className="text-xl font-black text-slate-900 tracking-tight">NBASS 정밀 영양 처방전</h1>
-                                            <p className="text-[9px] text-slate-500 font-mono">CLINICAL NUTRACEUTICAL PRESCRIPTION & BIO-TARGETING</p>
+                                            <div className="text-[8.5px] font-black tracking-widest text-slate-500 uppercase">Neuro-Endocrine Nutrition Care Protocol</div>
+                                            <h1 className="text-xl font-black text-slate-900 tracking-tight">NBASS 정밀 영양 설계서</h1>
+                                            <p className="text-[9px] text-slate-500 font-mono">PRECISION NUTRACEUTICAL PROTOCOL & BIO-TARGETING</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <div className="inline-block bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[8.5px] font-mono text-slate-700 font-bold mb-0.5">
                                             DOC-ID: RX-{today.replace(/-/g, '').substring(2)}-{student.id.substring(0, 4)}
                                         </div>
-                                        <div className="text-[9px] text-slate-600">처방 책임의: <strong className="text-slate-900 font-bold">{examinerDisplay}</strong></div>
+                                        <div className="text-[9px] text-slate-600">분석 검수위원: <strong className="text-slate-900 font-bold">{examinerDisplay}</strong></div>
                                     </div>
                                 </div>
 
@@ -2373,7 +2478,7 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                             <div className="text-xs font-black text-slate-900 mt-0.5">{student.name} <span className="text-[9px] font-normal text-slate-500">({genderStr}/{age}세)</span></div>
                                         </div>
                                         <div className="border-r border-slate-200 pr-2">
-                                            <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">처방 일자</span>
+                                            <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider">설계 일자</span>
                                             <div className="text-[10px] font-medium text-slate-800 mt-0.5">{today}</div>
                                         </div>
                                         <div className="border-r border-slate-200 pr-2">
@@ -2485,8 +2590,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                         </ReportPage>
 
                         {/* ================= PAGE 14: ALL 6 PRESCRIBED PRODUCTS DETAILS ================= */}
-                        <ReportPage pageNum={14} footerTitle="CLINICAL PRESCRIPTION : NUTRACEUTICAL REGIMEN">
-                            <div className="flex flex-col h-full font-sans text-slate-800">
+                        <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={14} footerTitle="CLINICAL PRESCRIPTION : NUTRACEUTICAL REGIMEN">
+                            <div className="flex-1 flex flex-col justify-between py-1 font-sans text-slate-800">
                                 {/* Header */}
                                 <div className="border-b-2 border-slate-900 pb-2 mb-2 flex justify-between items-start">
                                     <div className="flex items-center gap-3">
@@ -2535,14 +2640,20 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                                         0{index + 1}
                                                     </div>
                                                     <div className="w-12 h-12 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden p-0.5">
-                                                        <img
-                                                            src={isHl ? '/hl_coffee_circle.png' : product.image}
-                                                            alt={product.name}
-                                                            className={`w-full h-full object-contain ${isHl ? 'p-0.5' : 'mix-blend-multiply'}`}
-                                                            onError={(e) => {
-                                                                e.currentTarget.style.display = 'none';
-                                                            }}
-                                                        />
+                                                        {(isHl || product.image) ? (
+                                                            <img
+                                                                src={isHl ? '/hl_coffee_circle.png' : product.image}
+                                                                alt={product.name}
+                                                                loading="eager"
+                                                                decoding="async"
+                                                                className={`w-full h-full object-contain ${isHl ? 'p-0.5' : 'mix-blend-multiply'}`}
+                                                                onError={(e) => {
+                                                                    e.currentTarget.style.display = 'none';
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xl">💊</span>
+                                                        )}
                                                     </div>
                                                     <span className="text-[7px] px-1 py-0.2 bg-slate-100 text-slate-700 rounded font-bold uppercase font-mono border border-slate-200">
                                                         {product.category}
@@ -2581,13 +2692,13 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                 {/* Important Notice */}
                                 <div className="border border-amber-300 bg-amber-50/70 rounded-lg p-2 mt-2 text-[8px]">
                                     <div className="flex items-center gap-1 text-amber-900 font-bold text-[8.5px] mb-0.5">
-                                        <span>⚠️</span>
-                                        <span>임상 복약 지도 및 안내사항 (Medical Advisory)</span>
+                                        <span>⚖️</span>
+                                        <span>수험생 영양 섭취 지도 및 법적 고지 (Nutritional Advisory)</span>
                                     </div>
                                     <ul className="text-[8px] text-amber-900 space-y-0.5 leading-tight">
-                                        <li>• 본 처방전은 신경생리학적 데이터 분석을 기반으로 작성된 맞춤 영양 관리 프로토콜입니다.</li>
-                                        <li>• 기저질환이 있거나 전문의약품을 복용 중인 경우 주치의 또는 담당 약사와 사전 상담 후 섭취하십시오.</li>
-                                        <li>• 권장 복용량과 복용 타이밍을 준수하며 이상 반응 발생 시 즉시 복용을 중단하십시오.</li>
+                                        <li>• 본 문서는 신경인지 데이터 분석을 기반으로 작성된 수험생 맞춤 영양 설계 가이드(Protocol)이며, 의료법상 의사의 처방전(Prescription)이 아닙니다.</li>
+                                        <li>• 본 가이드는 질병의 예방 및 치료를 목적으로 하지 않으며, 기저질환이 있거나 의약품을 복용 중인 경우 주치의 또는 약사와 사전 상담하십시오.</li>
+                                        <li>• 안내된 기능성 원료별 권장 섭취량과 타이밍을 준수하며 이상 반응 발생 시 즉시 섭취를 중단하십시오.</li>
                                     </ul>
                                 </div>
 
@@ -2598,11 +2709,11 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                                         <p>VALIDATION: NBASS-VERIFIED-OFFICIAL • CONFIDENTIAL</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-slate-500 font-medium mb-0.5 text-[8.5px]">처방 책임 전문위원 (Doctor in Charge)</p>
+                                        <p className="text-slate-500 font-medium mb-0.5 text-[8.5px]">분석 검수 전문위원 (Protocol Specialist)</p>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-black text-slate-900">{examinerDisplay}</span>
-                                            <span className="inline-block w-7 h-7 rounded-full border-2 border-red-600 text-red-600 font-black text-[8.5px] flex items-center justify-center rotate-[-12deg] shadow-sm">
-                                                (처방인)
+                                            <span className="inline-block w-7 h-7 rounded-full border-2 border-emerald-600 text-emerald-700 font-black text-[8.5px] flex items-center justify-center rotate-[-12deg] shadow-sm">
+                                                (검수인)
                                             </span>
                                         </div>
                                     </div>
@@ -2625,92 +2736,92 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                 return (
                     <React.Fragment>
                         {/* Page 15: 1:1 AI 전문 코칭 (Step 1. 시작 전 / Step 2. 학습 중 / Step 3. 신체) */}
-                        <ReportPage pageNum={15} footerTitle="1:1 AI EXPERT COACHING • CLINICAL PROTOCOL (PART 1)">
-                            <div className="space-y-4">
-                                <div className="border-b-2 border-indigo-600 pb-2 flex justify-between items-end">
+                        <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={15} footerTitle="1:1 AI EXPERT COACHING • CLINICAL PROTOCOL (PART 1)">
+                            <div className="flex-1 flex flex-col justify-between py-1">
+                                <div className="border-b-2 border-indigo-600 pb-1.5 flex justify-between items-end">
                                     <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-700">
-                                                PREMIUM PLUS 1:1 AI 전문 코칭
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-indigo-100 text-indigo-700">
+                                                PREMIUM 1:1 AI 전문 코칭
                                             </span>
-                                            <span className="text-xs font-bold text-slate-500">진단 유형: {CARE_TYPE_LABELS[result.careType]?.name || result.careType}</span>
+                                            <span className="text-[11px] font-bold text-slate-500">진단 유형: {CARE_TYPE_LABELS[result.careType]?.name || result.careType}</span>
                                         </div>
-                                        <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                        <h2 className="text-base font-black text-slate-900 flex items-center gap-1.5">
                                             <span>👨‍⚕️</span> 맞춤형 1:1 AI 전문 코칭 가이드 (Expert Guide)
                                         </h2>
                                     </div>
-                                    <div className="text-right text-[10px] text-slate-400 font-mono">
+                                    <div className="text-right text-[9px] text-slate-400 font-mono">
                                         CLINICAL AI COACHING PROTOCOL
                                     </div>
                                 </div>
 
                                 {/* ⚡ 시작 전 (Pre-Study) */}
-                                <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-3.5">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                                <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-2 px-2.5">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className="text-[11px] font-black text-emerald-900 flex items-center gap-1.5">
                                             <span>⚡</span> [시작 전] 뇌 예열 및 인지 부하 차단 전략
                                         </h3>
-                                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">Pre-Study Protocol</span>
+                                        <span className="text-[9px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.2 rounded-full">Pre-Study Protocol</span>
                                     </div>
-                                    <p className="text-[10.5px] text-emerald-800/90 mb-2.5 italic">{expertData.prestudy.intro}</p>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <p className="text-[9.5px] text-emerald-800/90 mb-1.5 italic leading-tight">{expertData.prestudy.intro}</p>
+                                    <div className="grid grid-cols-2 gap-1.5">
                                         {expertData.prestudy.guides.map((g, idx) => (
-                                            <div key={idx} className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-sm text-[10px] space-y-1">
-                                                <div className="flex justify-between items-start font-black text-emerald-950">
+                                            <div key={idx} className="bg-white p-1.5 px-2 rounded-lg border border-emerald-100 shadow-xs text-[9px] space-y-0.5">
+                                                <div className="flex justify-between items-start font-black text-emerald-950 text-[9.5px]">
                                                     <span>✓ {g.title}</span>
-                                                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-50 text-emerald-600 rounded">{g.difficulty}</span>
+                                                    <span className="text-[8px] px-1 py-0.2 bg-emerald-50 text-emerald-600 rounded">{g.difficulty}</span>
                                                 </div>
-                                                <p className="text-slate-700 font-medium leading-snug">{g.expertDesc}</p>
-                                                <p className="text-slate-500 text-[9.5px] leading-tight"><strong className="text-emerald-700">근거:</strong> {g.rationale}</p>
-                                                <p className="text-indigo-900 bg-indigo-50/70 p-1.5 rounded text-[9.5px] font-semibold"><strong className="text-indigo-600">실행:</strong> {g.action}</p>
+                                                <p className="text-slate-700 font-medium leading-tight text-[8.5px]">{g.expertDesc}</p>
+                                                <div className="text-slate-500 text-[8px] leading-tight pt-0.5"><strong className="text-emerald-700">근거:</strong> {g.rationale}</div>
+                                                <div className="text-indigo-900 bg-indigo-50/70 px-1.5 py-0.5 rounded text-[8px] font-semibold leading-tight"><strong className="text-indigo-600">실행:</strong> {g.action}</div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
                                 {/* 🧠 학습 중 (Learning) */}
-                                <div className="bg-blue-50/50 border border-blue-200 rounded-xl p-3.5">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-xs font-black text-blue-900 flex items-center gap-1.5">
+                                <div className="bg-blue-50/50 border border-blue-200 rounded-xl p-2 px-2.5">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className="text-[11px] font-black text-blue-900 flex items-center gap-1.5">
                                             <span>🧠</span> [학습 중] 전두엽 몰입 및 메타인지 인출 전략
                                         </h3>
-                                        <span className="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">Learning Protocol</span>
+                                        <span className="text-[9px] text-blue-700 font-bold bg-blue-100 px-2 py-0.2 rounded-full">Learning Protocol</span>
                                     </div>
-                                    <p className="text-[10.5px] text-blue-800/90 mb-2.5 italic">{expertData.learning.intro}</p>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <p className="text-[9.5px] text-blue-800/90 mb-1.5 italic leading-tight">{expertData.learning.intro}</p>
+                                    <div className="grid grid-cols-2 gap-1.5">
                                         {expertData.learning.guides.map((g, idx) => (
-                                            <div key={idx} className="bg-white p-2.5 rounded-lg border border-blue-100 shadow-sm text-[10px] space-y-1">
-                                                <div className="flex justify-between items-start font-black text-blue-950">
+                                            <div key={idx} className="bg-white p-1.5 px-2 rounded-lg border border-blue-100 shadow-xs text-[9px] space-y-0.5">
+                                                <div className="flex justify-between items-start font-black text-blue-950 text-[9.5px]">
                                                     <span>✓ {g.title}</span>
-                                                    <span className="text-[9px] px-1.5 py-0.2 bg-blue-50 text-blue-600 rounded">{g.difficulty}</span>
+                                                    <span className="text-[8px] px-1 py-0.2 bg-blue-50 text-blue-600 rounded">{g.difficulty}</span>
                                                 </div>
-                                                <p className="text-slate-700 font-medium leading-snug">{g.expertDesc}</p>
-                                                <p className="text-slate-500 text-[9.5px] leading-tight"><strong className="text-blue-700">근거:</strong> {g.rationale}</p>
-                                                <p className="text-indigo-900 bg-indigo-50/70 p-1.5 rounded text-[9.5px] font-semibold"><strong className="text-indigo-600">실행:</strong> {g.action}</p>
+                                                <p className="text-slate-700 font-medium leading-tight text-[8.5px]">{g.expertDesc}</p>
+                                                <div className="text-slate-500 text-[8px] leading-tight pt-0.5"><strong className="text-blue-700">근거:</strong> {g.rationale}</div>
+                                                <div className="text-indigo-900 bg-indigo-50/70 px-1.5 py-0.5 rounded text-[8px] font-semibold leading-tight"><strong className="text-indigo-600">실행:</strong> {g.action}</div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
                                 {/* 🏃 신체 (Body & Physiology) */}
-                                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-3.5">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-xs font-black text-orange-900 flex items-center gap-1.5">
+                                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-2 px-2.5">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className="text-[11px] font-black text-orange-900 flex items-center gap-1.5">
                                             <span>🏃</span> [신체] 자율신경 활력 및 두뇌 생체 동기화
                                         </h3>
-                                        <span className="text-[10px] text-orange-700 font-bold bg-orange-100 px-2 py-0.5 rounded-full">Body & Physiology</span>
+                                        <span className="text-[9px] text-orange-700 font-bold bg-orange-100 px-2 py-0.2 rounded-full">Body & Physiology</span>
                                     </div>
-                                    <p className="text-[10.5px] text-orange-800/90 mb-2.5 italic">{expertData.exercise.intro}</p>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <p className="text-[9.5px] text-orange-800/90 mb-1.5 italic leading-tight">{expertData.exercise.intro}</p>
+                                    <div className="grid grid-cols-2 gap-1.5">
                                         {expertData.exercise.guides.map((g, idx) => (
-                                            <div key={idx} className="bg-white p-2.5 rounded-lg border border-orange-100 shadow-sm text-[10px] space-y-1">
-                                                <div className="flex justify-between items-start font-black text-orange-950">
+                                            <div key={idx} className="bg-white p-1.5 px-2 rounded-lg border border-orange-100 shadow-xs text-[9px] space-y-0.5">
+                                                <div className="flex justify-between items-start font-black text-orange-950 text-[9.5px]">
                                                     <span>✓ {g.title}</span>
-                                                    <span className="text-[9px] px-1.5 py-0.2 bg-orange-50 text-orange-600 rounded">{g.difficulty}</span>
+                                                    <span className="text-[8px] px-1 py-0.2 bg-orange-50 text-orange-600 rounded">{g.difficulty}</span>
                                                 </div>
-                                                <p className="text-slate-700 font-medium leading-snug">{g.expertDesc}</p>
-                                                <p className="text-slate-500 text-[9.5px] leading-tight"><strong className="text-orange-700">근거:</strong> {g.rationale}</p>
-                                                <p className="text-indigo-900 bg-indigo-50/70 p-1.5 rounded text-[9.5px] font-semibold"><strong className="text-indigo-600">실행:</strong> {g.action}</p>
+                                                <p className="text-slate-700 font-medium leading-tight text-[8.5px]">{g.expertDesc}</p>
+                                                <div className="text-slate-500 text-[8px] leading-tight pt-0.5"><strong className="text-orange-700">근거:</strong> {g.rationale}</div>
+                                                <div className="text-indigo-900 bg-indigo-50/70 px-1.5 py-0.5 rounded text-[8px] font-semibold leading-tight"><strong className="text-indigo-600">실행:</strong> {g.action}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -2719,8 +2830,8 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                         </ReportPage>
 
                         {/* Page 16: 1:1 AI 전문 코칭 (Management Tools & 로드맵 & KPI 성과 지표) */}
-                        <ReportPage pageNum={16} footerTitle="1:1 AI EXPERT COACHING • ROADMAP & KPI (PART 2)">
-                            <div className="space-y-4">
+                        <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={16} footerTitle="1:1 AI EXPERT COACHING • ROADMAP & KPI (PART 2)">
+                            <div className="flex-1 flex flex-col justify-between py-1">
                                 <div className="border-b-2 border-purple-600 pb-2 flex justify-between items-end">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -2829,6 +2940,125 @@ export const MedicalReport: React.FC<MedicalReportProps> = ({
                 );
             })()}
 
+            {/* 16. [APPENDIX] 데일리 뉴로-루틴 1일 실천 플래너 (To-Do 체크리스트 - PRO 이상 전용) */}
+            {isProOrAbove && (() => {
+                const todoGroups = generateDailyTodoPlan(result, recommendedProducts);
+
+                return (
+                    <ReportPage tierBadgeStyle={tierBadgeStyle} tierDisplayLabel={tierDisplayLabel} examinerDisplay={examinerDisplay} student={student} genderStr={genderStr} age={age} today={today} pageNum={17} footerTitle="DAILY NEURO-ROUTINE ACTION CHECKLIST (APPENDIX)">
+                        <div className="flex-1 flex flex-col justify-between py-1">
+                            {/* Header Banner */}
+                            <div className="border-b-2 border-indigo-600 pb-1.5 flex justify-between items-end">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-indigo-100 text-indigo-700">
+                                            ⚡ PRO 이상 맞춤 실천 부록 (APPENDIX)
+                                        </span>
+                                        <span className="text-[11px] font-bold text-slate-500">
+                                            {student.name || '피검자'} 학생 전용 1일 행동 계획서
+                                        </span>
+                                    </div>
+                                    <h2 className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                                        <span>📋</span> 데일리 뉴로-루틴 1일 실천 플래너 (Daily To-Do Checklist)
+                                    </h2>
+                                </div>
+                                <div className="text-right text-[9px] text-slate-400 font-mono">
+                                    DAILY EXECUTION ACTION SHEET
+                                </div>
+                            </div>
+
+                            {/* 매일 인쇄/복사 실천 권장 안내 배너 */}
+                            <div className="p-2 px-2.5 bg-gradient-to-r from-indigo-50 via-blue-50 to-purple-50 border border-indigo-200 rounded-xl flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-base">💡</span>
+                                    <div>
+                                        <p className="font-bold text-indigo-950 text-[10px]">
+                                            매일 복사하거나 본 페이지를 인쇄하여 책상/플래너에 부착 후, 볼펜으로 하나씩 체크(✓)하며 실천하세요!
+                                        </p>
+                                        <p className="text-[9px] text-indigo-700 leading-tight">
+                                            방대한 보고서 내용을 4대 핵심 행동 단위로 분해하여, 오늘 하루 책상 앞에서 지켜야 할 우선순위를 제시합니다.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right shrink-0 ml-2 font-bold text-[9px] text-indigo-800 bg-white/80 px-2 py-0.5 rounded-lg border border-indigo-100">
+                                    작은 루틴 = 두뇌 최적화
+                                </div>
+                            </div>
+
+                            {/* 4대 To-Do 그룹 그리드 (2열 레이아웃) */}
+                            <div className="grid grid-cols-2 gap-2">
+                                {todoGroups.map((group) => (
+                                    <div key={group.categoryKey} className="border border-slate-200 rounded-xl p-2 px-2.5 bg-white shadow-xs flex flex-col justify-between">
+                                        <div>
+                                            <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-100">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-sm">{group.icon}</span>
+                                                    <h3 className="text-[11px] font-black text-slate-900">{group.categoryTitle}</h3>
+                                                </div>
+                                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-bold ${group.badgeColor}`}>
+                                                    {group.items.length}개 항목
+                                                </span>
+                                            </div>
+                                            <p className="text-[8.5px] text-slate-500 mb-1.5 leading-tight">
+                                                {group.categorySubtitle}
+                                            </p>
+
+                                            {/* 아이템 목록: 인쇄 시 직접 체크 가능한 체크박스 */}
+                                            <div className="space-y-1">
+                                                {group.items.map((item) => (
+                                                    <div key={item.id} className="p-1.5 px-2 rounded-md border border-slate-100 bg-slate-50/50 flex items-start gap-1.5 text-[9px]">
+                                                        {/* 인쇄용 네모 체크박스 */}
+                                                        <div className="w-3 h-3 rounded border border-slate-400 bg-white shrink-0 mt-0.5 flex items-center justify-center"></div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-bold text-[8px] text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded shrink-0">
+                                                                    {item.timing}
+                                                                </span>
+                                                                <span className="font-bold text-slate-900 text-[9px] truncate">{item.title}</span>
+                                                            </div>
+                                                            <p className="text-[8.5px] text-slate-600 mt-0.5 leading-tight">{item.description}</p>
+                                                            <p className="text-[8px] text-emerald-700 mt-0.5 font-medium leading-none">
+                                                                • 기대 효과: {item.scientificEffect}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 하단 일일 실천 메모 & 피검자 확인란 */}
+                            <div className="p-2 px-2.5 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-3 gap-2 text-[9px]">
+                                <div className="col-span-2 space-y-0.5">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-black text-slate-800">📝 오늘의 실천 메모 &amp; 컨디션 한 줄 평</span>
+                                        <span className="text-[8px] text-slate-400">수기 작성용</span>
+                                    </div>
+                                    <div className="h-7 border border-dashed border-slate-300 rounded-lg bg-white p-1 text-slate-400 text-[8.5px] leading-tight">
+                                        오늘 실천한 루틴의 효과나 특이사항을 간단히 적어보세요. (예: 아침 햇빛 산책 후 식곤증 현저히 감소)
+                                    </div>
+                                </div>
+                                <div className="space-y-0.5 flex flex-col justify-between border-l border-slate-200 pl-2.5">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-black text-slate-800">실천 확인 (Check)</span>
+                                        <span className="text-indigo-600 font-bold text-[8.5px]">NBASS Verified</span>
+                                    </div>
+                                    <div className="text-[8.5px] text-slate-500 space-y-0.5">
+                                        <p>피검자 서명: ____________________</p>
+                                        <p>실천 일자: 2026년 ____월 ____일</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </ReportPage>
+                );
+            })()}
+
         </div>
     );
 };
+
+// 배경 동기화·토스트 등 외부 상태 변경 시 16P 리포트 전체 재계산을 건너뜀
+export const MedicalReport: React.FC<MedicalReportProps> = React.memo(MedicalReportView);

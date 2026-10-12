@@ -4,15 +4,14 @@
  * 등급별 상담 횟수 쿼터 정책:
  * - PRO (1회권): 5회 1:1 스타터 상담 체험권
  * - PREMIUM (월 ₩9,900): 월 100회 넉넉한 데일리 케어
- * - PREMIUM PLUS (월 ₩19,900): 월 1,000회 무제한급 안심 케어 + 학부모 카톡 브리핑
- * - VIP (월 ₩29,900): 월 1,000회 무제한급 안심 케어 + 심층 멘탈 처방
+ * - PREMIUM (월 ₩19,900): 월 1,000회 무제한급 안심 케어 + 학부모 카톡 브리핑 + 심층 멘탈 처방
  * 
  * 주요 기능:
  * - 학생 진단 데이터(케어타입, Go/No-Go, N-Back, BAI, ISI) 시스템 프롬프트 자동 주입(Context Injection)
  * - 듀얼 페르소나 (수험생 모드 vs 학부모 코칭 모드)
  * - 4대 상황별 원클릭 퀵 질문 프리셋
  * - 상담 완료 시 [오늘의 3대 실천 처방 카드] 생성
- * - PREMIUM PLUS/VIP 학생 상담 완료 시 학부모 카카오톡 알림 자동 브리지
+ * - PREMIUM 학생 상담 완료 시 학부모 카카오톡 알림 자동 브리지
  */
 
 import { MembershipTier, AssessmentResult, CareType } from '../types';
@@ -50,11 +49,8 @@ export interface ConsultationQuotaInfo {
 
 export const TIER_CONSULTATION_QUOTAS: Record<MembershipTier, number> = {
   free: 0,
-  basic: 0,
   pro: 5,        // 5회 체험권
-  premium: 100,  // 월 100회
-  premium_plus: 1000, // 월 1,000회
-  vip: 1000,     // 월 1,000회
+  premium: 1000, // 월 1,000회 (PLUS 통합)
   expert: 9999,
 };
 
@@ -248,7 +244,7 @@ class AIConsultationService {
       // 세션에 3회 이상 대화가 쌓였거나 세션 종료 느낌일 때 자동으로 요약 처방 카드 생성 시도
       if (session.messages.length >= 4 && !session.prescribedActionItems) {
         this.extractActionSummary(session).then((summary) => {
-          if (summary && parentPhone && (session.tier === 'premium_plus' || session.tier === 'vip')) {
+          if (summary && parentPhone && (session.tier === 'premium' || (session.tier as string) === 'premium_plus')) {
             kakaoNotificationService.triggerAiConsultationSummary(
               session.studentId,
               session.tier,

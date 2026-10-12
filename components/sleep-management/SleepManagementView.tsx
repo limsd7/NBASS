@@ -97,8 +97,9 @@ export const SleepManagementView: React.FC<SleepManagementViewProps> = ({ studen
     const todayStr = new Date().toISOString().split('T')[0];
     const exists = records.some(r => r.date === todayStr);
     
-    const chronotype = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
-    const isMorning = chronotype === 'Morning' || chronotype === 'morning';
+    const rawChrono = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+    const chronoStr = typeof rawChrono === 'object' && rawChrono ? String(rawChrono.result || '') : String(rawChrono || '');
+    const isMorning = chronoStr.toLowerCase().includes('morning') || chronoStr.includes('아침') || chronoStr.includes('종달새');
     const bedtime = isMorning ? '22:45' : '00:15';
     const wakeTime = isMorning ? '06:30' : '07:45';
 

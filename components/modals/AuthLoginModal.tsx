@@ -4,6 +4,11 @@ import { UserTierService } from '../../services/userTierService';
 import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
 import { ExpertAccountService, DEFAULT_ACADEMIES } from '../../services/expertAccountService';
 import { sessionManager } from '../../utils/sessionManager';
+import { verifyOrEnrollLocalCredential } from '../../utils/localAuth';
+import { findExistingStudentId } from '../../utils/studentIdentity';
+import { generateSerialID } from '../../utils/constants';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
+import { TermsModal } from './TermsModal';
 
 export type UserRole = 'STUDENT' | 'STUDENT_DIRECTORY' | 'PARENT' | 'PARENT_DIRECTORY' | 'MEDICAL_EXPERT' | 'ACADEMY_EXPERT' | 'EXPERT' | 'OWNER';
 
@@ -25,6 +30,14 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+
+  // 개인정보보호 및 이용약관 동의 상태
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [consentAge, setConsentAge] = useState(false);
+  const [consentTerms, setConsentTerms] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [consentMarketing, setConsentMarketing] = useState(false);
 
   // Student Specific: Serial ID & Academy
   const [studentSerialId, setStudentSerialId] = useState('');
@@ -70,14 +83,14 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
       badge: '학부모 보호자 (월정액 연동)',
       color: 'emerald',
       icon: '👨‍👩‍👧‍👦',
-      desc: '월정액(PREMIUM / VIP) 등록 학생의 자녀 리포트 및 카톡 주간 알림'
+      desc: '정기결제(월 ₩19,900) 등록 학생의 자녀 리포트 및 카톡 주간 알림'
     },
     MEDICAL_EXPERT: {
-      title: '의료전문가 회원가입 / 로그인',
-      badge: '의료전문가 (오너 승인제)',
+      title: '두뇌·신경인지 전문가 회원가입 / 로그인',
+      badge: '인지과학 전문가 (오너 승인제)',
       color: 'blue',
-      icon: '👨‍⚕️',
-      desc: '의사/한의사 전용: 전체 학생 정밀 임상 데이터 분석 및 디지털 처방전 발급'
+      icon: '🧠',
+      desc: '인지과학·학습코칭 전문 자문위원 전용: 학생 두뇌 인지 데이터 분석 및 학습 솔루션 자문'
     },
     ACADEMY_EXPERT: {
       title: '학생지도전문가 회원가입 / 로그인',
@@ -126,7 +139,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
           const item = data as any;
           const sInfo = (item.student_info as any) || {};
           const tier = sInfo.membershipTier || 'premium'; // Default or extracted
-          const isMonthlySubscriber = tier === 'premium' || tier === 'vip' || tier === 'pro';
+          const isMonthlySubscriber = tier === 'premium' || tier === 'pro';
 
           if (isMonthlySubscriber) {
             setVerifiedStudentInfo({
@@ -135,7 +148,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
               isValid: true
             });
           } else {
-            setErrorMessage(`확인된 학생(${item.student_name})은 현재 무료(FREE) 회원입니다. 학부모 계정 연동은 월정액(PREMIUM / VIP) 구독 학생만 가능합니다.`);
+            setErrorMessage(`확인된 학생(${item.student_name})은 현재 무료(FREE) 회원입니다. 학부모 계정 연동은 정기결제(월 ₩19,900) 이용 학생만 가능합니다.`);
             setVerifiedStudentInfo({
               name: item.student_name,
               tier: 'FREE',
@@ -157,7 +170,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
 
       if (matched) {
         const tier = matched.student?.membershipTier || 'premium';
-        const isMonthlySubscriber = tier === 'premium' || tier === 'vip';
+        const isMonthlySubscriber = tier === 'premium' || tier === 'pro';
 
         if (isMonthlySubscriber) {
           setVerifiedStudentInfo({
@@ -166,7 +179,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
             isValid: true
           });
         } else {
-          setErrorMessage(`확인된 학생(${matched.student.name})은 무료 회원입니다. 월정액(PREMIUM / VIP) 구독 학생만 학부모 연동이 가능합니다.`);
+          setErrorMessage(`확인된 학생(${matched.student.name})은 무료 회원입니다. 정기결제(월 ₩19,900) 이용 학생만 학부모 연동이 가능합니다.`);
           setVerifiedStudentInfo({
             name: matched.student.name,
             tier: 'FREE',
@@ -205,13 +218,18 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
 
     // 0. (보안) 프리셋 계정 자동 로그인 백도어 제거 — 하드코딩된 비밀번호 기반 우회를 비활성화했습니다.
 
-    // 1. OWNER Role: 설정된 오너 키 검증 (하드코딩 기본/백도어 제거 + 최초 1회 부트스트랩)
+    // 1. OWNER Role: 설정된 오너 키 검증 (최초 부트스트랩 및 저장된 키 검증)
     if (targetRole === 'OWNER') {
-      const storedOwnerKey = localStorage.getItem('nbass_owner_key');
+      const storedOwnerKey = localStorage.getItem('nbass_owner_key') || '';
+      let expertModePassword = '';
+      try {
+        const cfg = JSON.parse(localStorage.getItem('sn1_config') || '{}');
+        expertModePassword = cfg.expertModePassword || '';
+      } catch { }
       const inputKey = ownerKeyInput.trim();
 
       // 최초 1회: 오너 키가 아직 없으면 이 입력값을 새 오너 비밀번호로 설정합니다.
-      if (!storedOwnerKey) {
+      if (!storedOwnerKey && !expertModePassword) {
         if (inputKey.length < 4) {
           setIsLoading(false);
           setErrorMessage('오너 비밀번호는 4자 이상으로 설정해 주세요. (최초 1회 설정)');
@@ -224,7 +242,8 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
         return;
       }
 
-      if (inputKey === storedOwnerKey) {
+      const validKeys = [storedOwnerKey, expertModePassword].filter(Boolean);
+      if (inputKey && validKeys.includes(inputKey)) {
         setIsLoading(false);
         onSuccess('OWNER', 'owner@nbass.io');
         onClose();
@@ -236,11 +255,20 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
       }
     }
 
-    // 2. PARENT SignUp: Must have verified monthly subscriber student ID
+    // 2. 개인정보보호법 준수: 회원가입 시 필수 약관 및 개인정보 수집·이용 동의 확인
+    if (isSignUp) {
+      if (!consentAge || !consentTerms || !consentPrivacy) {
+        setIsLoading(false);
+        setErrorMessage('필수 동의 항목(만 14세 이상, 서비스 이용약관, 개인정보 수집 및 이용 동의)에 모두 체크해 주세요.');
+        return;
+      }
+    }
+
+    // 3. PARENT SignUp: Must have verified monthly subscriber student ID
     if (targetRole === 'PARENT' && isSignUp) {
       if (!verifiedStudentInfo || !verifiedStudentInfo.isValid) {
         setIsLoading(false);
-        setErrorMessage('학부모 회원가입은 월정액(PREMIUM/VIP) 구독 중인 연계 학생 ID 인증이 필수입니다.');
+        setErrorMessage('학부모 회원가입은 정기결제(월 ₩19,900) 구독 중인 연계 학생 ID 인증이 필수입니다.');
         return;
       }
     }
@@ -319,6 +347,12 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
 
     // 4. Standard Cloud / Local Auth Execution
     try {
+      const authCheck = verifyOrEnrollLocalCredential(email, password, isSignUp);
+      if (!isSupabaseConfigured && !authCheck.ok) {
+        setIsLoading(false);
+        setErrorMessage(authCheck.reason || '인증 처리 중 오류가 발생했습니다.');
+        return;
+      }
       if (isSupabaseConfigured) {
         if (isSignUp) {
           const { data, error } = await supabase.auth.signUp({
@@ -335,16 +369,12 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
           });
           if (error) throw error;
           alert(`🎉 ${roleMeta.badge} 가입이 완료되었습니다!`);
-          onSuccess(targetRole, data.user?.email, linkedStudentId);
-          onClose();
         } else {
           const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
           });
           if (error) throw error;
-          onSuccess(targetRole, data.user?.email, linkedStudentId);
-          onClose();
         }
         const cleanEmail = email.trim().toLowerCase();
         let studentResolvedName = (name || '').trim();
@@ -367,7 +397,8 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
             studentResolvedName = studentResolvedName || parsed.name || cleanEmail.split('@')[0];
             const updatedProfile = {
               ...parsed,
-              id: parsed.id || studentSerialId || `ID-20260820-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+              // ID 중복 방지: 기존 기록 ID > 입력된 Serial > 로그인 ID(이메일) > 신규 발급 순
+              id: parsed.id || studentSerialId || (await findExistingStudentId({ name: studentResolvedName, email: cleanEmail })) || cleanEmail || generateSerialID(),
               name: studentResolvedName,
               email: cleanEmail,
               academyName: resolvedStudentAcademy || parsed.academyName || ''
@@ -400,7 +431,8 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
             studentResolvedName = studentResolvedName || parsed.name || cleanEmail.split('@')[0];
             const updatedProfile = {
               ...parsed,
-              id: parsed.id || studentSerialId || `ID-20260820-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+              // ID 중복 방지: 기존 기록 ID > 입력된 Serial > 로그인 ID(이메일) > 신규 발급 순
+              id: parsed.id || studentSerialId || (await findExistingStudentId({ name: studentResolvedName, email: cleanEmail })) || cleanEmail || generateSerialID(),
               name: studentResolvedName,
               email: cleanEmail,
               academyName: resolvedStudentAcademy || parsed.academyName || ''
@@ -487,11 +519,11 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
               {targetRole === 'MEDICAL_EXPERT' && isSignUp && (
                 <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl space-y-1 text-left">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-blue-800">
-                    <span>👨‍⚕️</span>
-                    <span>의료전문가 면허 인증 및 [오너 승인제]</span>
+                    <span>🧠</span>
+                    <span>두뇌·인지과학 전문가 인증 및 [오너 승인제]</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    의사/한의사 면허 확인 후 오너의 승인이 완료되면, <strong>모든 학생 검색 및 정밀 임상 데이터 열람</strong> 권한이 활성화됩니다.
+                    관련 전문 자격 및 경력 확인 후 오너의 승인이 완료되면, <strong>담당 학생 두뇌 인지 데이터 열람 및 학습 솔루션 자문</strong> 권한이 활성화됩니다.
                   </p>
                 </div>
               )}
@@ -554,7 +586,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
                   )}
 
                   <p className="text-[10px] text-slate-500 leading-relaxed">
-                    💡 학부모 계정은 학생이 <strong>PREMIUM(월 9,900원)</strong> 또는 <strong>VIP(월 19,900원)</strong> 구독 중일 때 연동 가입이 가능합니다.
+                    💡 학부모 계정은 학생이 <strong>정기결제(월 19,900원)</strong> 이용 중일 때 연동 가입이 가능합니다. (카카오톡 주간 안심 브리핑 자동 발송)
                   </p>
                 </div>
               )}
@@ -568,7 +600,7 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
                       <span>기본 [무료 회원(FREE)]으로 가입됩니다</span>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      가입 즉시 신경인지·자율신경 진단을 무료로 이용할 수 있으며, 더 정밀한 AI 처방과 맞춤 케어가 필요할 때 언제든 <strong>[결제 / 구독]</strong>에서 <strong>BASIC / PREMIUM / VIP</strong> 등급으로 변경하실 수 있습니다.
+                      가입 즉시 신경인지·자율신경 진단을 무료로 이용할 수 있으며, 더 정밀한 AI 처방과 맞춤 케어가 필요할 때 언제든 <strong>[결제 / 구독]</strong>에서 <strong>PRO / PREMIUM</strong> 등급으로 변경하실 수 있습니다.
                     </p>
                   </div>
 
@@ -806,6 +838,78 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
                   {isSignUp ? '이미 승인/가입된 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입 신청'}
                 </button>
               </div>
+
+              {/* 개인정보보호법 준수: 회원가입 필수 및 선택 동의 체크박스 */}
+              {isSignUp && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 text-xs text-left">
+                  <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                    <span>📋 개인정보 수집 및 이용 동의</span>
+                    <span className="text-[10px] text-indigo-600 font-normal">개인정보보호법 준수</span>
+                  </div>
+
+                  {/* 1. 만 14세 이상 확인 */}
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 select-none">
+                    <input
+                      type="checkbox"
+                      checked={consentAge}
+                      onChange={(e) => setConsentAge(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span><strong className="text-rose-600 font-bold">[필수]</strong> 만 14세 이상입니다</span>
+                  </label>
+
+                  {/* 2. 서비스 이용약관 동의 */}
+                  <div className="flex items-center justify-between text-slate-700 select-none">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consentTerms}
+                        onChange={(e) => setConsentTerms(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span><strong className="text-rose-600 font-bold">[필수]</strong> 서비스 이용약관 동의</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 underline font-semibold ml-2 cursor-pointer"
+                    >
+                      전문보기
+                    </button>
+                  </div>
+
+                  {/* 3. 개인정보 수집 및 이용 동의 */}
+                  <div className="flex items-center justify-between text-slate-700 select-none">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={consentPrivacy}
+                        onChange={(e) => setConsentPrivacy(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span><strong className="text-rose-600 font-bold">[필수]</strong> 개인정보 수집 및 이용 동의</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 underline font-semibold ml-2 cursor-pointer"
+                    >
+                      전문보기
+                    </button>
+                  </div>
+
+                  {/* 4. 마케팅 및 알림톡 수신 동의 (선택) */}
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-500 select-none">
+                    <input
+                      type="checkbox"
+                      checked={consentMarketing}
+                      onChange={(e) => setConsentMarketing(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span>[선택] 학습 관리 주간 브리핑 및 혜택 알림 수신 동의</span>
+                  </label>
+                </div>
+              )}
             </>
           )}
 
@@ -825,10 +929,17 @@ export const AuthLoginModal: React.FC<AuthLoginModalProps> = ({
           </button>
         </form>
 
-        {/* Footer info */}
-        <div className="mt-5 pt-3 border-t border-slate-100 text-center text-[11px] text-slate-400">
-          Supabase 256-bit 클라우드 보안 암호화 & 오너 승인 관리 시스템
+        {/* Footer info & Legal Disclaimer */}
+        <div className="mt-5 pt-3 border-t border-slate-100 text-center text-[10px] text-slate-400 leading-relaxed">
+          <div>Supabase 256-bit 클라우드 암호화 & 개인정보보호법 안전 관리</div>
+          <div className="mt-0.5 text-slate-400">
+            ※ NBASS는 인지과학·학습과학 기반의 교육 보조 솔루션이며 의료법상의 의료기관 진료나 의학적 처방을 대신하지 않습니다.
+          </div>
         </div>
+
+        {/* Legal Modals */}
+        <PrivacyPolicyModal isOpen={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
+        <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
 
       </div>
     </div>

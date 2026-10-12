@@ -1,5 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
-import { MembershipTier } from "../utils/featureGate";
+import { MembershipTier, normalizeTier } from "../utils/featureGate";
 import { CareTypeDetail, getCareTypeDetail } from "../data/careTypesData";
 
 export interface AIPlanResult {
@@ -21,9 +20,10 @@ export interface QuotaInfo {
   canUseAI: boolean;
 }
 
-// 1. Quota Check for Tier
+// 1. Quota Check for Tier (VIP/PREMIUM+ 요금제 삭제: 레거시 저장값은 'premium'으로 간주, 월 5회로 통일)
 export function getAIPlanQuota(studentId: string, tier: MembershipTier = "free"): QuotaInfo {
-  if (tier === "expert") {
+  const normTier = normalizeTier(tier);
+  if (normTier === "expert") {
     return {
       tier,
       maxPerPeriod: 999,
@@ -37,15 +37,9 @@ export function getAIPlanQuota(studentId: string, tier: MembershipTier = "free")
   let maxPerPeriod = 0;
   let periodLabel = "월 0회";
 
-  if (tier === "premium") {
+  if (normTier === "premium") {
     maxPerPeriod = 5;
     periodLabel = "월 5회";
-  } else if (tier === "premium_plus") {
-    maxPerPeriod = 12; // 주 3회 환산 (월 ~12회)
-    periodLabel = "주 3회 (월 12회)";
-  } else if (tier === "vip") {
-    maxPerPeriod = 20; // 주 5회 환산 (월 ~20회)
-    periodLabel = "주 5회 (월 20회)";
   }
 
   const now = new Date();
@@ -71,6 +65,7 @@ export function recordAIPlanUsage(studentId: string) {
 }
 
 // 2. 기본 로직 엔진 기반 100% 무결성 학습 플랜 생성기 (비용 0원, 0초 완성)
+// 출력 문구 템플릿 불변, 입력 방어 + 과목 매칭률만 개선.
 export function generateRuleBasedStudyPlan(
   studentName: string,
   gradeLevel: string,
@@ -80,21 +75,46 @@ export function generateRuleBasedStudyPlan(
 ): AIPlanResult {
   const careDetail: CareTypeDetail = getCareTypeDetail(careTypeCode);
 
-  // 성적 및 목표 분석
-  const avgScore = grades.length > 0 ? grades.reduce((acc, g) => acc + g.score, 0) / grades.length : 70;
-  const weakSubjects = grades.filter((g) => g.score < 75).map((g) => g.subjectName);
-  const strongSubjects = grades.filter((g) => g.score >= 85).map((g) => g.subjectName);
+  const safeGrades = Array.isArray(grades) ? grades : [];
+  const safeGoals = Array.isArray(goals) ? goals : [];
+  const normKey = (s: unknown): string => String(s ?? '').replace(/\s+/g, '').toLowerCase();
+  const validGrades = safeGrades.filter(g => g && Number.isFinite(Number((g as any).score)));
+  const scores = validGrades.map(g => Number((g as any).score)).filter(n => Number.isFinite(n));
+
+  // 성적 및 목표 분석 (손상 점수 제외, 빈 입력 폴백 70점 유지)
+  const avgScore = scores.length > 0 ? scores.reduce((acc, n) => acc + n, 0) / scores.length : 70;
+  const weakSubjects = validGrades.filter((g) => Number((g as any).score) < 75).map((g) => (g as any).subjectName).filter(Boolean);
+  const strongSubjects = validGrades.filter((g) => Number((g as any).score) >= 85).map((g) => (g as any).subjectName).filter(Boolean);
+
+  const findMatchingGrade = (goalSubject: unknown) => {
+    const gk = normKey(goalSubject);
+    if (!gk) return undefined;
+    // 1) 정확 일치 (기존 동작 유지)
+    const exact = validGrades.find((g) => (g as any).subjectName === goalSubject || (g as any).category === goalSubject);
+    if (exact) return exact;
+    // 2) 정규화/부분 일치 (ID↔한글명↔카테고리 혼용 흡수)
+    return validGrades.find((g) => {
+      const nk = normKey((g as any).subjectName);
+      const ck = normKey((g as any).category);
+      return (nk && (nk === gk || nk.includes(gk) || gk.includes(nk))) ||
+        (ck && (ck === gk || ck.includes(gk) || gk.includes(ck)));
+    });
+  };
 
   // 목표 대비 Gap 분석
   const gapAnalysis: string[] = [];
-  goals.forEach((goal) => {
-    const matchingGrade = grades.find((g) => g.subjectName === goal.subject || g.category === goal.subject);
+  safeGoals.forEach((goal) => {
+    if (!goal || (goal as any).subject == null) return;
+    const targetScore = Number((goal as any).targetScore);
+    if (!Number.isFinite(targetScore)) return;
+    const matchingGrade = findMatchingGrade((goal as any).subject);
     if (matchingGrade) {
-      const gap = goal.targetScore - matchingGrade.score;
+      const currentScore = Number((matchingGrade as any).score);
+      const gap = targetScore - currentScore;
       if (gap > 0) {
-        gapAnalysis.push(`${goal.subject} (현재 ${matchingGrade.score}점 → 목표 ${goal.targetScore}점, +${gap}점 보완 필요)`);
+        gapAnalysis.push(`${(goal as any).subject} (현재 ${currentScore}점 → 목표 ${targetScore}점, +${gap}점 보완 필요)`);
       } else {
-        gapAnalysis.push(`${goal.subject} (현재 ${matchingGrade.score}점, 목표 달성 안정권)`);
+        gapAnalysis.push(`${(goal as any).subject} (현재 ${currentScore}점, 목표 달성 안정권)`);
       }
     }
   });
@@ -113,6 +133,9 @@ export function generateRuleBasedStudyPlan(
 
   // 약점 및 병목 요인 (Care Type 연계)
   const weaknesses: string[] = [];
+  if (validGrades.length === 0) {
+    weaknesses.push(`등록된 성적 기록이 없어 목표 Gap 분석을 건너뜁니다. 성적 입력 후 더 정밀한 플랜이 생성됩니다.`);
+  }
   if (weakSubjects.length > 0) {
     weaknesses.push(`${weakSubjects.join(", ")} 과목의 개념 미흡 및 문제 적용 훈련 부족으로 성적 편차가 발생하고 있습니다.`);
   }
@@ -127,7 +150,7 @@ export function generateRuleBasedStudyPlan(
     weakSubjects.length > 0
       ? `[취약 과목 집중] ${weakSubjects[0]} 과목은 골든타임(집중도가 가장 높은 시간)에 매일 45분씩 개념 복습 및 오답 분석 진행`
       : `[심화 도약] 핵심 과목 기출 고난도 문항 매일 3문제 분석 풀이`,
-    `[목표 실행] ${goals.length > 0 ? goals[0].subject : "주요 과목"} 목표 달성을 위한 주간 단위 실천 점검표 작성`,
+    `[목표 실행] ${safeGoals.length > 0 ? (safeGoals[0] as any).subject : "주요 과목"} 목표 달성을 위한 주간 단위 실천 점검표 작성`,
     `[메타인지 루틴] 공부 종료 10분 전 '백지 복습법'으로 오늘 학습한 핵심 공식 및 단어 3가지 인출 확인`,
   ];
 
@@ -145,73 +168,45 @@ export function generateRuleBasedStudyPlan(
   };
 }
 
-// 3. Gemini AI 기반 심층 플랜 생성기 (확장용, API Key 및 쿼터 연동)
+// 3. Gemini AI 기반 심층 플랜 생성기 (서버 프록시 경유, 실패 시 규칙기반 폴백)
 export async function generateGeminiStudyPlan(
   studentName: string,
   gradeLevel: string,
   studentLevel: "middle" | "high",
   grades: Array<{ subjectName: string; category: string; score: number; grade?: string; unit?: number }>,
   goals: Array<{ subject: string; targetScore: number; targetGrade: string; memo?: string }>,
-  careTypeCode: string = "BRAIN_FATIGUE"
+  careTypeCode: string = "BRAIN_FATIGUE",
+  options?: { wrongNotesCount?: number }
 ): Promise<AIPlanResult> {
-  const careDetail = getCareTypeDetail(careTypeCode);
-  const apiKey = process.env.GEMINI_API_KEY || (typeof window !== "undefined" ? (window as any).__GEMINI_API_KEY__ : "");
-
-  if (!apiKey) {
-    // API Key가 없을 경우 로직 엔진으로 안전하게 자동 전환 (Fallback)
-    return generateRuleBasedStudyPlan(studentName, gradeLevel, grades, goals, careTypeCode);
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-
-  const prompt = `
-당신은 대한민국 최고 수준의 입시 학습 컨설턴트이자 두뇌 자율신경 컨디셔닝 전문가입니다.
-아래 학생의 성적 데이터, 설정 목표, 그리고 12대 Care Type(신체/뇌파/피로 상태)을 종합 분석하여 맞춤형 주간 학습 플랜을 JSON 형식으로 작성해주세요.
-
-[학생 정보]
-- 학생 이름: ${studentName} (${gradeLevel}, ${studentLevel === "middle" ? "중등" : "고등"})
-- 등록된 과목 및 성적 데이터: ${JSON.stringify(grades)}
-- 설정한 목표: ${JSON.stringify(goals)}
-- 현재 Care Type (두뇌/신체 상태): ${careDetail.emoji} ${careDetail.title} (${careDetail.subtitle})
-- 생리적 특징 및 학업 영향: ${careDetail.physiology} / ${careDetail.studyImpact}
-- 맞춤 임상 처방: ${careDetail.prescription}
-
-반드시 아래 JSON 형식으로만 응답해주세요:
-{
-  "overallSummary": "성적과 Care Type을 연계한 종합 분석 총평 (3~4문장, 따뜻하고 전문적인 격려)",
-  "strengths": ["강점 1", "강점 2"],
-  "weaknesses": ["약점 및 Care Type 연계 병목 요인 1", "약점 2"],
-  "actionPlan": ["이번 주 실천 과제 1", "실천 과제 2", "실천 과제 3", "실천 과제 4"],
-  "recommendedStrategy": "핵심 성공 전략 1문장"
-}
-`;
-
+  // 보안: 클라이언트 번들에 비밀키를 굽지 않음. 서버 /api/ai/study-plan 경유만 허용.
+  // 직접 키 호출 제거 → 프록시 실패 시 규칙기반으로 폴백 (UI 동일)
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.7,
-      },
+    const res = await fetch('/api/ai/study-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentLevel,
+        schoolYear: gradeLevel,
+        subjects: grades,
+        goals,
+        wrongNotesCount: options?.wrongNotesCount,
+        careDetail: getCareTypeDetail(careTypeCode),
+      }),
     });
-
-    const text = response.text || "{}";
-    const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-
-    return {
-      overallSummary: parsed.overallSummary || "",
-      strengths: parsed.strengths || ["성실한 학습 태도와 목표 지향성"],
-      weaknesses: parsed.weaknesses || ["취약 과목 집중 보완 필요"],
-      actionPlan: parsed.actionPlan || ["일일 플래너 작성 및 복습 실천"],
-      recommendedStrategy: parsed.recommendedStrategy || "꾸준한 루틴 유지가 핵심입니다.",
-      generatedBy: "gemini_ai",
-      generatedAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error("Gemini Plan Generation Error:", error);
-    // 에러 발생 시 로직 엔진 플랜 반환
-    return generateRuleBasedStudyPlan(studentName, gradeLevel, grades, goals, careTypeCode);
-  }
+    if (res.ok) {
+      const data = await res.json();
+      if (data && !data.error && data.overallSummary) {
+        return {
+          overallSummary: data.overallSummary || '',
+          strengths: data.strengths || [],
+          weaknesses: data.weaknesses || [],
+          actionPlan: data.actionPlan || [],
+          recommendedStrategy: data.recommendedStrategy || '',
+          generatedBy: 'gemini_ai',
+          generatedAt: new Date().toISOString(),
+        };
+      }
+    }
+  } catch { /* 프록시 미설정 시 폴백 */ }
+  return generateRuleBasedStudyPlan(studentName, gradeLevel, grades, goals, careTypeCode);
 }

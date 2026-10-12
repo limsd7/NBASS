@@ -18,6 +18,7 @@ import { TrendService, ComprehensiveTrendData } from '../services/trendEngine';
 import { SummaryView, CognitiveView, SurveyView, AcademicView, PastPrescriptionsView } from './HistoryCharts';
 import { MedicalReport } from './reports/MedicalReport';
 import { MembershipTier } from '../utils/featureGate';
+import { GrowthTimelineView } from './progress/GrowthTimelineView';
 
 export { ProgressView } from './ProgressView';
 
@@ -169,7 +170,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-300 to-indigo-300">2~4주 정기 성장 추적</span>으로 점수를 완성합니다."
                         </h3>
                         <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                            수험생의 자율신경 및 인지 집중도는 맞춤 솔루션 실천 시 <strong>2~4주 만에 유의미한 생체 변화</strong>가 일어납니다. 정기적인 재검진을 통해 불안 완화도, 스트레스 회복탄력성, 작업기억력 향상 수치를 직접 확인하고 최신 맞춤 전략으로 업데이트하세요.
+                            수험생의 자율신경 및 인지 집중도는 맞춤 솔루션을 꾸준히 실천하면 점진적으로 안정되는 경향이 있습니다. 정기적인 재검진을 통해 컨디션 변화를 확인하고 최신 맞춤 전략으로 업데이트하세요.
                         </p>
                     </div>
 
@@ -205,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="mt-8 pt-6 border-t border-indigo-500/25 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2 text-xs text-indigo-200">
                         <span className="text-base">💡</span>
-                        <span>정기 케어 패스를 이용 시 <strong>학습 몰입도 최대 3.2배 향상</strong> 및 시험 불안 42% 감소 효과</span>
+                        <span>정기 케어 패스를 꾸준히 이용하면 <strong>학습 몰입 유지와 시험 불안 완화</strong>에 도움이 될 수 있습니다</span>
                     </div>
                     <button
                         onClick={onStartClick}
@@ -363,7 +364,7 @@ export const HistoryView: React.FC<{
     const [showImportModal, setShowImportModal] = React.useState(false);
     const [importFile, setImportFile] = React.useState<File | null>(null);
     const [importMode, setImportMode] = React.useState<'merge' | 'replace'>('merge');
-    const [activeTrendTab, setActiveTrendTab] = React.useState<'summary' | 'cognitive' | 'survey' | 'academic' | 'records'>('summary');
+    const [activeTrendTab, setActiveTrendTab] = React.useState<'summary' | 'growth_timeline' | 'cognitive' | 'survey' | 'academic' | 'records'>('summary');
     const [trendData, setTrendData] = React.useState<ComprehensiveTrendData | null>(null);
     const [loadingTrend, setLoadingTrend] = React.useState(false);
     const [previewPrintRecord, setPreviewPrintRecord] = React.useState<AssessmentResult | null>(null);
@@ -382,9 +383,15 @@ export const HistoryView: React.FC<{
         );
 
         const printStyle = `
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto+Mono&display=swap');
             @page { size: A4; margin: 0; }
-            body { margin: 0; padding: 20px 0; background: #f1f5f9; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Noto Sans KR', sans-serif; }
+            body { 
+                margin: 0; 
+                padding: 20px 0; 
+                background: #f1f5f9; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif !important; 
+            }
             .no-print { display: none !important; }
             @media print {
                 body { background: white; padding: 0; }
@@ -405,14 +412,12 @@ export const HistoryView: React.FC<{
             }
         `;
 
-        const tailwindStyles = Array.from(document.styleSheets)
-            .map(styleSheet => {
-                try {
-                    return Array.from(styleSheet.cssRules).map(rule => rule.cssText).join('');
-                } catch (e) {
-                    return '';
-                }
-            }).join('');
+        let cleanReportHtml = reportHtml.replace(/@import\s+url\([^)]+\);?/gi, '');
+
+        // 1. Gather ONLY compiled inline <style> elements from current document (0 network requests, instantly ready from memory)
+        const headStyles = Array.from(document.querySelectorAll('head style'))
+            .map(el => el.outerHTML)
+            .join('\n');
 
         const printWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
         if (printWindow) {
@@ -420,10 +425,12 @@ export const HistoryView: React.FC<{
         <!DOCTYPE html>
         <html lang="ko">
           <head>
+            <meta charset="utf-8" />
+            <base href="${window.location.origin}/" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>NBASS 정밀 진단 보고서 : 등급표시 - ${record.student?.name || '학생'}</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            ${headStyles}
             <style>
-              ${tailwindStyles}
               ${printStyle}
             </style>
           </head>
@@ -442,8 +449,25 @@ export const HistoryView: React.FC<{
                 </button>
             </div>
             <div id="print-root" style="display: flex; justify-content: center;">
-              ${reportHtml}
+              ${cleanReportHtml}
             </div>
+            <script>
+              var printed = false;
+              function triggerPrint() {
+                if (printed) return;
+                printed = true;
+                setTimeout(function() {
+                  window.print();
+                }, 50);
+              }
+
+              if (document.readyState === 'complete') {
+                triggerPrint();
+              } else {
+                window.addEventListener('load', triggerPrint);
+                setTimeout(triggerPrint, 250);
+              }
+            </script>
           </body>
         </html>
       `);
@@ -632,6 +656,7 @@ export const HistoryView: React.FC<{
                 <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-700 px-3 sm:px-6 bg-slate-50/50 dark:bg-slate-900/40 scrollbar-thin">
                     {[
                         { id: 'summary', label: '🌟 종합 성장' },
+                        { id: 'growth_timeline', label: '🌱 성장 타임라인' },
                         { id: 'cognitive', label: '🧠 인지·두뇌' },
                         { id: 'survey', label: '📝 심리·기질' },
                         { id: 'academic', label: '📚 학업·순공' },
@@ -655,6 +680,15 @@ export const HistoryView: React.FC<{
                     {loadingTrend ? (
                         <div className="py-20 flex items-center justify-center">
                             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                        </div>
+                    ) : activeTrendTab === 'growth_timeline' ? (
+                        <div className="animate-in fade-in duration-300">
+                            <GrowthTimelineView
+                                history={filteredHistory}
+                                studentName={activeTargetStudent?.name}
+                                birthDate={activeTargetStudent?.birthDate}
+                                studentId={activeTargetStudent?.id}
+                            />
                         </div>
                     ) : activeTrendTab === 'records' ? (
                         /* 일자별 검사 목록 (동일 날짜는 시간 제외 1개로 통합) */

@@ -10,31 +10,91 @@ interface ActionPlanCalendarProps {
 
 export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulationResults, student }) => {
     const days = ['월', '화', '수', '목', '금', '토', '일'];
-    
+
     // Use all subjects from simulation results
     const targetSubjects = [...simulationResults];
-    
-    // Initialize gamification state
-    const [gamification, setGamification] = useState(student.gamification || {
-        exp: 0,
-        level: 1,
-        streak: 0,
-        completedTasks: []
+
+    // 주차 키 (주간 리셋용)
+    const weekKeyOf = (d: Date): string => {
+        const y = d.getFullYear();
+        const oneJan = new Date(y, 0, 1);
+        const week = Math.ceil((((d.getTime() - oneJan.getTime()) / 86400000) + oneJan.getDay() + 1) / 7);
+        return `${y}-W${String(week).padStart(2, '0')}`;
+    };
+    const [weekKey] = useState(() => weekKeyOf(new Date()));
+    // 태스크 키에 학생+주차 포함 (학생 전환·주차 변경 시 체크 공유 방지)
+    const taskKey = (...parts: string[]): string => ['task', student.id, weekKey, ...parts].join('-');
+    const isCurrentKey = (key: string): boolean => key.startsWith(`task-${student.id}-${weekKey}-`);
+
+    // Initialize gamification state (해당 학생·해당 주차의 완료분만 유지)
+    interface CalendarGamification {
+        exp: number;
+        level: number;
+        streak: number;
+        lastCompletedDate?: string;
+        completedTasks: string[];
+        taskLog?: Record<string, { done: boolean; at: string }>;
+    }
+    const initGamification = (g: any): CalendarGamification => ({
+        exp: typeof g?.exp === 'number' ? g.exp : 0,
+        level: typeof g?.level === 'number' && g.level >= 1 ? g.level : 1,
+        streak: typeof g?.streak === 'number' ? g.streak : 0,
+        lastCompletedDate: g?.lastCompletedDate,
+        completedTasks: Array.isArray(g?.completedTasks)
+            ? g.completedTasks.filter((k: any) => typeof k === 'string' && isCurrentKey(k))
+            : [],
+        taskLog: g?.taskLog && typeof g.taskLog === 'object' ? g.taskLog : undefined
     });
+    const [gamification, setGamification] = useState(() => initGamification(student.gamification));
     
     const EXP_PER_LEVEL = 100;
     const EXP_PER_TASK = 20;
 
     const [showLevelUp, setShowLevelUp] = useState(false);
 
-    // Save changes to DB whenever gamification state changes
+    // Save changes locally + push to server (기기 간 공유, 실패해도 로컬 유지)
     useEffect(() => {
-        // Deep equality check or just debouncing would be better, but since it's a mock we just save it
         if (gamification !== student.gamification) {
             const updatedStudent = { ...student, gamification };
             DatabaseService.updateStudent(updatedStudent).catch(console.error);
+            DatabaseService.saveGamificationProgress(student.id, weekKey, {
+                completedTasks: gamification.completedTasks,
+                exp: gamification.exp,
+                level: gamification.level,
+                streak: gamification.streak,
+                lastCompletedDate: gamification.lastCompletedDate,
+                taskLog: gamification.taskLog
+            }).catch(() => {});
         }
     }, [gamification, student]);
+
+    // Realtime 구독: 다른 기기 변경을 즉시 반영 (미구성 시 no-op)
+    useEffect(() => {
+        const unsubscribe = DatabaseService.subscribeGamificationProgress(student.id, weekKey, remote => {
+            setGamification(prev => DatabaseService.mergeGamificationProgress(prev, remote));
+        });
+        return unsubscribe;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [student.id, weekKey]);
+
+    // 학생 전환 시 해당 학생의 게이미피케이션으로 재초기화 (이전 학생 EXP 공유 방지)
+    useEffect(() => {
+        setGamification(initGamification(student.gamification));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [student.id]);
+
+    // 서버에서 최신 진행을 가져와 병합 (다른 기기 체크 반영)
+    useEffect(() => {
+        let cancelled = false;
+        DatabaseService.getGamificationProgress(student.id, weekKey)
+            .then(remote => {
+                if (cancelled || !remote) return;
+                setGamification(prev => DatabaseService.mergeGamificationProgress(prev, remote));
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [student.id, weekKey]);
 
     const handleTaskToggle = (taskId: string) => {
         setGamification(prev => {
@@ -42,6 +102,10 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
             let newCompletedTasks = [...prev.completedTasks];
             let newExp = prev.exp;
             let newLevel = prev.level;
+
+            // tombstone 기록 (체크/해제 모두 시각과 함께 저장 → 기기 간 최종 액션 승리)
+            const now = new Date().toISOString();
+            const taskLog = { ...(prev.taskLog || {}), [taskId]: { done: !isCompleted, at: now } };
             
             if (isCompleted) {
                 newCompletedTasks = newCompletedTasks.filter(id => id !== taskId);
@@ -61,7 +125,7 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                 }
             }
             
-            // Simple streak logic for demo: if you complete tasks today, streak = 1 or more
+            // Streak logic: completing tasks on a new day increments the streak
             const today = new Date().toISOString().split('T')[0];
             let newStreak = prev.streak;
             let lastCompletedDate = prev.lastCompletedDate;
@@ -79,13 +143,19 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                 level: newLevel,
                 streak: newStreak,
                 completedTasks: newCompletedTasks,
-                lastCompletedDate
+                lastCompletedDate,
+                taskLog
             };
         });
     };
 
     const currentLevelExp = gamification.exp % EXP_PER_LEVEL;
     const progressPercent = (currentLevelExp / EXP_PER_LEVEL) * 100;
+
+    // 시뮬레이션 평균 달성 확률 (실측치, fabricated 수치 사용 금지)
+    const avgProbability = targetSubjects.length > 0
+        ? Math.round(targetSubjects.reduce((sum, s) => sum + (typeof s.probability === 'number' ? s.probability : 0), 0) / targetSubjects.length)
+        : null;
     
     const handlePrint = () => {
         const printContent = document.getElementById('print-action-plan');
@@ -116,10 +186,10 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                 `;
             }).join('');
             
-            // Random-ish completion rate for graph
-            const rate = isWeekend ? 90 : 75 + (index * 2);
+            // 달성률: 시뮬레이션 평균 달성 확률(실측) 사용, 없으면 표시 생략
+            const rate = avgProbability;
             const circleCircumference = 527.7; // 2 * pi * 84
-            const offset = circleCircumference * ((100 - rate) / 100);
+            const offset = rate === null ? circleCircumference : circleCircumference * ((100 - rate) / 100);
             
             return `
                 <div class="page-break w-full min-h-[1000px] flex flex-col p-10 bg-white border border-slate-200 shadow-xl rounded-xl mb-10 relative">
@@ -167,26 +237,28 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                                         <circle cx="96" cy="96" r="84" stroke="#e2e8f0" stroke-width="16" fill="none" />
                                         <circle cx="96" cy="96" r="84" stroke="#3b82f6" stroke-width="16" fill="none" stroke-dasharray="${circleCircumference}" stroke-dashoffset="${offset}" stroke-linecap="round" />
                                     </svg>
-                                    <div class="text-5xl font-black text-blue-600">${rate}%</div>
+                                    <div class="text-5xl font-black text-blue-600">${rate === null ? '—' : `${rate}%`}</div>
                                 </div>
-                                <div class="font-bold text-blue-600 text-lg mb-1">${rate >= 80 ? 'OPTIMAL' : 'GOOD'}</div>
-                                <div class="text-sm text-slate-400 text-center mt-2">오늘 할당된 과제를 모두 완수했을 때<br/>예상되는 일일 성장률입니다.</div>
+                                <div class="font-bold text-blue-600 text-lg mb-1">${rate === null ? 'NO DATA' : rate >= 80 ? 'OPTIMAL' : 'GOOD'}</div>
+                                <div class="text-sm text-slate-400 text-center mt-2">시뮬레이션 평균 달성 확률 기준${rate === null ? ' (시뮬레이션 없음)' : ''}입니다.</div>
                             </div>
 
                             <div class="bg-slate-800 text-white p-6 rounded-xl">
                                 <div class="font-bold text-slate-300 mb-4 tracking-widest uppercase text-sm">과목별 배분 밸런스</div>
                                 <div class="space-y-4">
-                                    ${targetSubjects.slice(0, 4).map((sub, i) => `
+                                    ${targetSubjects.slice(0, 4).map((sub, i) => {
+                                        const prob = typeof sub.probability === 'number' ? sub.probability : 0;
+                                        return `
                                         <div>
                                             <div class="flex justify-between text-sm mb-1">
                                                 <span>${sub.subjectName}</span>
-                                                <span class="text-blue-300">${25 + (i * 5)}%</span>
+                                                <span class="text-blue-300">${prob}%</span>
                                             </div>
                                             <div class="w-full bg-slate-700 h-2 rounded-full">
-                                                <div class="bg-blue-400 h-full rounded-full" style="width: ${25 + (i * 5)}%"></div>
+                                                <div class="bg-blue-400 h-full rounded-full" style="width: ${prob}%"></div>
                                             </div>
                                         </div>
-                                    `).join('')}
+                                    `;}).join('')}
                                 </div>
                             </div>
                         </div>
@@ -265,14 +337,14 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                                     <div class="flex flex-col items-center justify-center border-r border-slate-100">
                                         <div class="text-xs font-bold text-slate-500 mb-4 tracking-widest uppercase">예측 달성도 (CONFIDENCE)</div>
                                         <div class="relative w-32 h-32 flex items-center justify-center mb-2">
-                                            <!-- SVG Ring (85%) -->
+                                            <!-- SVG Ring (시뮬레이션 평균 달성 확률) -->
                                             <svg class="absolute inset-0 w-full h-full transform -rotate-90">
                                                 <circle cx="64" cy="64" r="56" stroke="#f1f5f9" stroke-width="12" fill="none" />
-                                                <circle cx="64" cy="64" r="56" stroke="#ef4444" stroke-width="12" fill="none" stroke-dasharray="351.8" stroke-dashoffset="52.7" stroke-linecap="round" />
+                                                <circle cx="64" cy="64" r="56" stroke="#ef4444" stroke-width="12" fill="none" stroke-dasharray="351.8" stroke-dashoffset="${avgProbability === null ? 351.8 : (351.8 * ((100 - avgProbability) / 100)).toFixed(1)}" stroke-linecap="round" />
                                             </svg>
-                                            <div class="text-3xl font-black text-red-500">85%</div>
+                                            <div class="text-3xl font-black text-red-500">${avgProbability === null ? '—' : `${avgProbability}%`}</div>
                                         </div>
-                                        <div class="font-bold text-red-500 mb-1">EXCELLENT</div>
+                                        <div class="font-bold text-red-500 mb-1">${avgProbability === null ? 'NO DATA' : avgProbability >= 80 ? 'EXCELLENT' : avgProbability >= 60 ? 'STABLE' : 'BUILDING'}</div>
                                         <div class="text-xs text-slate-400">시뮬레이션 통합 검증</div>
                                     </div>
                                     
@@ -376,7 +448,7 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                     const isWeekend = day === '토' || day === '일';
                     
                     // Task 2 Content: general habit
-                    const generalHabitId = `task-${day}-habit`;
+                    const generalHabitId = taskKey(day, 'habit');
                     const generalHabitContent = index % 2 === 0 ? '영단어 50개 암기' : '수능 기출 1회 풀기 (공통)';
                     const isHabitDone = gamification.completedTasks.includes(generalHabitId);
                     
@@ -391,7 +463,7 @@ export const ActionPlanCalendar: React.FC<ActionPlanCalendarProps> = ({ simulati
                             <div className="flex-1 flex flex-col gap-3">
                                 {/* Map all subjects to daily tasks */}
                                 {targetSubjects.map((subject, sIndex) => {
-                                    const taskId = `task-${day}-${subject.subjectId}`;
+                                    const taskId = taskKey(day, subject.subjectId);
                                     const isTaskDone = gamification.completedTasks.includes(taskId);
                                     
                                     let taskType = '';

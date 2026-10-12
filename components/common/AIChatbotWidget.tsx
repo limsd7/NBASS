@@ -5,7 +5,7 @@ import { AIModelConfig } from '../../types';
 interface AIChatbotWidgetProps {
     contextData: any;
     aiModels: AIModelConfig | null;
-    membershipTier?: 'free' | 'basic' | 'premium' | 'vip' | 'standard';
+    membershipTier?: 'free' | 'pro' | 'premium' | 'expert';
 }
 
 export const AIChatbotWidget: React.FC<AIChatbotWidgetProps> = ({ contextData, aiModels, membershipTier = 'free' }) => {

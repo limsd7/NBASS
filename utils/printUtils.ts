@@ -6,14 +6,13 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
     return;
   }
 
-  // Gather Styles from current document
+  // Gather ONLY compiled inline <style> elements from current document (0 network requests, instantly ready from memory)
   const styles: string[] = [];
-  document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-    styles.push(link.outerHTML);
-  });
-  document.querySelectorAll('style').forEach(style => {
+  document.querySelectorAll('head style').forEach(style => {
     styles.push(style.outerHTML);
   });
+
+  let cleanContent = content.outerHTML.replace(/@import\s+url\([^)]+\);?/gi, '');
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -21,17 +20,15 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
       <head>
         <title>NBASS 정밀 진단 보고서 : 등급표시 - ${title}</title>
         <meta charset="utf-8" />
+        <base href="${window.location.origin}/" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <script src="https://cdn.tailwindcss.com"></script>
         ${styles.join('\n')}
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap');
-          
           body { 
             background: white !important; 
             margin: 0; 
             padding: 0; 
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif !important;
             color: #0f172a;
           }
           
@@ -76,14 +73,24 @@ const preparePrintWindow = (content: HTMLElement, title: string) => {
       <body>
         <button class="floating-print-btn no-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
         <div class="print-container">
-          ${content.outerHTML}
+          ${cleanContent}
         </div>
         <script>
-           window.onload = () => {
-             setTimeout(() => {
-                window.print();
-             }, 800);
-           };
+          var printed = false;
+          function triggerPrint() {
+            if (printed) return;
+            printed = true;
+            setTimeout(function() {
+              window.print();
+            }, 50);
+          }
+
+          if (document.readyState === 'complete') {
+            triggerPrint();
+          } else {
+            window.addEventListener('load', triggerPrint);
+            setTimeout(triggerPrint, 250);
+          }
         </script>
       </body>
     </html>

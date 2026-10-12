@@ -26,7 +26,7 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({
     const hasHRV = brainBodyState.snsLevel > 0 || brainBodyState.pnsLevel > 0;
 
     // Check if Expert mode / Paid Tier
-    const isExpertOrPaid = isExpertMode || reportMode === 'expert' || membershipTier === 'expert' || membershipTier === 'vip' || membershipTier === 'premium_plus' || membershipTier === 'premium' || membershipTier === 'pro';
+    const isExpertOrPaid = isExpertMode || reportMode === 'expert' || membershipTier === 'expert' || membershipTier === 'premium' || membershipTier === 'pro';
     const isFreeOrSurveyOnly = !isExpertOrPaid && !hasHRV;
 
     // Coherence calculation:
@@ -57,7 +57,7 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({
                     <span className="text-2xl">🧠</span> Brain-Body 통합 진단 리포트
                 </h3>
                 <div className="text-xs font-mono bg-slate-800 px-3 py-1 rounded text-slate-300">
-                    {isExpertOrPaid ? '3-Layer Expert Full Verification' : (isFreeOrSurveyOnly ? '3분 무료체험 (설문 진단 모드)' : '3-Layer Full Verification')}
+                    {isExpertOrPaid ? '3-Layer Expert Full Verification' : (isFreeOrSurveyOnly ? 'FREE 1회 무료 정밀 진단' : '3-Layer Full Verification')}
                 </div>
             </div>
 
@@ -67,9 +67,9 @@ export const BrainBodyDashboard: React.FC<BrainBodyDashboardProps> = ({
                     <span className="text-lg shrink-0">💡</span>
                     <div className="leading-relaxed">
                         <strong className="font-bold text-amber-900 block mb-0.5">
-                            현재 결과는 [3분 무료체험 간이 설문] 기반 진단입니다. (신뢰도 {coherencePercentage}%)
+                            현재 결과는 [FREE 1회 무료 정밀 진단] 기반 분석입니다. (신뢰도 {coherencePercentage}%)
                         </strong>
-                        정밀 종합 검사를 진행하시면 심층 설문과 신경인지·자율신경 정밀 분석을 통해 <b>신뢰도 95% 이상의 정밀 판정</b>과 <b>3가지 다차원 복합 유형 진단</b>을 제공합니다. (무료체험: 1가지 핵심 집중 진단)
+                        정기결제(첫 달 14,900원)로 전환하시면 <b>14P 심층 리포트북</b>과 <b>3가지 다차원 복합 유형 진단</b>, <b>4대 과목별 뇌인지 처방전</b>이 즉시 잠금 해제됩니다. (무료: 1차 핵심 진단 제공)
                     </div>
                 </div>
             )}

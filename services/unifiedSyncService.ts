@@ -5,24 +5,21 @@
  * - IndexedDB가 있으면 그것을 우선하고, 없으면 localStorage로 폴백합니다.
  */
 import { DatabaseService } from './database';
+import { mergeGamificationProgress as mergeGamificationProgressFn } from './database';
+import { mergeHabitProgress as mergeHabitProgressFn } from './database';
 import { safeStorage } from '../utils/safeStorage';
+import { HISTORY_MIRROR_MAX, storageKeys } from '../utils/storageKeys';
 
 const KEYS = {
-    schedules: (studentId: string) => `nbass_schedules_${studentId}`,
-    grades: (studentId: string) => `nbass_grades_${studentId}`,
-    wrongNotes: 'nbass_wrong_notes',
-    sleepLogs: (studentId: string) => `nbass_sleep_logs_${studentId}`,
-    history: 'sn1_history',
+    schedules: (studentId: string) => storageKeys.schedules(studentId),
+    grades: (studentId: string) => storageKeys.grades(studentId),
+    wrongNotes: storageKeys.wrongNotesLegacy,
+    sleepLogs: (studentId: string) => storageKeys.sleepLogs(studentId),
+    history: storageKeys.history,
 };
 
 const readJSON = <T>(key: string, fallback: T): T => {
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
-    }
+    return safeStorage.getJSON<T>(key, fallback);
 };
 
 // 단일 저장소(localStorage)에 1회만 기록합니다.
@@ -50,10 +47,16 @@ export const unifiedSyncService = {
         if (!studentId) return;
         writeJSON(KEYS.grades(studentId), items);
     },
-    getWrongNotes<T>(fallback: T[] = [] as unknown as T[]): T[] {
+    getWrongNotes<T>(fallback: T[] = [] as unknown as T[], studentId?: string): T[] {
+        // 학생별 키 우선, 레거시 전역 키 폴백 (모바일/PC 공유 단절 해소)
+        if (studentId) {
+            const scoped = readJSON<T[]>(storageKeys.wrongNotes(studentId), null as unknown as T[]);
+            if (scoped) return scoped;
+        }
         return readJSON<T[]>(KEYS.wrongNotes, fallback);
     },
-    saveWrongNotes<T>(items: T[]) {
+    saveWrongNotes<T>(items: T[], studentId?: string) {
+        if (studentId) writeJSON(storageKeys.wrongNotes(studentId), items);
         writeJSON(KEYS.wrongNotes, items);
     },
     getSleepLogs<T>(studentId: string, fallback: T[] = [] as unknown as T[]): T[] {
@@ -92,12 +95,30 @@ export const unifiedSyncService = {
             await DatabaseService.addHistory(item as never);
         } catch { /* ignore */ }
         const prev = readJSON<unknown[]>(KEYS.history, []);
-        writeJSON(KEYS.history, [item, ...prev].slice(0, 50));
+        writeJSON(KEYS.history, [item, ...prev].slice(0, HISTORY_MIRROR_MAX));
     },
     async autoSync() {
         try {
             await DatabaseService.autoSyncAllToSupabase().catch(() => undefined);
         } catch { /* ignore */ }
+    },
+    /** Supabase → 로컬 Pull (누락분 병합, Realtime 초기 동기화용) */
+    async pullFromSupabase() {
+        try {
+            const { pullSupabaseToLocal } = await import('./supabaseRealtimeSync');
+            return await pullSupabaseToLocal();
+        } catch {
+            return { pulled: 0, perTable: {} };
+        }
+    },
+    /** 로컬 → Supabase Push (미동기화분 일괄 업로드) */
+    async pushToSupabase() {
+        try {
+            const { pushLocalToSupabase } = await import('./supabaseRealtimeSync');
+            return await pushLocalToSupabase();
+        } catch {
+            return { pushed: 0 };
+        }
     },
     // 수면 패스스루 (단일 호출점 유지, 내부는 정식 저장소 위임)
     async getSleepRecords(studentId: string) {
@@ -149,8 +170,59 @@ export const unifiedSyncService = {
     async updateHistory(record: unknown) {
         return DatabaseService.updateHistory(record as never);
     },
+    // 게이미피케이션 진행 상태 (기기 간 공유: 서버 우선, 로컬 미러 폴백)
+    async getGamificationProgress(studentId: string, weekKey: string) {
+        return DatabaseService.getGamificationProgress(studentId, weekKey);
+    },
+    async saveGamificationProgress(
+        studentId: string,
+        weekKey: string,
+        progress: { completedTasks: string[]; exp: number; level: number; streak: number; lastCompletedDate?: string; taskLog?: Record<string, { done: boolean; at: string }> }
+    ) {
+        return DatabaseService.saveGamificationProgress(studentId, weekKey, progress);
+    },
+    mergeGamificationProgress(
+        local: { completedTasks?: string[]; exp?: number; level?: number; streak?: number; lastCompletedDate?: string; taskLog?: Record<string, { done: boolean; at: string }> } | null | undefined,
+        remote: { completedTasks?: string[]; exp?: number; level?: number; streak?: number; lastCompletedDate?: string; taskLog?: Record<string, { done: boolean; at: string }> } | null | undefined
+    ) {
+        return mergeGamificationProgressFn(local, remote);
+    },
+    // Realtime 구독: 같은 학생·주차의 원격 변경을 즉시 수신 (없으면 빈 해제 함수)
+    subscribeGamificationProgress(
+        studentId: string,
+        weekKey: string,
+        onRemote: (remote: {
+            completedTasks: string[];
+            exp: number;
+            level: number;
+            streak: number;
+            lastCompletedDate?: string;
+            taskLog?: Record<string, { done: boolean; at: string }>;
+            updatedAt?: string;
+        }) => void
+    ): () => void {
+        return DatabaseService.subscribeGamificationProgress(studentId, weekKey, onRemote);
+    },
+    // Habit 진행 상태 (기기 간 공유: 서버 우선, 로컬 미러 폴백, 필드별 LWW)
+    // - 진입 시 pull + 변경 시 push (Realtime 제외: Habit 화면 동시 사용 빈도 낮음)
+    async getHabitProgress(studentId: string) {
+        return DatabaseService.getHabitProgress(studentId);
+    },
+    async saveHabitProgress(
+        studentId: string,
+        fields: Record<string, { v: unknown; at: string }>
+    ) {
+        return DatabaseService.saveHabitProgress(studentId, fields);
+    },
+    mergeHabitProgress(
+        local: Record<string, { v: unknown; at: string }> | null | undefined,
+        remote: Record<string, { v: unknown; at: string }> | null | undefined
+    ) {
+        return mergeHabitProgressFn(local, remote);
+    },
 };
 
 export default unifiedSyncService;
-export type { HistoryRecord, ConsultationHistory, RoutineTracking } from './database';
+export type { HistoryRecord, ConsultationHistory, RoutineTracking, GamificationProgress, HabitFieldMap, HabitFieldValue } from './database';
+export { mergeGamificationProgress, mergeHabitProgress } from './database';
 export { db } from './database';

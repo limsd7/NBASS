@@ -258,6 +258,11 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
     const [atCurrentStimulus, setAtCurrentStimulus] = useState<'go' | 'nogo' | null>(null);
     const [atStimulusStartTime, setAtStimulusStartTime] = useState(0);
     const [atReactionTimes, setAtReactionTimes] = useState<number[]>([]);
+    // 2분 제한 타이머 (표시 + 시간 만료 시 자동 종료)
+    const ATTENTION_TIME_LIMIT_SEC = 120;
+    const [atTimeLeft, setAtTimeLeft] = useState<number>(ATTENTION_TIME_LIMIT_SEC);
+    const atTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const finishAttentionRef = useRef<() => void>(() => { /* latest finishAttention으로 매 렌더 교체 */ });
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -769,11 +774,16 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
     const startAttention = () => {
         clearAtTimeouts();
+        if (atTimerRef.current) {
+            clearTimeout(atTimerRef.current);
+            atTimerRef.current = null;
+        }
         setAtPhase('test');
         setAtTrial(0);
         setAtScore({ correct: 0, commission: 0, omission: 0 });
         setAtReactionTimes([]);
         setAtFeedbackText(null);
+        setAtTimeLeft(ATTENTION_TIME_LIMIT_SEC);
         scheduleAttentionStimulus(0);
     };
 
@@ -843,6 +853,10 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
 
     const finishAttention = () => {
         clearAtTimeouts();
+        if (atTimerRef.current) {
+            clearTimeout(atTimerRef.current);
+            atTimerRef.current = null;
+        }
         const total = Math.max(atTrial + 1, ATTENTION_TEST_CONFIG.totalTrials);
         const noGoCount = Math.round(total * ATTENTION_TEST_CONFIG.noGoProbability);
         const correctRejection = Math.max(0, noGoCount - atScore.commission);
@@ -867,6 +881,29 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
         setCompletedTests(prev => new Set([...prev, 'attention']));
         setAtPhase('complete');
     };
+
+    // 최신 finishAttention을 항상 가리킴 (타이머 만료 시 stale 상태 방지)
+    useEffect(() => {
+        finishAttentionRef.current = finishAttention;
+    });
+
+    // 2분 카운트다운: 표시 갱신 + 만료 시 현재까지 기록으로 자동 종료
+    useEffect(() => {
+        if (atPhase !== 'test') return;
+        setAtTimeLeft(ATTENTION_TIME_LIMIT_SEC);
+        const tick = setInterval(() => {
+            setAtTimeLeft(prev => (prev <= 1 ? 0 : prev - 1));
+        }, 1000);
+        const killer = setTimeout(() => {
+            finishAttentionRef.current();
+        }, ATTENTION_TIME_LIMIT_SEC * 1000);
+        atTimerRef.current = killer;
+        return () => {
+            clearInterval(tick);
+            clearTimeout(killer);
+            if (atTimerRef.current === killer) atTimerRef.current = null;
+        };
+    }, [atPhase]);
 
     // ========== 전체 완료 ==========
     const handleFinish = () => {
@@ -1853,8 +1890,15 @@ export const CognitivePerformanceAssessment: React.FC<CognitivePerformanceAssess
             >
                 {/* 상단 진행 상태 및 조기 종료 버튼 */}
                 <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-10 pointer-events-auto">
-                    <div className="text-white/80 font-mono text-sm bg-black/40 px-4 py-2 rounded-xl border border-white/10">
-                        진행 횟수: <span className="text-emerald-400 font-bold">{Math.min(atTrial + 1, ATTENTION_TEST_CONFIG.totalTrials)}</span> / {ATTENTION_TEST_CONFIG.totalTrials}회
+                    <div className="flex items-center gap-2">
+                        <div className="text-white/80 font-mono text-sm bg-black/40 px-4 py-2 rounded-xl border border-white/10">
+                            진행 횟수: <span className="text-emerald-400 font-bold">{Math.min(atTrial + 1, ATTENTION_TEST_CONFIG.totalTrials)}</span> / {ATTENTION_TEST_CONFIG.totalTrials}회
+                        </div>
+                        <div className="text-white/80 font-mono text-sm bg-black/40 px-4 py-2 rounded-xl border border-white/10">
+                            ⏱️ 남은 시간: <span className={`${atTimeLeft <= 30 ? 'text-rose-400' : 'text-amber-300'} font-bold`}>
+                                {`${Math.floor(atTimeLeft / 60).toString().padStart(2, '0')}:${(atTimeLeft % 60).toString().padStart(2, '0')}`}
+                            </span>
+                        </div>
                     </div>
                     <button
                         type="button"

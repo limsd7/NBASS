@@ -1,4 +1,5 @@
 import React from 'react';
+import { UserTierService } from '../../services/userTierService';
 
 interface StepProgressBarProps {
     currentStep: string;
@@ -7,8 +8,13 @@ interface StepProgressBarProps {
     isBrainBodyMode?: boolean;
     isFreeMode?: boolean;
     is10MinMode?: boolean;
+    isProCompleted?: boolean;
+    onProUpgradePrompt?: () => void;
     onStepClick?: (stepId: any) => void;
     studentInfo?: {
+        id?: string;
+        name?: string;
+        email?: string;
         grade?: string;
         age?: number | string;
         gender?: string;
@@ -30,6 +36,7 @@ const FREE_10MIN_STEPS: Step[] = [
     { id: 'surveys', label: '심리/수면 설문', shortLabel: '1단계 설문' },
     { id: 'protocol', label: '집중력 프로토콜', shortLabel: '2단계 환경' },
     { id: 'study_efficiency', label: '공부 효율성', shortLabel: '3단계 효율' },
+    { id: 'working_memory', label: '뇌 용량 검사', shortLabel: '4단계 뇌용량' },
     { id: 'results', label: '10분 간편 리포트', shortLabel: '요약 리포트' }
 ];
 
@@ -39,12 +46,24 @@ const STANDARD_STEPS: Step[] = [
     { id: 'protocol', label: '학습 환경', shortLabel: '환경' },
     { id: 'analytics', label: '학습 분석', shortLabel: '분석' },
     { id: 'study_efficiency', label: '효율성 검사', shortLabel: '효율성' },
+    { id: 'working_memory', label: '뇌 용량 검사', shortLabel: '뇌용량' },
     { id: 'cognitive_test', label: '인지 테스트', shortLabel: '인지' },
     { id: 'loading', label: '결과 생성', shortLabel: '생성' },
     { id: 'results', label: '종합 결과', shortLabel: '결과' }
 ];
 
 const MEDICAL_STEPS: Step[] = STANDARD_STEPS;
+
+// PRO 회원이 1회 검사를 완료했을 때 클릭할 수 없도록 잠글 단계들
+export const PRO_LOCKED_STEP_IDS = [
+    'surveys',          // 설문
+    'protocol',         // 환경
+    'analytics',        // 분석
+    'study_efficiency', // 효율성
+    'cognitive_test',   // 인지
+    'working_memory',   // 인지(작업기억)
+    'loading'           // 생성
+];
 
 export const StepProgressBar: React.FC<StepProgressBarProps> = ({
     currentStep,
@@ -53,22 +72,50 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
     isBrainBodyMode = false,
     isFreeMode = false,
     is10MinMode = false,
+    isProCompleted,
+    onProUpgradePrompt,
     onStepClick,
     studentInfo,
     bottomContent,
     children
 }) => {
     const is10Min = isFreeMode || is10MinMode;
-    let steps = is10Min ? FREE_10MIN_STEPS : STANDARD_STEPS;
-    steps = steps.filter(s => s.id !== 'hrv' && s.id !== 'eeg' && s.id !== 'bloodtest');
+    const steps = is10Min ? FREE_10MIN_STEPS : STANDARD_STEPS;
 
     const currentIndex = steps.findIndex(s => s.id === currentStep);
+
+    // PRO 기검사자 여부 (prop 우선, 없을 경우 자체 fallback 계산)
+    const isProCompletedEffective = React.useMemo(() => {
+        if (typeof isProCompleted === 'boolean') return isProCompleted;
+        try {
+            const studentObj = studentInfo ? {
+                id: studentInfo.id,
+                name: studentInfo.name,
+                email: studentInfo.email
+            } : undefined;
+            const tier = UserTierService.getEffectiveTier(studentObj);
+            if (tier === 'pro') {
+                return UserTierService.isProAssessmentUsed(studentObj);
+            }
+        } catch {
+            // ignore
+        }
+        return false;
+    }, [isProCompleted, studentInfo]);
 
     if (currentStep === 'admin_expertise' || currentIndex === -1) {
         return null;
     }
 
     const handleStepClick = (stepId: string, index: number) => {
+        // PRO 1회 완료자: 설문/환경/분석/효율성/인지/생성 단계 클릭 차단
+        if (isProCompletedEffective && PRO_LOCKED_STEP_IDS.includes(stepId)) {
+            if (onProUpgradePrompt) {
+                onProUpgradePrompt();
+            }
+            return;
+        }
+
         if (index < currentIndex && onStepClick) {
             onStepClick(stepId);
         }
@@ -77,13 +124,13 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
     const progressPercentage = (currentIndex / Math.max(1, steps.length - 1)) * 100;
 
     return (
-        <div className="w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-16 z-40 px-4 py-3 transition-colors shadow-sm">
+        <div className="w-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-blue-100/60 dark:border-slate-800/80 sticky top-16 z-40 px-4 py-2.5 transition-colors shadow-sm">
             <div className="max-w-[1600px] mx-auto">
                 {/* Mobile Header (visible only on small screens) */}
                 <div className="flex md:hidden items-center justify-between mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+                            <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.6)]"></span>
                             <span className="text-xs font-black text-slate-800 dark:text-slate-100">
                                 뉴로바이오 학습전략시스템
                             </span>
@@ -162,18 +209,24 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
                                 {steps.map((step, index) => {
                                     const isCompleted = index < currentIndex;
                                     const isCurrent = index === currentIndex;
-                                    const isClickable = isCompleted && onStepClick;
+                                    const isLockedForPro = isProCompletedEffective && PRO_LOCKED_STEP_IDS.includes(step.id);
+                                    const isClickable = isCompleted && onStepClick && !isLockedForPro;
 
                                     return (
                                         <div
                                             key={step.id}
-                                            className={`flex flex-col items-center group ${isClickable ? 'cursor-pointer' : ''}`}
+                                            className={`flex flex-col items-center group relative ${
+                                                isClickable ? 'cursor-pointer' : isLockedForPro ? 'cursor-not-allowed' : ''
+                                            }`}
                                             onClick={() => handleStepClick(step.id, index)}
                                         >
                                             <div
                                                 className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black transition-all duration-300 relative
-                                                    ${isCompleted 
+                                                    ${isCompleted && !isLockedForPro
                                                         ? 'bg-indigo-600 text-white shadow-sm hover:scale-110' 
+                                                        : ''}
+                                                    ${isCompleted && isLockedForPro
+                                                        ? 'bg-slate-400 dark:bg-slate-600 text-slate-100 shadow-none opacity-80 cursor-not-allowed'
                                                         : ''}
                                                     ${isCurrent 
                                                         ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-600 dark:border-indigo-400 ring-4 ring-indigo-100 dark:ring-indigo-950/80 shadow-md scale-110' 
@@ -191,9 +244,25 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
                                                     <span>{index + 1}</span>
                                                 )}
 
+                                                {/* PRO 1회 완료로 잠긴 단계 뱃지 */}
+                                                {isLockedForPro && (
+                                                    <span 
+                                                        className="absolute -top-1 -right-1 text-[8px] leading-none bg-amber-400 text-slate-950 px-0.5 py-0.5 rounded-full ring-1 ring-white dark:ring-slate-900 shadow-sm"
+                                                        title="🔒 PRO 1회 검사 완료 - 재검사 불가 (PREMIUM 전용)"
+                                                    >
+                                                        🔒
+                                                    </span>
+                                                )}
+
                                                 {isClickable && (
                                                     <div className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 dark:bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded shadow-md whitespace-nowrap pointer-events-none z-50">
                                                         이 단계로 이동
+                                                    </div>
+                                                )}
+
+                                                {isLockedForPro && (
+                                                    <div className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/95 dark:bg-slate-800/95 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded shadow-lg whitespace-nowrap pointer-events-none z-50">
+                                                        🔒 PRO 1회 완료 (재검사 불가)
                                                     </div>
                                                 )}
                                             </div>
@@ -208,19 +277,21 @@ export const StepProgressBar: React.FC<StepProgressBarProps> = ({
                             {steps.map((step, index) => {
                                 const isCompleted = index < currentIndex;
                                 const isCurrent = index === currentIndex;
-                                const isClickable = isCompleted && onStepClick;
+                                const isLockedForPro = isProCompletedEffective && PRO_LOCKED_STEP_IDS.includes(step.id);
+                                const isClickable = isCompleted && onStepClick && !isLockedForPro;
 
                                 return (
                                     <div
                                         key={step.id}
                                         className={`text-[10px] sm:text-[11px] font-bold text-center w-10 sm:w-14 truncate transition-colors 
                                             ${isClickable ? 'cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400' : ''}
+                                            ${isLockedForPro ? 'cursor-not-allowed opacity-60 text-slate-400 dark:text-slate-500' : ''}
                                             ${isCurrent ? 'text-indigo-600 dark:text-indigo-400 font-black' : ''}
-                                            ${isCompleted ? 'text-slate-600 dark:text-slate-300' : ''}
+                                            ${isCompleted && !isLockedForPro ? 'text-slate-600 dark:text-slate-300' : ''}
                                             ${!isCompleted && !isCurrent ? 'text-slate-400 dark:text-slate-600' : ''}
                                         `}
                                         onClick={() => handleStepClick(step.id, index)}
-                                        title={step.label}
+                                        title={isLockedForPro ? `${step.label} (🔒 PRO 1회 검사 완료 - 재검사 불가)` : step.label}
                                     >
                                         {step.shortLabel}
                                     </div>

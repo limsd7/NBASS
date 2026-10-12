@@ -8,16 +8,23 @@ import {
   RoadmapMilestone 
 } from '../../types';
 import { getCareTypeDetail } from '../../data/careTypesData';
-import { 
-  generateAdaptiveRoadmap, 
-  getStudentRoadmap, 
-  saveStudentRoadmap, 
-  calculateRoadmapProgress 
+import {
+  generateAdaptiveRoadmap,
+  getStudentRoadmap,
+  saveStudentRoadmap,
+  calculateRoadmapProgress,
+  buildRoadmapSnapshot,
+  isRoadmapSnapshotStale,
+  mergeRoadmapProgress
 } from '../../services/neuroRoadmapEngine';
+import { normalizeCareTypeCode } from '../../data/careTypesData';
 
 interface NeuroRoadmapStudioProps {
   student: StudentInfo;
   careTypeCode?: string;
+  carePrimaryScore?: number; // CareType 주분류 점수 (neuro 강도 조절용, 미전달 시 기본)
+  focusSubjectIds?: string[]; // 집중 취약 과목 (시간 가중용, 미전달 시 기본)
+  hasAssessment?: boolean;
   records: GradeRecord[];
   latestGrades: Map<string, number>;
   onOpenLadderModal?: (subjectName: string, unitName: string, weakPriority: number) => void;
@@ -26,6 +33,9 @@ interface NeuroRoadmapStudioProps {
 export const NeuroRoadmapStudio: React.FC<NeuroRoadmapStudioProps> = ({
   student,
   careTypeCode = 'HEALTHY',
+  carePrimaryScore,
+  focusSubjectIds = [],
+  hasAssessment = true,
   records,
   latestGrades,
   onOpenLadderModal
@@ -50,29 +60,47 @@ export const NeuroRoadmapStudio: React.FC<NeuroRoadmapStudioProps> = ({
 
   const currentCare = getCareTypeDetail(careTypeCode);
 
-  // 로드맵 불러오기 또는 AI 자동 생성
+  // 로드맵 불러오기 또는 AI 자동 생성 (입력 변화 시 완료상태 보존 병합 재생성)
+  const gradesKey = `${latestGrades.get('korean') ?? '-'}/${latestGrades.get('math') ?? '-'}/${latestGrades.get('english') ?? '-'}`;
   useEffect(() => {
     loadRoadmap(selectedDuration);
-  }, [student.id, selectedDuration, careTypeCode]);
+  }, [student.id, selectedDuration, careTypeCode, carePrimaryScore, records.length, gradesKey]);
+
+  const buildFresh = (duration: RoadmapDuration) =>
+    generateAdaptiveRoadmap(student, duration, careTypeCode, records, latestGrades, {
+      primaryScore: carePrimaryScore,
+      focusSubjectIds
+    });
 
   const loadRoadmap = (duration: RoadmapDuration) => {
     const existing = getStudentRoadmap(student.id, duration);
+    const snapshot = buildRoadmapSnapshot(normalizeCareTypeCode(careTypeCode), carePrimaryScore, records, latestGrades);
     if (existing && existing.phases && existing.phases.length > 0) {
-      setRoadmap(existing);
+      if (isRoadmapSnapshotStale(existing.inputSnapshot, snapshot)) {
+        // 입력(CareType·성적·기록)이 바뀌면 완료·커스텀을 보존한 채 내용만 갱신
+        const merged = mergeRoadmapProgress(existing, { ...buildFresh(duration), inputSnapshot: snapshot });
+        saveStudentRoadmap(merged);
+        setRoadmap(merged);
+      } else {
+        setRoadmap(existing);
+      }
     } else {
       // AI 자동 생성
-      const initial = generateAdaptiveRoadmap(student, duration, careTypeCode, records, latestGrades);
+      const initial = { ...buildFresh(duration), inputSnapshot: snapshot };
       saveStudentRoadmap(initial);
       setRoadmap(initial);
     }
   };
 
-  // AI 자동 생성 리셋
+  // AI 자동 생성 리셋 (완료 체크·커스텀 마일스톤은 유지하고 내용만 최신화)
   const handleResetToAI = () => {
-    if (confirm('현재 로드맵을 초기화하고 학생의 최신 성적(국·수·영)과 CareType에 맞춘 AI 추천 듀얼트랙 로드맵으로 다시 생성하시겠습니까? (직접 편집한 내용이 리셋됩니다)')) {
-      const generated = generateAdaptiveRoadmap(student, selectedDuration, careTypeCode, records, latestGrades);
-      saveStudentRoadmap(generated);
-      setRoadmap(generated);
+    if (confirm('학생의 최신 성적(국·수·영)과 CareType에 맞춘 AI 추천 듀얼트랙 로드맵으로 다시 생성하시겠습니까? (완료 체크와 직접 추가한 마일스톤은 유지됩니다)')) {
+      const existing = getStudentRoadmap(student.id, selectedDuration);
+      const snapshot = buildRoadmapSnapshot(normalizeCareTypeCode(careTypeCode), carePrimaryScore, records, latestGrades);
+      const fresh = { ...buildFresh(selectedDuration), inputSnapshot: snapshot };
+      const next = existing ? mergeRoadmapProgress(existing, fresh) : fresh;
+      saveStudentRoadmap(next);
+      setRoadmap(next);
     }
   };
 
@@ -255,7 +283,7 @@ export const NeuroRoadmapStudio: React.FC<NeuroRoadmapStudioProps> = ({
               수능 국·수·영 듀얼트랙 로드맵 스튜디오
             </h2>
             <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              {currentCare.title} 연계
+              {hasAssessment ? `${currentCare.title} 연계` : '기본 로드맵'}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -339,7 +367,7 @@ export const NeuroRoadmapStudio: React.FC<NeuroRoadmapStudioProps> = ({
                 </span>
               </div>
               <p className="text-xs text-blue-200 mt-1">
-                신경인지 진단: <b className="text-white">{currentCare.title}</b> · 
+                신경인지 진단: <b className="text-white">{hasAssessment ? currentCare.title : '미실시'}</b> · 
                 전 과목 권고: <b>국어 1교시 멘탈</b> + <b>수학 2교시 계산실수 방지</b> + <b>영어 3교시 식곤증 격파</b>
               </p>
             </div>
@@ -388,7 +416,7 @@ export const NeuroRoadmapStudio: React.FC<NeuroRoadmapStudioProps> = ({
             <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2.5">
               <span className="text-lg">🧠</span>
               <div className="text-xs">
-                <div className="font-bold text-emerald-300">{currentCare.title}</div>
+                <div className="font-bold text-emerald-300">{hasAssessment ? currentCare.title : '기본 케어'}</div>
                 <div className="text-[11px] text-slate-300">케어 트랙 {neuroMilestonesCount}개</div>
               </div>
             </div>

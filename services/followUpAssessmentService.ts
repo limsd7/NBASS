@@ -953,9 +953,9 @@ export class FollowUpAssessmentService {
         } else if (overallStatus === 'regressed') {
             adherenceComment = `처방 실천율(${adherenceRate}%)에도 불구하고, 모의고사 및 급격한 학업 스트레스로 인해 신경계 과부하가 발생했습니다. 즉각적인 스트레스 완화 조치가 필요합니다.`;
         } else if (adherenceRate >= 80) {
-            adherenceComment = `영양 처방 및 수면 루틴을 ${adherenceRate}% 이상 성실히 실천하여 생체 회복 속도가 매우 빠릅니다.`;
+            adherenceComment = `맞춤 영양 가이드 및 수면 루틴을 ${adherenceRate}% 이상 성실히 실천하여 생체 회복 속도가 매우 빠릅니다.`;
         } else {
-            adherenceComment = `기본 처방 실천율(${adherenceRate}%)이 양호하며, 꾸준한 복용 습관을 유지하면 추가적인 두뇌 안정화가 기대됩니다.`;
+            adherenceComment = `기본 가이드 실천율(${adherenceRate}%)이 양호하며, 꾸준한 복용 습관을 유지하면 추가적인 두뇌 안정화가 기대됩니다.`;
         }
 
         // 임상 분석 텍스트 생성
@@ -978,16 +978,16 @@ export class FollowUpAssessmentService {
                     : `• 전반적 건강 상태가 안정적으로 유지되고 있습니다.`);
         }
 
-        // 다음 2주간 처방 가이드 (악화 시 위기 대응 프로토콜)
+        // 다음 2주간 가이드 (악화 시 위기 대응 프로토콜)
         const nextPrescriptionAdvice = overallStatus === 'regressed'
             ? [
                 `1. [🚨 긴급 조치]: 심신 과부하 상태이므로 심야 학습을 즉시 중단하고 수면 시간(최소 7시간)을 확보하세요.`,
-                `2. [신경계 안정 처방]: 마그네슘, 테아닌, 비타민 B군 등 교감신경 이완 영양 처방을 즉각 재개하세요.`,
+                `2. [신경계 안정 솔루션]: 마그네슘, 테아닌, 비타민 B군 등 교감신경 이완 맞춤 영양 설계를 즉각 재개하세요.`,
                 `3. [학습 강도 하향]: 학습 목표량을 일시적으로 20% 줄이고, 50분 공부 15분 휴식 원칙을 엄수하세요.`,
                 `4. [조기 재검사 권장]: 1주일 후 집중 모니터링을 통해 자율신경 위험군 탈출 여부를 확인하세요.`
             ]
             : [
-                `1. [영양 처방 유지]: ${newStrategy.nutritionGuide}`,
+                `1. [맞춤 영양 가이드 유지]: ${newStrategy.nutritionGuide}`,
                 `2. [수면·이완 집중]: ${newStrategy.recoveryGuide}`,
                 `3. [학습 집중 전략]: ${newStrategy.studyStrategy}`,
                 `4. 다음 정기 점검: 2주 후(4주차) 2차 타겟 추적 검사를 통해 안정화 여부를 확인합니다.`
@@ -1095,7 +1095,7 @@ export class FollowUpAssessmentService {
                     status: '위기 대응 프로토콜 즉각 가동 필요',
                     expectedBenefits: [
                         '심야 공부 중단 및 수면 7시간 이상 강제 확보 시 추가 악화 방어',
-                        '교감신경 이완 영양 처방 재개 시 신경계 과부하 진정 시작'
+                        '교감신경 이완 맞춤 영양 설계 재개 시 신경계 과부하 진정 시작'
                     ],
                     riskWarning: '현 상태 방치 시: 2주 내 만성 번아웃 고착화 및 시험 패닉 확률 75% 상승'
                 },
@@ -1118,7 +1118,7 @@ export class FollowUpAssessmentService {
                         '모의고사 타임어택 시 인지 끈기 및 멘탈 회복'
                     ]
                 },
-                overallRecommendation: `현재 ${detail.title} 증세가 악화 추세이므로, 수면 시간 확보와 신경 안정 영양 처방을 즉시 재개하여 신체 배터리를 우선 재충전해야 합니다.`
+                overallRecommendation: `현재 ${detail.title} 증세가 악화 추세이므로, 수면 시간 확보와 신경 안정 맞춤 영양 설계를 즉시 재개하여 신체 배터리를 우선 재충전해야 합니다.`
             };
         }
 

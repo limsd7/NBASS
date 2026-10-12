@@ -32,6 +32,9 @@ export interface SurveyScores {
     isChronicFatigue: boolean;
     fatigueCount: number;
     workingMemoryScore?: number;
+    circulation?: number;
+    circulationCount?: number;
+    circulationSymptoms?: string[];
 }
 
 export interface FinalAssessmentInput {
@@ -44,6 +47,7 @@ export interface FinalAssessmentInput {
     fatigueSymptoms: boolean[];
     snsSymptomSelection: string[];
     pnsSymptomSelection: string[];
+    circulationSymptomSelection?: string[];
     learningTraitsData: unknown;
     student: StudentInfo;
     protocol: ProtocolData;
@@ -177,8 +181,12 @@ export const buildSurveyData = (
     learningTraitsData: unknown,
     effResults: StudyEfficiencyResults | null | unknown,
     existingSurvey?: SurveyData | null,
+    circulationSymptomSelection?: string[],
 ): SurveyData => {
     const effSurvey = mapResultsToSurveyData(effResults as StudyEfficiencyResults);
+    const circSelection = (circulationSymptomSelection && circulationSymptomSelection.length > 0)
+        ? circulationSymptomSelection
+        : (surveyScores.circulationSymptoms || existingSurvey?.circulationSymptoms || []);
     return {
         ...(existingSurvey || {}),
         // GAD-7은 현재 설문 흐름에서 수집하지 않으므로 임의 상수(5)를 대입하지 않습니다(undefined 유지).
@@ -190,14 +198,19 @@ export const buildSurveyData = (
         fatigueSymptomsCount: surveyScores.fatigueCount || existingSurvey?.fatigueSymptomsCount || 0,
         symptoms: (fatigueSymptoms && fatigueSymptoms.some(Boolean) ? FATIGUE_SYMPTOMS.filter((_, i) => fatigueSymptoms[i]) : existingSurvey?.symptoms) || [],
         sympatheticSymptoms: (snsSymptomSelection && snsSymptomSelection.length > 0) ? snsSymptomSelection : (existingSurvey?.sympatheticSymptoms || []),
+        sympatheticSymptomsCount: (snsSymptomSelection && snsSymptomSelection.length > 0) ? snsSymptomSelection.length : (existingSurvey?.sympatheticSymptomsCount ?? existingSurvey?.sympatheticSymptoms?.length ?? 0),
         parasympatheticSymptoms: (pnsSymptomSelection && pnsSymptomSelection.length > 0) ? pnsSymptomSelection : (existingSurvey?.parasympatheticSymptoms || []),
+        parasympatheticSymptomsCount: (pnsSymptomSelection && pnsSymptomSelection.length > 0) ? pnsSymptomSelection.length : (existingSurvey?.parasympatheticSymptomsCount ?? existingSurvey?.parasympatheticSymptoms?.length ?? 0),
+        circulationScore: surveyScores.circulation ?? existingSurvey?.circulationScore ?? (circSelection.length * 3),
+        circulationSymptomsCount: surveyScores.circulationCount ?? circSelection.length ?? (existingSurvey?.circulationSymptomsCount ?? 0),
+        circulationSymptoms: circSelection,
         learningTraits: learningTraitsData || existingSurvey?.learningTraits,
         ...effSurvey,
     } as SurveyData;
 };
 
-const PROVISIONAL_GUIDE =
-    '## [1] 📋 데이터 기반 잠정 가이드 (Provisional Guidance)\n- **현재 상태**: 필수 설문 및 인지 검사 데이터가 일부 미입력되어 확정 진단 대신 **잠정 기초 컨디셔닝 솔루션**이 제공됩니다.\n- **기초 학습·신체 관리 수칙**:\n  1. 💧 **수분 및 휴식**: 50분 집중 후 10분 가벼운 스트레칭과 수분 섭취로 뇌 혈류 유지\n  2. 🌙 **수면 골든타임**: 밤 12시 이전 취침으로 누적 인지 피로 해소\n  3. 🧘 **시작 전 3분 호흡**: 4-7-8 복식호흡으로 두뇌 각성 안정화\n- **안내**: 정밀 8대 CareType 확정 진단을 위해 심리 설문 및 인지 검사를 완료해 주시기 바랍니다.';
+export const PROVISIONAL_GUIDE =
+    '## [1] 📋 데이터 기반 잠정 가이드 (Provisional Guidance)\n- **현재 상태**: 필수 설문 및 인지 검사 데이터가 일부 미입력되어 확정 진단 대신 **잠정 기초 컨디셔닝 솔루션**이 제공됩니다.\n- **기초 학습·신체 관리 수칙**:\n  1. 💧 **수분 및 휴식**: 50분 집중 후 10분 가벼운 스트레칭과 수분 섭취로 뇌 혈류 유지\n  2. 🌙 **수면 골든타임**: 밤 12시 이전 취침으로 누적 인지 피로 해소\n  3. 🧘 **시작 전 3분 호흡**: 4-7-8 복식호흡으로 두뇌 각성 안정화\n- **안내**: 정밀 12대 CareType 확정 진단을 위해 심리 설문 및 인지 검사를 완료해 주시기 바랍니다.';
 
 export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<AssessmentResult> => {
     const startedAt = Date.now();
@@ -211,6 +224,7 @@ export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<A
         fatigueSymptoms,
         snsSymptomSelection,
         pnsSymptomSelection,
+        circulationSymptomSelection,
         learningTraitsData,
         student,
         protocol,
@@ -222,12 +236,18 @@ export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<A
         existingSurvey,
     } = input;
 
+    // 수면 시간 필드 동기화 (학생이 AnalyticsStep에서 입력한 실제 평균 수면 시간 연동)
+    const effectiveProtocol = {
+        ...protocol,
+        avgSleep: (analytics?.avgSleepHours && analytics.avgSleepHours > 0) ? analytics.avgSleepHours : (protocol?.avgSleep || 6),
+    };
+
     const finalHrv = buildFinalHrv(
         config.usePortable,
         portableHrv,
         hrv,
         surveyScores,
-        protocol,
+        effectiveProtocol,
         analytics,
         cognitiveResults,
     );
@@ -240,6 +260,7 @@ export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<A
         learningTraitsData,
         effResults,
         existingSurvey,
+        circulationSymptomSelection,
     );
     const studentWithTraits: StudentInfo = {
         ...student,
@@ -259,7 +280,7 @@ export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<A
         logicConfig.classificationRules,
         finalHrv,
         surveyData,
-        protocol,
+        effectiveProtocol,
         analytics,
         config.isMedicalMode ? bloodTest : undefined,
         useBrainBodyForEval,
@@ -391,7 +412,7 @@ export const runFinalAssessment = async (input: FinalAssessmentInput): Promise<A
         classificationResult,
         hrv: finalHrv,
         survey: surveyData,
-        protocol,
+        protocol: effectiveProtocol,
         analytics: {
             ...analytics,
             subjectRatios: effectiveSubjectRatios,

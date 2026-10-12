@@ -14,6 +14,7 @@ import { UserManualModal } from './components/UserManualModal';
 import { ScheduleSetupModal } from './components/ScheduleSetupModal';
 import { StudentInfo, CareType as MainCareType } from '../../types';
 import { CARE_TYPE_LABELS } from '../../logicEngine';
+import { pushPcScheduleBlocks } from '../../services/supabaseRealtimeSync'; // PC 블록 → 모바일 실시간 푸시
 import { Calendar, BookOpen, Sparkles, BarChart2, Heart, HelpCircle, Bot, Settings } from 'lucide-react';
 
 interface ScheduleManagementViewProps {
@@ -158,6 +159,18 @@ export const ScheduleManagementView: React.FC<ScheduleManagementViewProps> = ({
     } catch (e) {
       console.warn('Failed to save routine', e);
     }
+    // 명시적 저장 시에만 모바일 모양으로 변환해 Supabase에 푸시 (마운트 재생성은 푸시 안 함)
+    if (student?.id) {
+      try {
+        const blocks = generateSchedule(
+          newRoutine,
+          currentCareType,
+          newRoutine.activeDay || 'mon',
+          newRoutine.isVacationMode
+        );
+        if (blocks.length > 0) pushPcScheduleBlocks(student.id, blocks).catch(() => undefined);
+      } catch { /* ignore */ }
+    }
   };
 
   // Generate schedule whenever routine, activeDay, isVacationMode, or careType changes
@@ -169,7 +182,32 @@ export const ScheduleManagementView: React.FC<ScheduleManagementViewProps> = ({
       routine.isVacationMode
     );
     setScheduleBlocks(blocks);
-  }, [routine, currentCareType]);
+  }, [routine, currentCareType, student?.id]);
+
+  // 모바일(Android)에서 온 스케줄 실시간 표시용
+  const [mobileSchedules, setMobileSchedules] = useState<any[]>([]);
+  useEffect(() => {
+    const load = () => {
+      if (!student?.id) {
+        setMobileSchedules([]);
+        return;
+      }
+      try {
+        const raw = localStorage.getItem(`nbass_schedules_${student.id}`);
+        const arr = raw ? JSON.parse(raw) : [];
+        setMobileSchedules(Array.isArray(arr) ? arr : []);
+      } catch {
+        setMobileSchedules([]);
+      }
+    };
+    load();
+    window.addEventListener('nbass_supabase_realtime', load);
+    window.addEventListener('nbass_local_data_changed', load);
+    return () => {
+      window.removeEventListener('nbass_supabase_realtime', load);
+      window.removeEventListener('nbass_local_data_changed', load);
+    };
+  }, [student?.id]);
 
   const handleToggleBlock = (id: string) => {
     setScheduleBlocks(prev =>
@@ -327,6 +365,37 @@ export const ScheduleManagementView: React.FC<ScheduleManagementViewProps> = ({
         </div>
 
       </div>
+
+      {/* 모바일(Android) 스케줄 실시간 연동 패널 */}
+      {mobileSchedules.length > 0 && (
+        <div className="rounded-3xl p-5 border border-emerald-200 bg-emerald-50/50 shadow-2xs">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="text-sm font-black text-slate-900">📱 모바일 스케줄</span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              실시간 동기화됨 {mobileSchedules.length}건
+            </span>
+          </div>
+          <ul className="space-y-1.5">
+            {mobileSchedules.slice(0, 12).map((s: any) => (
+              <li
+                key={s?.id || `${s?.startTime}-${s?.subject}`}
+                className="flex items-center gap-2.5 bg-white rounded-xl px-3 py-2 border border-emerald-100 text-xs"
+              >
+                <span className="font-mono font-bold text-emerald-700 shrink-0">
+                  {s?.startTime || '--:--'}~{s?.endTime || '--:--'}
+                </span>
+                <span className="font-black text-slate-800 shrink-0">{s?.subject || '일정'}</span>
+                <span className="text-slate-600 truncate">{s?.activity || ''}</span>
+                {s?.isCompleted && <span className="ml-auto text-emerald-600 font-bold shrink-0">✓</span>}
+              </li>
+            ))}
+          </ul>
+          {mobileSchedules.length > 12 && (
+            <p className="text-[11px] text-slate-500 mt-2">외 {mobileSchedules.length - 12}건은 모바일 앱에서 확인하세요.</p>
+          )}
+        </div>
+      )}
 
       {/* Navigation Sub-tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">

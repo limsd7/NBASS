@@ -9,6 +9,7 @@ interface StudyGradeManagerProps {
   onRefresh: () => void;
   onOpenManualInput: () => void;
   onOpenLadderModal?: (subjectName: string, unitName: string, weakPriority: number) => void;
+  onEditRecord?: (recordId: string) => void;
 }
 
 export const StudyGradeManager: React.FC<StudyGradeManagerProps> = ({
@@ -17,6 +18,7 @@ export const StudyGradeManager: React.FC<StudyGradeManagerProps> = ({
   onRefresh,
   onOpenManualInput,
   onOpenLadderModal,
+  onEditRecord,
 }) => {
   const [selectedSemester, setSelectedSemester] = useState<string>("전체");
   const [searchQuery, setSearchQuery] = useState<string>(" ");
@@ -33,7 +35,7 @@ export const StudyGradeManager: React.FC<StudyGradeManagerProps> = ({
         subjectId: subj.subjectId,
         subjectName: subjectInfo?.name || subj.subjectId,
         category: subjectInfo?.category === "social" ? "사회/탐구" : subjectInfo?.category === "science" ? "과학/탐구" : "기본",
-        score: subj.rawScore || (subj.grade ? 100 - (subj.grade - 1) * 10 : 80),
+        score: subj.rawScore,
         grade: subj.grade ? `${subj.grade}등급` : "-",
         standardScore: subj.standardScore,
         percentile: subj.percentile,
@@ -146,7 +148,7 @@ export const StudyGradeManager: React.FC<StudyGradeManagerProps> = ({
                         {g.grade}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-center font-semibold text-slate-700">{g.score}점</td>
+                    <td className="py-3.5 px-4 text-center font-semibold text-slate-700">{g.score !== undefined ? `${g.score}점` : "-"}</td>
                     <td className="py-3.5 px-4 text-center text-slate-600">{g.standardScore || "-"}</td>
                     <td className="py-3.5 px-4 text-center text-slate-600">{g.percentile ? `${g.percentile}%` : "-"}</td>
                     <td className="py-3.5 px-4">
@@ -206,13 +208,24 @@ export const StudyGradeManager: React.FC<StudyGradeManagerProps> = ({
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => handleDeleteRecord(g.recordId)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-xs"
-                        title="시험 기록 삭제"
-                      >
-                        🗑️
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        {onEditRecord && (
+                          <button
+                            onClick={() => onEditRecord(g.recordId)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer text-xs"
+                            title="이 시험 기록 수정"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteRecord(g.recordId)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-xs"
+                          title="시험 기록 삭제"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

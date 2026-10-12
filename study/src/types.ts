@@ -33,6 +33,12 @@ export interface WrongNote {
   reviewHistory?: { date: string; passed: boolean }[];
   isResolved: boolean;
   createdAt: string;
+  imageUrl?: string;
+  metacognitiveNote?: {
+    misconception?: string;
+    trapKeyword?: string;
+    actionRule?: string;
+  };
 }
 
 export interface SubjectGoal {

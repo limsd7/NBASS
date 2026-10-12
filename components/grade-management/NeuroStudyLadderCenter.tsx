@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { StudentInfo, GradeRecord } from '../../types';
 import { getCareTypeDetail } from '../../data/careTypesData';
+import { collectWeakUnits } from '../../services/weakUnitCollector';
+import { getLightLadder } from '../../data/inquiryLadderQuestions';
 
 interface NeuroStudyLadderCenterProps {
   student: StudentInfo;
   records: GradeRecord[];
   careTypeCode?: string;
+  hasAssessment?: boolean;
   onOpenLadderModal: (subjectName: string, unitName: string, weakPriority: number) => void;
   onOpenInputModal?: () => void;
 }
@@ -14,42 +17,18 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
   student,
   records,
   careTypeCode = 'HEALTHY',
+  hasAssessment = true,
   onOpenLadderModal,
   onOpenInputModal,
 }) => {
-  const [selectedSubjectTab, setSelectedSubjectTab] = useState<'all' | 'korean' | 'math' | 'english'>('all');
-  const [customSubject, setCustomSubject] = useState<'국어' | '수학' | '영어'>('수학');
+  const [selectedSubjectTab, setSelectedSubjectTab] = useState<'all' | 'korean' | 'math' | 'english' | 'inquiry'>('all');
+  const [customSubject, setCustomSubject] = useState<'국어' | '수학' | '영어' | '탐구'>('수학');
   const [customUnitInput, setCustomUnitInput] = useState('');
 
   const currentCare = getCareTypeDetail(careTypeCode);
 
-  // 1. 학생 성적 기록에서 과목별 취약단원 자동 추출
-  const koreanCollected: { subjectName: string; unitName: string; priority: number }[] = [];
-  const mathCollected: { subjectName: string; unitName: string; priority: number }[] = [];
-  const englishCollected: { subjectName: string; unitName: string; priority: number }[] = [];
-
-  records.forEach((r) => {
-    r.subjects.forEach((s) => {
-      const subId = (s.subjectId || '').toLowerCase();
-      if (s.weakUnits && s.weakUnits.length > 0) {
-        s.weakUnits.forEach((u, uIdx) => {
-          if (subId.includes('kor') || subId.includes('국어') || u.includes('독서') || u.includes('문학') || u.includes('문법') || u.includes('화작') || u.includes('언매')) {
-            if (!koreanCollected.some((c) => c.unitName === u)) {
-              koreanCollected.push({ subjectName: '국어', unitName: u, priority: uIdx + 1 });
-            }
-          } else if (subId.includes('eng') || subId.includes('영어') || u.includes('빈칸') || u.includes('순서') || u.includes('어법') || u.includes('삽입') || u.includes('대의')) {
-            if (!englishCollected.some((c) => c.unitName === u)) {
-              englishCollected.push({ subjectName: '영어', unitName: u, priority: uIdx + 1 });
-            }
-          } else {
-            if (!mathCollected.some((c) => c.unitName === u)) {
-              mathCollected.push({ subjectName: '수학', unitName: u, priority: uIdx + 1 });
-            }
-          }
-        });
-      }
-    });
-  });
+  // 1. 학생 성적 기록에서 과목별 취약단원 자동 추출 (상세 로직은 services/weakUnitCollector 참조)
+  const { korean: koreanCollected, math: mathCollected, english: englishCollected, inquiry: inquiryCollected } = collectWeakUnits(records);
 
   // 추천 기본 취약단원
   const defaultKoreanUnits = [
@@ -70,9 +49,20 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
     { subjectName: '영어', unitName: '[어법·어휘] 29번 어법 & 30번 밑줄 어휘', priority: 3 },
   ];
 
+  const defaultInquiryUnits = [
+    { subjectName: '탐구', unitName: '[생명과학Ⅰ] 멘델 유전과 가계도 분석', priority: 1 },
+    { subjectName: '탐구', unitName: '[지구과학Ⅰ] 단열 변화와 날씨 해석', priority: 2 },
+    { subjectName: '탐구', unitName: '[생활과윤리] 윤리 문제와 탐구 사례 분석', priority: 3 },
+  ];
+
   const korWeakList = koreanCollected.length > 0 ? koreanCollected : defaultKoreanUnits;
   const mathWeakList = mathCollected.length > 0 ? mathCollected : defaultMathUnits;
   const engWeakList = englishCollected.length > 0 ? englishCollected : defaultEnglishUnits;
+  const inqWeakList = inquiryCollected.length > 0 ? inquiryCollected : defaultInquiryUnits;
+  const korIsDefault = koreanCollected.length === 0;
+  const mathIsDefault = mathCollected.length === 0;
+  const engIsDefault = englishCollected.length === 0;
+  const inqIsDefault = inquiryCollected.length === 0;
 
   // 2. 전체 교육과정 단원별 사다리 라이브러리
   const CURRICULUM_LADDER_CATALOG = [
@@ -260,6 +250,89 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
       targetKiller: '수능 41~42번',
       badgeColor: 'amber',
       neuroFocus: '3교시 식곤증 극복 및 7분 내 스피드 정확도 배분'
+    },
+    // 탐구 (LLM 실시간 출제)
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '과학탐구',
+      unitName: '[생명과학Ⅰ] 멘델 유전과 가계도 분석',
+      difficulty: '상',
+      targetKiller: '수능 탐구 킬러',
+      badgeColor: 'emerald',
+      neuroFocus: '가계도 경우의 수 분기와 조건 체크'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '과학탐구',
+      unitName: '[지구과학Ⅰ] 단열 변화와 날씨 해석',
+      difficulty: '상',
+      targetKiller: '수능 탐구 준킬러',
+      badgeColor: 'emerald',
+      neuroFocus: '온도·기압 그래프 축과 단위 속독 후 조건 매칭'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '과학탐구',
+      unitName: '[화학Ⅰ] 화학 반응식과 양적 관계',
+      difficulty: '상',
+      targetKiller: '수능 탐구 킬러',
+      badgeColor: 'emerald',
+      neuroFocus: '미지수 도표화와 단위 몰(mol) 기준 정렬'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '사회탐구',
+      unitName: '[생활과윤리] 윤리 문제와 탐구 사례 분석',
+      difficulty: '중상',
+      targetKiller: '수능 탐구 빈출',
+      badgeColor: 'emerald',
+      neuroFocus: '사례-윤리 이론 1:1 매칭과 함정 일반화 소거'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '사회탐구',
+      unitName: '[한국지리] 국토와 지역 특성 분석',
+      difficulty: '중상',
+      targetKiller: '수능 탐구 빈출',
+      badgeColor: 'emerald',
+      neuroFocus: '지도 분포 패턴과 통계 수치 메모'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🔬',
+      category: '한국사',
+      unitName: '[한국사] 시대별 핵심 사건 연표',
+      difficulty: '중',
+      targetKiller: '수능 한국사 절대평가',
+      badgeColor: 'emerald',
+      neuroFocus: '인과 사슬 연표 암기와 운동별 주체·강령 비교'
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '⚖️',
+      category: '사회탐구 킬러',
+      unitName: '[생활과윤리] 분배 정의와 윤리',
+      difficulty: '최상',
+      targetKiller: '수능 탐구 킬러',
+      badgeColor: 'emerald',
+      neuroFocus: '롤스·노직·공동체주의 3입장 비교표와 반론 구조',
+      light: true
+    },
+    {
+      subject: '탐구',
+      subjectIcon: '🧲',
+      category: '과학탐구 킬러',
+      unitName: '[물리학Ⅰ] 등가속도 운동과 뉴턴 운동 법칙',
+      difficulty: '최상',
+      targetKiller: '수능 탐구 킬러',
+      badgeColor: 'emerald',
+      neuroFocus: '등가속 3공식과 복합 운동방정식 속산',
+      light: true
     }
   ];
 
@@ -268,6 +341,7 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
     if (selectedSubjectTab === 'korean') return item.subject === '국어';
     if (selectedSubjectTab === 'math') return item.subject === '수학';
     if (selectedSubjectTab === 'english') return item.subject === '영어';
+    if (selectedSubjectTab === 'inquiry') return item.subject === '탐구';
     return true;
   });
 
@@ -290,16 +364,28 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-3xl">🪜</span>
               <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                국·수·영 6단계 AI 문항 사다리 훈련 센터
+                전 과목 6단계 AI 문항 사다리 훈련 센터
               </h2>
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                {currentCare.title} 특화
+                {hasAssessment ? `${currentCare.title} 특화` : '기본 훈련'}
               </span>
             </div>
             <p className="text-sm text-slate-300 leading-relaxed">
               취약단원의 긴장도를 낮추는 <b>두뇌 프라이밍</b> ➔ 개념 공백을 메우는 <b>메타인지 3문항 점검</b> ➔ 
               <b>A단계(기본 5문항)부터 F단계(수능 킬러 5문항)까지 30문항 사다리 돌파</b>로 취약점을 완전 정복합니다.
             </p>
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-xs font-bold border border-indigo-400/30 flex items-center gap-1.5">
+                <span>🤖 2026 SOTA 특화 AI 엔진:</span>
+                <span className="text-rose-300">국어(Claude 5.5)</span>
+                <span>•</span>
+                <span className="text-blue-300">수학(DeepSeek V4.1)</span>
+                <span>•</span>
+                <span className="text-amber-300">영어(Gemini 3.8)</span>
+                <span>•</span>
+                <span className="text-emerald-300">탐구(Gemini 3.8)</span>
+              </span>
+            </div>
             <div className="flex items-center gap-2 pt-2 text-xs text-indigo-300 font-bold flex-wrap">
               <span className="bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">🌱 A 기본(5문항)</span>
               <span>➔</span>
@@ -335,12 +421,12 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <span>🎯</span>
-            <span>{student.name} 학생 맞춤 국·수·영 취약단원 TOP 사다리</span>
+            <span>{student.name} 학생 맞춤 과목별 취약단원 TOP 사다리</span>
           </h3>
           <span className="text-xs text-slate-500 font-medium">카드를 클릭하면 해당 과목의 사다리 스터디룸으로 즉시 입장합니다</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* 국어 취약단원 */}
           <div className="bg-white rounded-2xl p-5 border border-rose-100 shadow-sm hover:border-rose-300 transition-all flex flex-col justify-between">
             <div>
@@ -349,7 +435,14 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
                   <span>📖</span>
                   <span>국어 영역</span>
                 </span>
-                <span className="text-[11px] font-bold text-slate-400">비문학·문학·문법</span>
+                {korIsDefault && (
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    기본 추천
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                  Claude 5.5 특화
+                </span>
               </div>
 
               <div className="space-y-2">
@@ -396,7 +489,14 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
                   <span>📐</span>
                   <span>수학 영역</span>
                 </span>
-                <span className="text-[11px] font-bold text-slate-400">수I·수II·선택</span>
+                {mathIsDefault && (
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    기본 추천
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                  DeepSeek V4.1 특화
+                </span>
               </div>
 
               <div className="space-y-2">
@@ -443,7 +543,14 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
                   <span>🔤</span>
                   <span>영어 영역</span>
                 </span>
-                <span className="text-[11px] font-bold text-slate-400">빈칸·순서·어법</span>
+                {engIsDefault && (
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    기본 추천
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  Gemini 3.8 특화
+                </span>
               </div>
 
               <div className="space-y-2">
@@ -481,6 +588,59 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
               </button>
             </div>
           </div>
+          {/* 탐구 취약단원 */}
+          <div className="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm hover:border-emerald-300 transition-all flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black flex items-center gap-1.5">
+                  <span>🔬</span>
+                  <span>탐구 영역</span>
+                </span>
+                {inqIsDefault && (
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    기본 추천
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Gemini 3.8 특화
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {inqWeakList.slice(0, 3).map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => onOpenLadderModal(item.subjectName, item.unitName, item.priority)}
+                    className="w-full text-left p-2.5 rounded-xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all group flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                        idx === 0 ? 'bg-rose-500 text-white' : idx === 1 ? 'bg-amber-500 text-white' : 'bg-slate-500 text-white'
+                      }`}>
+                        {idx + 1}위
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 group-hover:text-emerald-700 truncate">
+                        {item.unitName}
+                      </span>
+                    </div>
+                    <span className="text-xs text-emerald-500 group-hover:translate-x-1 transition-transform shrink-0 font-bold">⚡➔</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>A단계부터 F단계까지 30문항</span>
+              <button
+                type="button"
+                onClick={() => onOpenLadderModal('탐구', inqWeakList[0]?.unitName || '[생명과학Ⅰ] 멘델 유전과 가계도 분석', 1)}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-800 cursor-pointer"
+              >
+                1순위 사다리 ➔
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -493,7 +653,7 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
               <h4 className="text-base font-bold text-white">원하는 단원 실시간 AI 사다리 훈련 생성</h4>
             </div>
             <p className="text-xs text-slate-400">
-              목록에 없는 단원도 입력 즉시 AI가 A부터 F까지 30문항과 메타점검 3문항을 자동 생성합니다.
+              목록에 없는 단원도 과목별 특화 AI(국어: Claude 5.5 / 수학: DeepSeek V4.1 / 영어·탐구: Gemini 3.8)가 수능형 30문항 사다리를 실시간 맞춤 출제합니다.
             </p>
           </div>
 
@@ -506,6 +666,7 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
               <option value="국어">📖 국어</option>
               <option value="수학">📐 수학</option>
               <option value="영어">🔤 영어</option>
+              <option value="탐구">🔬 탐구</option>
             </select>
 
             <input
@@ -590,6 +751,18 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
               <span>🔤</span>
               <span>영어</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSubjectTab('inquiry')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedSubjectTab === 'inquiry'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🔬</span>
+              <span>탐구</span>
+            </button>
           </div>
         </div>
 
@@ -598,8 +771,9 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
           {filteredCatalog.map((item, idx) => {
             const isRose = item.badgeColor === 'rose';
             const isAmber = item.badgeColor === 'amber';
-            const badgeBg = isRose ? 'bg-rose-50 text-rose-700 border-rose-200' : isAmber ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
-            const btnBg = isRose ? 'bg-rose-600 hover:bg-rose-700' : isAmber ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700';
+            const isEmerald = item.badgeColor === 'emerald';
+            const badgeBg = isRose ? 'bg-rose-50 text-rose-700 border-rose-200' : isAmber ? 'bg-amber-50 text-amber-700 border-amber-200' : isEmerald ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200';
+            const btnBg = isRose ? 'bg-rose-600 hover:bg-rose-700' : isAmber ? 'bg-amber-600 hover:bg-amber-700' : isEmerald ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700';
 
             return (
               <div
@@ -628,7 +802,7 @@ export const NeuroStudyLadderCenter: React.FC<NeuroStudyLadderCenterProps> = ({
 
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                   <div className="text-[11px] text-slate-400 font-medium">
-                    A~F 사다리 (30문항)
+                    {(item as any).light || getLightLadder(item.unitName, item.subject) ? 'A~C 라이트 (15문항)' : 'A~F 사다리 (30문항)'}
                   </div>
                   <button
                     type="button"

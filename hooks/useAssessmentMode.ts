@@ -5,7 +5,7 @@ export const useAssessmentMode = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             if (params.get('view') === 'landing') return true;
-            if (params.get('app') === 'true' || params.get('role') || params.get('step') || params.get('mode') || params.get('view') === 'app') {
+            if (Boolean(params.get('app')) || params.get('role') || params.get('step') || params.get('mode') || params.get('view') === 'app') {
                 return false;
             }
             return true;
@@ -18,14 +18,12 @@ export const useAssessmentMode = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode');
-            const tier = params.get('tier');
-            const savedMode = localStorage.getItem('nbass_assessment_mode');
-            if (mode === 'full' || tier === 'pro' || tier === 'premium' || tier === 'vip' || savedMode === 'full') {
-                return false;
+            if (mode === '10min' || mode === '3min') {
+                return true;
             }
-            return true;
+            return false;
         } catch {
-            return true;
+            return false;
         }
     });
 
@@ -45,13 +43,12 @@ export const useAssessmentMode = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode');
-            const tierParam = params.get('tier');
-            if (mode === '10min' || mode === '3min' || tierParam === 'free') {
+            if (mode === '10min' || mode === '3min') {
                 setIs10MinMode(true);
                 try {
                     localStorage.setItem('nbass_assessment_mode', '10min');
                 } catch { /* ignore */ }
-            } else if (mode === 'full' || tierParam === 'pro' || tierParam === 'premium' || tierParam === 'vip') {
+            } else {
                 setIs10MinMode(false);
                 try {
                     localStorage.setItem('nbass_assessment_mode', 'full');
@@ -66,7 +63,7 @@ export const useAssessmentMode = () => {
                     const currentParams = new URLSearchParams(window.location.search);
                     if (currentParams.get('view') === 'landing') {
                         setIsLandingMode(true);
-                    } else if (currentParams.get('app') === 'true' || currentParams.get('role') || currentParams.get('mode') || currentParams.get('action') || currentParams.get('view') === 'app') {
+                    } else if (Boolean(currentParams.get('app')) || currentParams.get('role') || currentParams.get('mode') || currentParams.get('action') || currentParams.get('view') === 'app') {
                         setIsLandingMode(false);
                     }
                 } catch { /* ignore */ }

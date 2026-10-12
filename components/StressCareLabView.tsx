@@ -8,6 +8,8 @@ import {
 } from '../data/stressCareData';
 import { CARE_TYPE_LABELS } from '../logicEngine';
 import { BreathingCore } from './BreathingGuide';
+import { recommendBreathingProtocols } from '../services/breathingEngine';
+import { BREATH_SAFETY_NOTICE } from '../data/breathingProtocols';
 
 const SUBJECT_LABELS: Record<string, { label: string; icon: string; desc: string }> = {
   'korean': { label: '국어', icon: '📖', desc: '1교시 언어 예열 & 지문 난독 방지' },
@@ -36,6 +38,15 @@ export const StressCareLabView: React.FC<StressCareLabViewProps> = ({ student, h
   
   // Interactive Grounding Step
   const [groundingStep, setGroundingStep] = useState<number>(0);
+
+  // CareType 연동 호흡 프로토콜 (급성 진정 상황 기준, 수동 전환 가능)
+  const breathReco = useMemo(
+    () => recommendBreathingProtocols(selectedCareType || undefined, 'acute_anxiety'),
+    [selectedCareType]
+  );
+  const [breathProtocolId, setBreathProtocolId] = useState<string | null>(null);
+  const allBreathOptions = useMemo(() => [breathReco.primary, ...breathReco.alternatives], [breathReco]);
+  const activeBreath = allBreathOptions.find(p => p.id === breathProtocolId) || breathReco.primary;
 
   // 최근 진단 기록 및 Top 분류 추출 (오직 진단 결과에 나타난 유형만 추출)
   const latestAssessment = useMemo(() => {
@@ -508,17 +519,42 @@ export const StressCareLabView: React.FC<StressCareLabViewProps> = ({ student, h
                   </div>
                 </div>
 
-                {/* Right: Interactive 4-7-8 Breathing Trainer */}
+                {/* Right: Interactive CareType 맞춤 호흡 트레이너 */}
                 <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-xl flex flex-col items-center justify-center">
-                  <div className="w-full flex items-center justify-between mb-4">
+                  <div className="w-full flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">🫁</span>
-                      <h4 className="font-black text-sm text-slate-200">4-7-8 미주신경 이완 호흡기</h4>
+                      <span className="text-lg">{activeBreath.emoji}</span>
+                      <h4 className="font-black text-sm text-slate-200">{activeBreath.name}</h4>
                     </div>
                     <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">자율신경 안정</span>
                   </div>
-                  
-                  <BreathingCore />
+                  <p className="w-full text-[11px] text-slate-400 mb-3 leading-relaxed">{activeBreath.oneLiner} · 약 {activeBreath.estMinutes}분</p>
+                  <div className="w-full flex flex-wrap gap-1.5 mb-4">
+                    {allBreathOptions.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setBreathProtocolId(p.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                          activeBreath.id === p.id
+                            ? 'bg-indigo-600 text-white border-indigo-500'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                        }`}
+                      >
+                        {p.emoji} {p.name.split(' (')[0]}
+                      </button>
+                    ))}
+                  </div>
+
+                  <BreathingCore
+                    key={activeBreath.id}
+                    pattern={activeBreath.pattern}
+                  />
+                  {activeBreath.holdCaution && (
+                    <p className="w-full mt-3 text-[10px] text-amber-300/90 leading-relaxed">
+                      ⚠️ 숨 참기 포함: 어지러우면 바로 멈추세요. 임신 중·심혈관/호흡기 질환 시 무리 금지.
+                    </p>
+                  )}
                 </div>
 
               </div>

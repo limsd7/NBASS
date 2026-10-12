@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { PNT_PRODUCTS, PntProduct } from '../data/pntProducts';
+import React, { useState, useMemo } from 'react';
+import { PNT_PRODUCTS, PntProduct, PNT_HOSPITAL_CONFIG, getStandard6ProductLineup } from '../data/pntProducts';
 import { RecommendedProduct } from '../logicEngine';
 import { MembershipTier } from '../utils/featureGate';
-import { Lock, Sparkles, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, Flame, Droplets, AlertTriangle, Activity } from 'lucide-react';
+import { Lock, Sparkles, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Clock, Flame, Droplets, AlertTriangle, Activity, Copy, Check } from 'lucide-react';
 
 interface Props {
     recommendedProducts: RecommendedProduct[];
@@ -22,39 +22,49 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
     const isFree = tier === 'free';
     const isPro = tier === 'pro';
     const isPremium = tier === 'premium';
-    const isPremiumPlusOrAbove = tier === 'premium_plus' || tier === 'vip' || tier === 'expert';
+    const isPremiumPlusOrAbove = tier === 'premium' || tier === 'expert';
 
     // 팝업 상태 관리 (HL 부스터 전용 맞춤 복용 가이드 모달)
     const [selectedHlModal, setSelectedHlModal] = useState<boolean>(false);
+    // 🏥 PNTmall 구매 & 제휴 병원코드 안내 모달
+    const [selectedPntProduct, setSelectedPntProduct] = useState<PntProduct | null>(null);
+    const [codeCopied, setCodeCopied] = useState<boolean>(false);
 
-    // Group products by tier
-    const rawEssential = recommendedProducts.filter(p => p.tier === 'ESSENTIAL').map(p => ({ ...p, ...PNT_PRODUCTS[p.productId] })).filter(p => p.name && p.id !== 'HL-COFFEE-001');
-    const rawRecommended = recommendedProducts.filter(p => p.tier === 'RECOMMENDED').map(p => ({ ...p, ...PNT_PRODUCTS[p.productId] })).filter(p => p.name && p.id !== 'HL-COFFEE-001');
-    const rawSupportive = recommendedProducts.filter(p => p.tier === 'SUPPORTIVE').map(p => ({ ...p, ...PNT_PRODUCTS[p.productId] })).filter(p => p.name && p.id !== 'HL-COFFEE-001');
+    // 📊 심층 분석 대시보드와 📋 16P 전문 종합 리포트 간 100% 동일한 6종 표준 라인업 동기화
+    const standardLineup = useMemo(() => getStandard6ProductLineup(recommendedProducts), [recommendedProducts]);
+    const hlProduct = standardLineup.p2;
 
-    // ☕ HL 스마트 아르기닌-카르니틴 부스터 객체 (항상 핵심 영양제의 마지막에 위치)
-    const hlProduct = { productId: 'hl_focus_booster', tier: 'ESSENTIAL' as const, ...PNT_PRODUCTS['hl_focus_booster'] };
-
-    // 🔴 핵심 영양제: 기존 핵심 영양제들 + 마지막에 HL 커피 부스터 배치
-    const essentialList = [...rawEssential, hlProduct];
-    const recommendedList = rawRecommended;
-    const supportiveList = rawSupportive;
-
-    // 차등 추천 개수 계산:
+    // 차등 추천 개수 계산 (보고서와 100% 동일한 3-Tier 6종 라인업 동기화):
     // 1. FREE (무료): HL 스마트 커피 부스터 1종은 무료부터 전체 회원에게 100% 개방 & 추천! (나머지 잠금 배너)
-    // 2. PRO: 🔴 핵심 영양제 전체 (기존 핵심 1종 + HL 부스터)
-    // 3. PREMIUM / PLUS+: 🔴 핵심 + 🟡 추천 + 🟢 보조 영양제 최대 3종 추천 (깔끔한 3열 그리드)
+    // 2. PRO / PREMIUM / PLUS+: 16P 정밀 종합 리포트와 100% 동일한 6종 (🔴 핵심 2종 + 🟡 추천 2종 + 🟢 보조 2종)
     const visibleProducts = {
-        ESSENTIAL: isFree ? [hlProduct] : (isPremiumPlusOrAbove ? essentialList : [essentialList[0], hlProduct].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)),
-        RECOMMENDED: isFree || isPro ? [] : (isPremiumPlusOrAbove ? recommendedList : recommendedList.slice(0, 2)),
-        SUPPORTIVE: isFree || isPro ? [] : supportiveList.slice(0, 3),
+        ESSENTIAL: isFree ? [hlProduct] : standardLineup.byTier.ESSENTIAL,
+        RECOMMENDED: isFree ? [] : standardLineup.byTier.RECOMMENDED,
+        SUPPORTIVE: isFree ? [] : standardLineup.byTier.SUPPORTIVE,
     };
 
     const handleProductClick = (product: PntProduct) => {
         if (product.id === 'HL-COFFEE-001') {
             setSelectedHlModal(true);
-        } else if (product.url) {
-            window.open(product.url, '_blank');
+        } else {
+            setSelectedPntProduct(product);
+            setCodeCopied(false);
+        }
+    };
+
+    const handleCopyHospitalCode = () => {
+        const code = PNT_HOSPITAL_CONFIG.hospitalCode;
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(code).then(() => {
+                setCodeCopied(true);
+                setTimeout(() => setCodeCopied(false), 2500);
+            }).catch(() => {
+                setCodeCopied(true);
+                setTimeout(() => setCodeCopied(false), 2500);
+            });
+        } else {
+            setCodeCopied(true);
+            setTimeout(() => setCodeCopied(false), 2500);
         }
     };
 
@@ -68,12 +78,10 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-xl font-bold text-slate-900">
                                 {isPremiumPlusOrAbove 
-                                    ? '생체신호 연동 1:1 정밀 영양제 처방 (Full Lineup)' 
-                                    : isPremium 
-                                    ? '두뇌 활력 3-Tier 기본 맞춤 영양제 (3-Tier Balanced)' 
-                                    : isPro 
-                                    ? '두뇌 활력 1순위 핵심 영양제 처방 (Core Essential)' 
-                                    : '두뇌 활력 1:1 맞춤 영양제 & 뇌혈류 부스터 추천'}
+                                    ? '생체신호 연동 1:1 정밀 영양 가이드 (Full Lineup)' 
+                                    : (isPremium || isPro)
+                                    ? '두뇌 활력 3-Tier 맞춤 영양 가이드 (3-Tier Precision)' 
+                                    : '두뇌 활력 1:1 맞춤 영양 성분 & 뇌혈류 부스터 추천'}
                             </h3>
                             {isPremiumPlusOrAbove ? (
                                 <span className="px-2.5 py-0.5 bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200 text-xs font-black rounded-full">
@@ -85,7 +93,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                                 </span>
                             ) : isPro ? (
                                 <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 border border-blue-200 text-xs font-black rounded-full">
-                                    ⚡ PRO 핵심 처방
+                                    ⚡ PRO 3-Tier 맞춤 세트
                                 </span>
                             ) : (
                                 <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-black rounded-full">
@@ -95,11 +103,9 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
                             {isPremiumPlusOrAbove
-                                ? '12대 신경인지 케어타입 및 대사·피로도 분석 기반의 정밀 뉴로 영양 처방 전 제품을 확인합니다.'
-                                : isPremium
-                                ? '8대 신경계 케어타입 진단에 따른 [핵심 영양제 + 스마트 부스터 + 추천 + 보조] 균형 라인업입니다.'
-                                : isPro
-                                ? '피검자에게 가장 시급한 1순위 핵심 처방 및 두뇌 부스터입니다. (추천/보조 영양제는 PREMIUM 이상 개방)'
+                                ? '12대 신경인지 케어타입 및 대사·피로도 분석 기반의 수험생 맞춤 영양 설계 및 추천 라인업입니다.'
+                                : (isPremium || isPro)
+                                ? '12대 신경계 케어타입 분석에 따른 [핵심 권장 성분 + 스마트 부스터 + 추천(엔오카디징코 등) + 보조] 균형 라인업입니다.'
                                 : '무료 진단 회원에게도 뇌 혈류 확장 및 저자극 각성을 위한 스마트 커피 부스터가 기본 추천됩니다.'}
                         </p>
                     </div>
@@ -128,7 +134,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         </div>
                     </div>
 
-                    {/* PRO / PREMIUM 정밀 처방 잠금 안내 배너 */}
+                    {/* PRO / PREMIUM 정밀 영양 설계 잠금 안내 배너 */}
                     <div className="p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl text-white border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
                         <div className="space-y-1.5">
                             <div className="flex items-center gap-2">
@@ -136,11 +142,11 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                                     UPGRADE PASS
                                 </span>
                                 <h5 className="text-base font-bold text-indigo-200">
-                                    나에게 꼭 맞는 8대 케어타입 3-Tier 정밀 영양 처방전 잠금
+                                    나에게 꼭 맞는 12대 케어타입 3-Tier 맞춤 영양 설계 가이드 잠금
                                 </h5>
                             </div>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                                피검자의 자율신경계/피로 지표에 기반한 <strong>1:1 비타민B·마그네슘·테아닌 등 심층 맞춤 영양제</strong>와 <strong>정식 처방전(PDF) 발급</strong>은 <strong>PRO / PREMIUM 회원</strong>에서 개방됩니다.
+                                피검자의 자율신경계/피로 지표에 기반한 <strong>1:1 비타민B·마그네슘·테아닌 등 심층 맞춤 영양 성분 설계</strong>와 <strong>정식 영양 프로토콜(PDF) 발급</strong>은 <strong>PRO / PREMIUM 회원</strong>에서 개방됩니다.
                             </p>
                         </div>
                         {onUpgradeClick && (
@@ -148,72 +154,28 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                                 onClick={onUpgradeClick}
                                 className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 text-white font-black text-xs rounded-xl shadow-md shrink-0 transition-all active:scale-95 whitespace-nowrap"
                             >
-                                ⚡ PRO(₩9,000) 이상으로 전체 확인하기
+                                ⚡ 1회 리포트 / 정기결제로 전체 확인하기
                             </button>
                         )}
                     </div>
                 </div>
             )}
 
-            {/* 2. PRO 등급: 🔴 핵심 영양제 (기존 핵심 + HL 부스터) 노출 + 🟡, 🟢 티어 잠금 안내 */}
-            {isPro && (
+            {/* 2. PRO & PREMIUM 등급: 🔴 핵심(기존1+HL부스터), 🟡 추천(엔오카디징코 등), 🟢 보조 (보고서와 100% 동일한 3-Tier 맞춤 세트 노출) */}
+            {(isPro || isPremium) && (
                 <div className="space-y-8">
-                    {/* 🔴 핵심 영양제 (기존 핵심 + HL 부스터) */}
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-lg font-bold text-rose-600 flex items-center gap-2">
-                                <span>🔴</span>
-                                <span>핵심 영양제 (가장 시급합니다 &bull; 2종)</span>
-                                <span className="text-xs px-2 py-0.5 bg-rose-50 text-rose-700 rounded-md border border-rose-200 font-bold">
-                                    PRO 제공
-                                </span>
-                            </h4>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {visibleProducts.ESSENTIAL.map(product => (
-                                <ProductCard 
-                                    key={product.id} 
-                                    product={product as PntProduct} 
-                                    onClick={() => handleProductClick(product as PntProduct)}
-                                />
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* 🟡 추천 & 🟢 보조 영양제 잠금 안내 배너 */}
-                    <div className="p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-2xl text-white border border-amber-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-amber-400 text-slate-950 font-black rounded text-[10px]">
-                                    PREMIUM UPGRADE
-                                </span>
-                                <h5 className="text-sm sm:text-base font-bold text-amber-200">
-                                    🟡 추천 영양제 & 🟢 보조 영양제 3-Tier 세트 잠금
-                                </h5>
-                            </div>
-                            <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                                핵심 영양제와 함께 복용 시 두뇌 집중력과 스트레스 완화 시너지를 내는 <strong>추천/보조 영양제 3종 세트</strong>는 <strong>PREMIUM 회원 이상</strong>에서 개방됩니다.
-                            </p>
-                        </div>
-                        {onUpgradeClick && (
-                            <button
-                                onClick={onUpgradeClick}
-                                className="px-5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md shrink-0 transition-all active:scale-95"
-                            >
-                                PREMIUM(월 ₩9,900)으로 3-Tier 전체 보기
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* 3. PREMIUM 등급: 🔴 핵심(기존1+HL부스터), 🟡 추천 1개, 🟢 보조 1개 (총 4개 풍성한 3-Tier 노출) */}
-            {isPremium && (
-                <div className="space-y-8">
-                    {/* 🔴 핵심 영양제 (기존 1종 + 마지막에 HL 부스터) */}
+                    {/* 🔴 핵심 권장 성분 (기존 1종 + 마지막에 HL 부스터) */}
                     {visibleProducts.ESSENTIAL.length > 0 && (
                         <div>
-                            <h4 className="text-lg font-bold text-rose-600 mb-4">🔴 핵심 영양제 (시급성 1순위)</h4>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-lg font-bold text-rose-600 flex items-center gap-2">
+                                    <span>🔴</span>
+                                    <span>핵심 권장 성분 &amp; 부스터 (집중 보충 1순위 &bull; {visibleProducts.ESSENTIAL.length}종)</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-md border font-bold ${isPro ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                        {isPro ? 'PRO 맞춤' : 'PREMIUM'}
+                                    </span>
+                                </h4>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {visibleProducts.ESSENTIAL.map(product => (
                                     <ProductCard 
@@ -226,10 +188,18 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         </div>
                     )}
 
-                    {/* 🟡 추천 영양제 1개 */}
+                    {/* 🟡 추천 영양 성분 (엔오카디징코 등 보고서와 동일) */}
                     {visibleProducts.RECOMMENDED.length > 0 && (
                         <div>
-                            <h4 className="text-lg font-bold text-amber-500 mb-4">🟡 추천 영양제 (집중/시너지 지원)</h4>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-lg font-bold text-amber-500 flex items-center gap-2">
+                                    <span>🟡</span>
+                                    <span>추천 영양 성분 (시너지 &amp; 집중 지원 &bull; {visibleProducts.RECOMMENDED.length}종)</span>
+                                    <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md border border-amber-200 font-bold">
+                                        보고서 연동
+                                    </span>
+                                </h4>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {visibleProducts.RECOMMENDED.map(product => (
                                     <ProductCard 
@@ -242,10 +212,15 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         </div>
                     )}
 
-                    {/* 🟢 보조 영양제 1개 */}
+                    {/* 🟢 보조 영양 성분 */}
                     {visibleProducts.SUPPORTIVE.length > 0 && (
                         <div>
-                            <h4 className="text-lg font-bold text-emerald-600 mb-4">🟢 보조 영양제 (기초 체력 &amp; 컨디션 관리)</h4>
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-lg font-bold text-emerald-600 flex items-center gap-2">
+                                    <span>🟢</span>
+                                    <span>보조 영양 성분 (기초 체력 &amp; 컨디션 관리)</span>
+                                </h4>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {visibleProducts.SUPPORTIVE.map(product => (
                                     <ProductCard 
@@ -258,7 +233,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         </div>
                     )}
 
-                    {/* PLUS+ 전체 영양제 풀 라인업 안내 카드 */}
+                    {/* PLUS+ 전체 영양 성분 풀 라인업 안내 카드 */}
                     <div className="p-5 bg-gradient-to-r from-fuchsia-50 via-purple-50 to-indigo-50 border border-fuchsia-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-fuchsia-600 text-white flex items-center justify-center text-xl shrink-0">
@@ -266,10 +241,10 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                             </div>
                             <div>
                                 <h5 className="text-xs font-bold text-fuchsia-900">
-                                    12대 신경인지 케어타입 연동 정밀 뉴로 처방 전 품목 풀 라인업
+                                    12대 신경인지 케어타입 연동 정밀 뉴로 영양 설계 풀 라인업
                                 </h5>
                                 <p className="text-[11px] text-fuchsia-700">
-                                    더 다양한 맞춤 영양제 대체재 및 전문 처방전 PDF 발급은 <strong>PREMIUM PLUS 이상</strong>에서 지원됩니다.
+                                    더 다양한 맞춤 영양 성분 대체재 및 전문 영양 설계서 PDF 발급은 <strong>PREMIUM 이상</strong>에서 지원됩니다.
                                 </p>
                             </div>
                         </div>
@@ -285,7 +260,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                 </div>
             )}
 
-            {/* 4. PREMIUM PLUS+ / VIP / EXPERT: 모든 영양제 전면 개방 (풀 라인업) */}
+            {/* 4. PREMIUM / EXPERT: 모든 영양 성분 전면 개방 (풀 라인업) */}
             {isPremiumPlusOrAbove && (
                 <div className="space-y-8">
                     {visibleProducts.ESSENTIAL.length > 0 && (
@@ -293,7 +268,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-bold text-rose-600 flex items-center gap-2">
                                     <span>🔴</span>
-                                    <span>핵심 영양제 &amp; 스마트 부스터 (가장 시급합니다 &bull; {visibleProducts.ESSENTIAL.length}종)</span>
+                                    <span>핵심 권장 성분 &amp; 스마트 부스터 (집중 보충 1순위 &bull; {visibleProducts.ESSENTIAL.length}종)</span>
                                 </h4>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -313,7 +288,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-bold text-amber-500 flex items-center gap-2">
                                     <span>🟡</span>
-                                    <span>추천 영양제 (시너지 및 집중 지원 &bull; {visibleProducts.RECOMMENDED.length}종)</span>
+                                    <span>추천 영양 성분 (시너지 및 집중 지원 &bull; {visibleProducts.RECOMMENDED.length}종)</span>
                                 </h4>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -333,7 +308,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-bold text-emerald-600 flex items-center gap-2">
                                     <span>🟢</span>
-                                    <span>보조 영양제 (일반 컨디션 관리용)</span>
+                                    <span>보조 영양 성분 (일반 컨디션 관리용)</span>
                                 </h4>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -351,10 +326,148 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
             )}
 
             {/* ========================================================================= */}
+            {/* 🏥 Dr.PNT 공식몰 구매 및 제휴 병원코드 안내 모달 팝업 */}
+            {/* ========================================================================= */}
+            {selectedPntProduct && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+                        
+                        {/* Close button */}
+                        <button
+                            onClick={() => setSelectedPntProduct(null)}
+                            className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            ✕
+                        </button>
+
+                        {/* Top Header Badge */}
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="px-3 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black rounded-full flex items-center gap-1.5">
+                                <span>🏥</span>
+                                <span>녹십자웰빙 Dr.PNT 병의원 전용 라인</span>
+                            </span>
+                        </div>
+
+                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-tight">
+                            {selectedPntProduct.name}
+                        </h3>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                            {selectedPntProduct.subName}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            정가: {selectedPntProduct.price.toLocaleString()}원 ({selectedPntProduct.capacity}) &bull; {selectedPntProduct.timing || '식후 권장'}
+                        </p>
+
+                        {/* Product Quick Info Card */}
+                        <div className="mt-5 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+                            <div className="w-16 h-16 bg-white dark:bg-slate-900 rounded-xl p-2 shrink-0 border border-slate-100 dark:border-slate-800 flex items-center justify-center">
+                                {selectedPntProduct.image ? (
+                                    <img 
+                                        src={selectedPntProduct.image} 
+                                        alt={selectedPntProduct.name} 
+                                        className="w-full h-full object-contain mix-blend-multiply dark:mix-blend-normal"
+                                    />
+                                ) : (
+                                    <span className="text-2xl">💊</span>
+                                )}
+                            </div>
+                            <div className="text-xs space-y-1">
+                                <p className="font-bold text-slate-800 dark:text-slate-200">
+                                    주요 기능성 원료: {selectedPntProduct.mainIngredients.join(', ')}
+                                </p>
+                                <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                    섭취 방법: {selectedPntProduct.dosageMethod}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 🏥 제휴 병원코드 등록 안내 카드 */}
+                        <div className="mt-5 p-5 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl text-white shadow-md border border-indigo-500/30">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-base">📋</span>
+                                <h4 className="text-sm font-bold text-indigo-200">PNTmall 제휴 병원코드 등록 안내</h4>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                                Dr.PNT 제품은 병의원 전용 건강기능식품으로, 녹십자웰빙 공식몰(<strong>PNTmall</strong>) 회원가입 시 <strong>제휴 병원코드</strong>를 등록하셔야 구매가 가능합니다.
+                            </p>
+
+                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20 flex items-center justify-between gap-3">
+                                <div>
+                                    <span className="text-[10px] text-indigo-300 block font-semibold">제휴 병원코드</span>
+                                    <span className="text-base font-black tracking-wider text-emerald-400">{PNT_HOSPITAL_CONFIG.hospitalCode}</span>
+                                </div>
+                                <button
+                                    onClick={handleCopyHospitalCode}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
+                                        codeCopied 
+                                            ? 'bg-emerald-500 text-white font-black scale-95' 
+                                            : 'bg-white text-slate-900 hover:bg-slate-100 active:scale-95'
+                                    }`}
+                                >
+                                    {codeCopied ? (
+                                        <>
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>복사 완료!</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Copy className="w-3.5 h-3.5" />
+                                            <span>코드 복사</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            {codeCopied && (
+                                <p className="text-[11px] text-emerald-400 mt-2 font-bold animate-in fade-in">
+                                    ✓ 병원코드가 클립보드에 복사되었습니다. 공식몰 회원가입 시 붙여넣기 하세요.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* 📢 구매 채널 & 할인 혜택 안내 (예스유웰빙 예고) */}
+                        <div className="mt-4 p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl text-xs space-y-1.5 text-amber-950 dark:text-amber-200">
+                            <div className="font-bold flex items-center gap-1.5 text-amber-900 dark:text-amber-300">
+                                <span>💡</span>
+                                <span>구매 채널 및 할인 혜택 안내</span>
+                            </div>
+                            <ul className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed pl-1">
+                                <li>• <strong>공식 PNTmall:</strong> 제휴 병원코드 등록 후 정가로 즉시 구매 가능합니다.</li>
+                                <li>• <strong>예스유웰빙 단독 할인 채널:</strong> 공식 유통 파트너사 [예스유웰빙]을 통한 <strong>수험생 특별 할인가 공급 채널이 구축 준비 중</strong>입니다. (구축 완료 시 별도 할인 링크가 제공됩니다.)</li>
+                            </ul>
+                        </div>
+
+                        {/* Modal Bottom Actions */}
+                        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                            <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-700">
+                                ※ 건강기능식품은 질병의 진단·치료 목적이 아니며, 안내 내용은 건강 유지에 도움을 줄 수 있음 수준입니다. 복용 전 전문가와 상담하세요. (전문가 검수 진행 중)
+                            </p>
+                            <div className="flex items-center justify-between gap-3">
+                            <button
+                                onClick={() => setSelectedPntProduct(null)}
+                                className="px-4 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                            >
+                                닫기
+                            </button>
+                            <button
+                                onClick={() => {
+                                    window.open(selectedPntProduct.url, '_blank');
+                                    setSelectedPntProduct(null);
+                                }}
+                                className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                            >
+                                <span>🏥 PNTmall 공식몰 바로가기 (외부 사이트)</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            </div>
+                        </div>
+                </div>
+                    </div>
+            )}
+            {/* ========================================================================= */}
             {/* HL 스마트 아르기닌-카르니틴 부스터 전용 복용 가이드 & 구매 확인 모달 팝업 */}
             {/* ========================================================================= */}
             {selectedHlModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
                         
                         {/* Close button */}
@@ -369,7 +482,7 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                         <div className="flex items-center gap-2 mb-3">
                             <span className="px-3 py-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-black rounded-full flex items-center gap-1.5">
                                 <span>☕</span>
-                                <span>NBASS x HL COFFEE 두뇌 혈류 처방 가이드</span>
+                                <span>NBASS x HL COFFEE 두뇌 혈류 뉴로 가이드</span>
                             </span>
                         </div>
 
@@ -459,8 +572,41 @@ export const TargetedNutritionRecommendation: React.FC<Props> = ({
                     </div>
                 </div>
             )}
+
+            {/* Legal Advisory / Disclaimer Card */}
+            <div className="mt-8 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-[11px] text-slate-500 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-700 text-xs mb-0.5">
+                    <span>⚖️</span>
+                    <span>수험생 맞춤 영양 설계 가이드 법적 고지 (Legal Advisory)</span>
+                </div>
+                <p>• 본 맞춤 영양 가이드는 신경인지 성향 및 자가 설문 데이터를 기반으로 한 일반적인 건강 증진 및 피로 회복 목적의 영양 성분 정보이며, 의료법상 의사의 처방전(Prescription)이나 진단서가 아닙니다.</p>
+                <p>• 특정 질병의 예방 및 치료를 목적으로 하지 않으며, 기저 질환이 있거나 복용 중인 의약품이 있는 경우 반드시 전문의사 또는 약사와 상담하십시오.</p>
+                <p>• 안내된 영양 성분은 식품의약품안전처(MFDS) 기준 기능성 원료 정보를 준수합니다.</p>
+            </div>
         </div>
     );
+};
+
+const getCategoryNutrientLabel = (product: PntProduct): string => {
+    if (product.id === 'HL-COFFEE-001') return '두뇌 혈류 & 저자극 집중 각성 부스터';
+    if (product.id === '1000000095' || product.name.includes('마그네슘')) return '신경 안정 & 근육 이완 원료';
+    if (product.id === '1000000100' || product.name.includes('캄 슬립')) return '수면 질 & 스트레스 완화 원료';
+    if (product.id === '1000000077' || product.name.includes('아르기닌 6000')) return '에너지 대사 & 피로 회복 원료';
+    if (product.id === '1000000044' || product.name.includes('비타민B') || product.name.includes('액티브 B')) return '두뇌 활력 & 신경 대사 원료';
+    if (product.id === '1000000035' || product.name.includes('엔오카디')) return '기억력 & 뇌혈류 활성 원료';
+    if (product.id === '1000000047' || product.name.includes('오메가3')) return '신경망 보호 & 혈행 개선 원료';
+    
+    switch (product.category) {
+        case 'Sleep': return '수면 질 & 신경 이완 원료';
+        case 'Fatigue': return '에너지 대사 & 피로 회복 원료';
+        case 'Brain': return '기억력 & 뇌혈류 활성 원료';
+        case 'Immunity': return '면역 체계 & 세포 항산화 원료';
+        case 'Circulation': return '신경망 보호 & 혈행 개선 원료';
+        case 'Gut': return '장내 미생물 & 장-뇌 축 안정 원료';
+        case 'Liver': return '간 대사 & 피로 물질 해독 원료';
+        case 'Bone': return '골격 형성 & 비타민 D 보충 원료';
+        default: return '수험생 집중 맞춤 영양 원료';
+    }
 };
 
 const ProductCard: React.FC<{ 
@@ -477,11 +623,19 @@ const ProductCard: React.FC<{
         >
             <div>
                 <div className="aspect-[4/3] print:aspect-[3/1] bg-slate-50 overflow-hidden relative flex items-center justify-center">
-                    <img 
-                        src={imgSrc} 
-                        alt={product.name} 
-                        className={`w-full h-full object-contain ${isHlCoffee ? 'p-2' : 'mix-blend-multiply p-4'} group-hover:scale-105 transition-transform duration-500`}
-                    />
+                    {imgSrc ? (
+                        <img 
+                            src={imgSrc} 
+                            alt={product.name} 
+                            className={`w-full h-full object-contain ${isHlCoffee ? 'p-2' : 'mix-blend-multiply p-4'} group-hover:scale-105 transition-transform duration-500`}
+                            onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.parentElement?.querySelector('.fallback-icon');
+                                if (fallback) fallback.classList.remove('hidden');
+                            }}
+                        />
+                    ) : null}
+                    <span className={`text-5xl fallback-icon ${imgSrc ? 'hidden' : ''}`}>💊</span>
                     <div className="absolute top-3 left-3 flex flex-wrap gap-1 z-10">
                         {product.targetSymptoms.slice(0, 3).map(tag => (
                             <span key={tag} className="px-2 py-1 bg-white/90 backdrop-blur text-[10px] font-bold text-slate-700 rounded-lg print:border print:border-slate-200 shadow-2xs">
@@ -489,14 +643,31 @@ const ProductCard: React.FC<{
                             </span>
                         ))}
                     </div>
-                    {isHlCoffee && (
+                    {isHlCoffee ? (
                         <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-sm z-10">
                             ⚡ 뇌혈류 NO 부스터
+                        </div>
+                    ) : (
+                        <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow-sm z-10">
+                            🏥 Dr.PNT 정품
                         </div>
                     )}
                 </div>
                 <div className="p-5 print:p-3">
-                    <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors print:text-sm">{product.name}</h4>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded-md border border-emerald-200/60">
+                            🎯 {getCategoryNutrientLabel(product)}
+                        </span>
+                    </div>
+
+                    <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors print:text-sm flex items-center justify-between gap-1">
+                        <span className="truncate">{product.name}</span>
+                        {isHlCoffee ? (
+                            <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">HL 공식몰</span>
+                        ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">Dr.PNT</span>
+                        )}
+                    </h4>
                     <p className="text-xs text-slate-500 mt-1 print:text-[10px]">{product.subName}</p>
                     
                     {product.dosageMethod && (
@@ -536,9 +707,13 @@ const ProductCard: React.FC<{
                             e.stopPropagation();
                             if (onClick) onClick();
                         }}
-                        className="w-full py-2 bg-slate-900 hover:bg-emerald-600 text-white text-[11px] font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                        className={`w-full py-2.5 text-[11px] font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs ${
+                            isHlCoffee 
+                                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black shadow-amber-500/20' 
+                                : 'bg-slate-900 hover:bg-emerald-600 text-white'
+                        }`}
                     >
-                        <span>{product.id === 'HL-COFFEE-001' ? '☕ 복용 가이드 확인 & 공식몰 주문' : '처방 제품 상세정보'}</span>
+                        <span>{isHlCoffee ? '☕ 섭취 가이드 확인 & 공식몰 주문' : '🏥 공식몰 구매 안내 & 병원코드'}</span>
                         <span>↗</span>
                     </button>
                 </div>

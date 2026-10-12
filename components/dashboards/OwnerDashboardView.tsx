@@ -17,8 +17,16 @@ import {
   getSupabaseConfig,
   saveSupabaseConfig,
   testSupabaseConnection,
-  reinitSupabaseClient
+  reinitSupabaseClient,
+  keyFormat,
+  type SyncTableCheck
 } from '../../lib/supabase';
+import {
+  getSupabaseRealtimeStatus,
+  pullSupabaseToLocal,
+  pushLocalToSupabase,
+  type RealtimeStatus
+} from '../../services/supabaseRealtimeSync';
 import { CareType, StrategyMap, Prescription, Examiner, AIModelConfig } from '../../types';
 import { LogicEngineConfig, LogicThresholds, loadLogicConfig, saveLogicConfig, resetLogicConfig } from '../../logicEngine';
 import { loadPredictionRules, savePredictionRules, resetPredictionRules } from '../../data/predictionRules';
@@ -26,6 +34,13 @@ import { loadProductRecommendations, saveProductRecommendations, resetProductRec
 import { DEFAULT_STRATEGIES } from '../../data/strategies';
 import { MENTAL_PRESCRIPTIONS } from '../../data/prescriptions';
 import { ConfigModal } from '../modals/ConfigModal';
+import {
+  kakaoNotificationService,
+  KakaoApiConfig,
+  KakaoTemplateType,
+  KakaoSendResult
+} from '../../services/kakaoNotificationService';
+import { GradeCutoffsManager } from './GradeCutoffsManager';
 
 export interface OwnerDashboardViewProps {
   onBack?: () => void;
@@ -56,7 +71,7 @@ export interface OwnerDashboardViewProps {
 
 export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => {
   const { onBack, onGoToStudentMode } = props;
-  const [activeTab, setActiveTab] = useState<'briefing' | 'approvals' | 'marketing' | 'academies' | 'exceptions' | 'user_tiers' | 'supabase_db' | 'system_config'>('briefing');
+  const [activeTab, setActiveTab] = useState<'briefing' | 'approvals' | 'marketing' | 'academies' | 'exceptions' | 'user_tiers' | 'supabase_db' | 'system_config' | 'kakao' | 'cutoffs'>('briefing');
   // 1일 마케팅 예산 (localStorage 영구 저장, 기본 50만원)
   const [dailyBudget, setDailyBudget] = useState<number>(() => {
     try {
@@ -87,7 +102,7 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
   const [tierSearch, setTierSearch] = useState('');
   const [manualIdInput, setManualIdInput] = useState('');
   const [manualNameInput, setManualNameInput] = useState('');
-  const [manualTierInput, setManualTierInput] = useState<MembershipTier>('vip');
+  const [manualTierInput, setManualTierInput] = useState<MembershipTier>('premium');
   const [historyStudents, setHistoryStudents] = useState<{ id: string; name: string; date?: string; tier: MembershipTier }[]>([]);
 
   // Supabase State & Migration
@@ -109,6 +124,11 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
   const [migrationLog, setMigrationLog] = useState<string[]>([]);
   const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 0 });
   const [isCopied, setIsCopied] = useState(false);
+  // Realtime 동기화 진단 상태
+  const [diagTables, setDiagTables] = useState<SyncTableCheck[]>([]);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>(() => getSupabaseRealtimeStatus());
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   // --- Config Modal & System Settings State ---
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -281,6 +301,45 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
       message: result.message,
       latencyMs: result.latencyMs
     });
+    setDiagTables(result.tables || []);
+    setRealtimeStatus(getSupabaseRealtimeStatus());
+  };
+
+  // Realtime 상태 배지 실시간 갱신
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      setRealtimeStatus(detail?.status || getSupabaseRealtimeStatus());
+    };
+    window.addEventListener('nbass_supabase_realtime_status', handler);
+    setRealtimeStatus(getSupabaseRealtimeStatus());
+    return () => window.removeEventListener('nbass_supabase_realtime_status', handler);
+  }, []);
+
+  const handleManualPull = async () => {
+    setSyncBusy(true);
+    setSyncMsg('⬇ Supabase에서 내려받는 중...');
+    try {
+      const r = await pullSupabaseToLocal();
+      setSyncMsg(`⬇ Pull 완료: ${r.pulled}건 병합`);
+    } catch (e: any) {
+      setSyncMsg(`⬇ Pull 실패: ${e?.message || '오류'}`);
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+
+  const handleManualPush = async () => {
+    setSyncBusy(true);
+    setSyncMsg('⬆ Supabase로 올리는 중...');
+    try {
+      const r = await pushLocalToSupabase();
+      setSyncMsg(`⬆ Push 완료: ${r.pushed}건 업로드`);
+    } catch (e: any) {
+      setSyncMsg(`⬆ Push 실패: ${e?.message || '오류'}`);
+    } finally {
+      setSyncBusy(false);
+    }
   };
 
   const handleSaveSupabaseConfig = () => {
@@ -352,12 +411,24 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
     DatabaseService.getAllHistory().then(records => {
       const studentMap = new Map<string, { id: string; name: string; date?: string; tier: MembershipTier }>();
 
-      // Default insert 연습001 ID-20260820-6RKR if not present
+      // Default insert limsd7 & sample accounts if not present
+      studentMap.set('limsd7', {
+        id: 'limsd7',
+        name: 'limsd7',
+        date: '2026-09-22',
+        tier: UserTierService.getEffectiveTier('limsd7', 'pro')
+      });
       studentMap.set('ID-20260820-6RKR', {
         id: 'ID-20260820-6RKR',
         name: '연습001',
         date: new Date().toISOString().split('T')[0],
-        tier: 'vip'
+        tier: UserTierService.getEffectiveTier('ID-20260820-6RKR', 'premium')
+      });
+      studentMap.set('TEST_EXPERT_01', {
+        id: 'TEST_EXPERT_01',
+        name: '오류검증_전문가01',
+        date: new Date().toISOString().split('T')[0],
+        tier: UserTierService.getEffectiveTier('TEST_EXPERT_01', 'expert')
       });
 
       records.forEach(r => {
@@ -441,9 +512,116 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
   const [newExpOrg, setNewExpOrg] = useState('');
   const [newExpDetail, setNewExpDetail] = useState('');
 
+  // Kakao Talk Notification & Marketing Service State
+  const [kakaoConfig, setKakaoConfig] = useState<KakaoApiConfig>(() => kakaoNotificationService.getConfig());
+  const [kakaoLogs, setKakaoLogs] = useState(() => kakaoNotificationService.getLogs());
+  const [kakaoTestPhone, setKakaoTestPhone] = useState('010-9876-5432');
+  const [kakaoTestTemplate, setKakaoTestTemplate] = useState<KakaoTemplateType>('EXPERT_ACCOUNT_ISSUED');
+  const [kakaoPreviewTemplate, setKakaoPreviewTemplate] = useState<KakaoTemplateType>('EXPERT_ACCOUNT_ISSUED');
+  const [sundayStudentId, setSundayStudentId] = useState('');
+  const [sundayPhone, setSundayPhone] = useState('');
+  const [sundaySending, setSundaySending] = useState(false);
+  const [kakaoStatus, setKakaoStatus] = useState<{ testing: boolean; message: string; success?: boolean }>({
+    testing: false,
+    message: '연결 확인 대기'
+  });
+  const [autoSendKakaoOnCreateExp, setAutoSendKakaoOnCreateExp] = useState(true);
+  const [kakaoToast, setKakaoToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showKakaoToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setKakaoToast({ message, type });
+    setTimeout(() => setKakaoToast(null), 4000);
+  };
+
+  const handleSaveKakaoConfig = (partial: Partial<KakaoApiConfig>) => {
+    const updated = kakaoNotificationService.saveConfig(partial);
+    setKakaoConfig(updated);
+    showKakaoToast('✅ 카카오톡 서비스 연계 설정이 저장되었습니다.');
+  };
+
+  const handleTestKakaoConnection = async () => {
+    setKakaoStatus({ testing: true, message: '알림톡 게이트웨이 핑 테스트 중...' });
+    const res = await kakaoNotificationService.testConnection();
+    setKakaoStatus({
+      testing: false,
+      message: `${res.message} (${res.latencyMs}ms)`,
+      success: res.success
+    });
+  };
+
+  const handleSendTestKakao = async () => {
+    if (!kakaoTestPhone.trim()) {
+      alert('수신할 휴대폰 번호를 입력해주세요.');
+      return;
+    }
+    const res = await kakaoNotificationService.sendTestMessage(kakaoTestPhone.trim(), kakaoTestTemplate);
+    setKakaoLogs(kakaoNotificationService.getLogs());
+    if (res.success) {
+      showKakaoToast(`🎉 [${kakaoTestTemplate}] 알림톡 테스트 발송 성공! (${res.isSimulated ? '샌드박스 가상발송' : '실발송 완료'})`);
+    } else {
+      showKakaoToast(`❌ 발송 실패: ${res.error}`, 'error');
+    }
+  };
+
+  const handleSendSundayBriefing = async () => {
+    if (!sundayStudentId) {
+      alert('브리핑을 발송할 학생을 선택해주세요.');
+      return;
+    }
+    if (!sundayPhone.trim()) {
+      alert('학부모 수신 번호를 입력해주세요.');
+      return;
+    }
+    const target = historyStudents.find(s => s.id === sundayStudentId);
+    if (!target) {
+      alert('선택한 학생 정보를 찾을 수 없습니다.');
+      return;
+    }
+    setSundaySending(true);
+    try {
+      const records = await DatabaseService.getAllHistory();
+      const res = await kakaoNotificationService.sendSundayBriefing({
+        studentId: target.id,
+        tier: target.tier,
+        recipientPhone: sundayPhone.trim(),
+        recipientName: `${target.name} 학부모님`,
+        studentName: target.name,
+        history: records as any[],
+      });
+      setKakaoLogs(kakaoNotificationService.getLogs());
+      if (res.success) {
+        showKakaoToast(`🎉 주간 브리핑 발송 성공! (${res.isSimulated ? '샌드박스 가상발송' : '실발송 완료'})`);
+      } else {
+        showKakaoToast(`❌ 발송 실패: ${res.error}`, 'error');
+      }
+    } catch (e) {
+      showKakaoToast('❌ 발송 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSundaySending(false);
+    }
+  };
+
   const handleApproveExpert = (id: string) => {
     ExpertAccountService.updateStatus(id, 'APPROVED');
-    setExpertAccounts(ExpertAccountService.getAccounts());
+    const updatedList = ExpertAccountService.getAccounts();
+    setExpertAccounts(updatedList);
+
+    // Kakao Talk Auto Notification on Approval
+    const targetExpert = updatedList.find(a => a.id === id);
+    if (targetExpert && kakaoConfig.autoSendOnExpertApproved && targetExpert.phone) {
+      kakaoNotificationService.sendExpertApprovalNotification({
+        name: targetExpert.name,
+        email: targetExpert.email,
+        phone: targetExpert.phone,
+        role: targetExpert.role,
+        orgName: targetExpert.clinicName || targetExpert.academyName
+      }).then(res => {
+        setKakaoLogs(kakaoNotificationService.getLogs());
+        if (res.success) {
+          showKakaoToast(`💬 [${targetExpert.name}] 가입 심사 승인 알림톡이 자동 발송되었습니다!`);
+        }
+      });
+    }
   };
 
   const handleRejectExpert = (id: string) => {
@@ -457,18 +635,40 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
       return;
     }
 
+    const orgName = newExpRole === 'MEDICAL_EXPERT' 
+      ? (newExpOrg.trim() || '연세마인드 인지학습 클리닉') 
+      : (newExpOrg.trim() || '시대인재 (대치)');
+    const phone = newExpPhone.trim() || '010-0000-0000';
+
     ExpertAccountService.createApprovedAccount({
       name: newExpName.trim(),
       email: newExpEmail.trim(),
-      phone: newExpPhone.trim() || '010-0000-0000',
+      phone,
       role: newExpRole,
-      clinicName: newExpRole === 'MEDICAL_EXPERT' ? (newExpOrg.trim() || '연세마인드 인지학습 클리닉') : undefined,
+      clinicName: newExpRole === 'MEDICAL_EXPERT' ? orgName : undefined,
       medicalLicenseNumber: newExpRole === 'MEDICAL_EXPERT' ? (newExpDetail.trim() || 'MD-998821') : undefined,
       medicalSpecialty: newExpRole === 'MEDICAL_EXPERT' ? '소아청소년 / 신경정신과' : undefined,
-      academyName: newExpRole === 'ACADEMY_EXPERT' ? (newExpOrg.trim() || '시대인재 (대치)') : undefined,
+      academyName: newExpRole === 'ACADEMY_EXPERT' ? orgName : undefined,
       position: newExpRole === 'ACADEMY_EXPERT' ? (newExpDetail.trim() || '입시전략센터장') : undefined,
       academyRegion: newExpRole === 'ACADEMY_EXPERT' ? '서울 강남구 대치동' : undefined
     });
+
+    // Kakao Talk Auto Notification on Expert Direct Issuance
+    if (autoSendKakaoOnCreateExp && kakaoConfig.autoSendOnExpertCreated && phone && phone !== '010-0000-0000') {
+      kakaoNotificationService.sendExpertIssuanceNotification({
+        name: newExpName.trim(),
+        email: newExpEmail.trim(),
+        phone,
+        role: newExpRole,
+        orgName,
+        tempPassword: 'nbass2026!'
+      }).then(res => {
+        setKakaoLogs(kakaoNotificationService.getLogs());
+        if (res.success) {
+          showKakaoToast(`💬 [${newExpName}] 전문가 계정 발급 알림톡이 자동 발송되었습니다!`);
+        }
+      });
+    }
 
     setExpertAccounts(ExpertAccountService.getAccounts());
     setShowCreateExpertModal(false);
@@ -674,6 +874,25 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
         >
           <span>⚙️</span> 시스템 통합 설정 (Config Studio)
         </button>
+        <button
+          onClick={() => setActiveTab('kakao')}
+          className={`px-3.5 py-2 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${activeTab === 'kakao'
+            ? 'border-amber-500 text-amber-900 bg-amber-50/80 font-black shadow-sm'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+        >
+          <span className="px-1.5 py-0.5 rounded bg-[#FEE500] text-[#3C1E1E] text-[10px] font-black leading-none shadow-sm">TALK</span>
+          카카오톡 연계 설정
+        </button>
+        <button
+          onClick={() => setActiveTab('cutoffs')}
+          className={`px-3.5 py-2 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${activeTab === 'cutoffs'
+            ? 'border-blue-600 text-blue-700 bg-blue-50/90 font-black shadow-sm'
+            : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+        >
+          <span>📊</span> 연도별 등급컷 & 대입 DB
+        </button>
       </div>
 
       {/* Main Content Area */}
@@ -750,6 +969,38 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
         {/* Tab 2: Approvals (Experts & Marketing) */}
         {activeTab === 'approvals' && (
           <div className="space-y-8">
+
+            {/* Kakao Talk Expert Approval Integration Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border border-amber-300 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 rounded-xl bg-[#FEE500] text-[#3C1E1E] font-black text-xs shadow-sm flex items-center gap-1 shrink-0">
+                  <span>💬</span> TALK
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm text-slate-900">전문가 계정 발급 &amp; 승인 카카오톡 알림톡 연계</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${kakaoConfig.autoSendOnExpertCreated ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'}`}>
+                      신규 발급 자동발송 {kakaoConfig.autoSendOnExpertCreated ? 'ON' : 'OFF'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${kakaoConfig.autoSendOnExpertApproved ? 'bg-blue-100 text-blue-800 border border-blue-300' : 'bg-slate-100 text-slate-600'}`}>
+                      승인 완료 자동발송 {kakaoConfig.autoSendOnExpertApproved ? 'ON' : 'OFF'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                      {kakaoConfig.isSandbox ? '샌드박스(테스트)' : '실서버 모드'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    의료전문가/학원전문가 계정을 발급하거나 승인 시 접속 URL 및 임시 비밀번호가 카카오톡으로 즉시 전송됩니다.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('kakao')}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <span>⚙️</span> 카카오 연계 설정 관리 →
+              </button>
+            </div>
 
             {/* Section 1: Expert Registration Approvals */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
@@ -1036,6 +1287,25 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
                     <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200 text-[11px] text-blue-700">
                       💡 발급 즉시 <strong>[승인 완료 (APPROVED)]</strong> 상태가 되며, 해당 이메일로 전용 대시보드에 즉시 로그인할 수 있습니다.
                     </div>
+
+                    {/* Kakao Auto Send Checkbox */}
+                    <label className="flex items-center gap-2 cursor-pointer p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl hover:bg-amber-100/60 transition-all">
+                      <input
+                        type="checkbox"
+                        checked={autoSendKakaoOnCreateExp}
+                        onChange={e => setAutoSendKakaoOnCreateExp(e.target.checked)}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-[#FEE500] text-[#3C1E1E] text-[10px] font-black">TALK</span>
+                          카카오톡 알림톡 즉시 발송
+                        </span>
+                        <div className="text-[10px] text-amber-800/80 mt-0.5">
+                          전문가 연락처로 포털 접속 링크 및 임시 비밀번호를 카카오톡으로 자동 전송합니다.
+                        </div>
+                      </div>
+                    </label>
                   </div>
 
                   <div className="mt-6 flex justify-end gap-2">
@@ -1113,6 +1383,39 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = (props) => 
         {/* Tab 3: Marketing & Budget */}
         {activeTab === 'marketing' && (
           <div className="space-y-6">
+
+            {/* Kakao Talk Marketing Integration Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border border-amber-300 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 rounded-xl bg-[#FEE500] text-[#3C1E1E] font-black text-xs shadow-sm flex items-center gap-1 shrink-0">
+                  <span>💬</span> TALK
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-extrabold text-sm text-slate-900">AI 마케팅 &amp; 진단 리드 카카오톡 알림톡 연계</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${kakaoConfig.autoSendOnDiagnosticComplete ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600'}`}>
+                      진단 완료 즉시 발송 {kakaoConfig.autoSendOnDiagnosticComplete ? 'ON' : 'OFF'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${kakaoConfig.autoSendRetentionFunnel ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'}`}>
+                      2주 리텐션 퍼널 {kakaoConfig.autoSendRetentionFunnel ? 'ON' : 'OFF'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                      {kakaoConfig.isSandbox ? '샌드박스(테스트)' : '실서버 모드'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    성향 진단을 마친 학부모에게 AI 3분 분석 리포트 요약 및 D+7, D+14일 리텐션 알림톡이 자동 발송됩니다.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('kakao')}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all text-xs shrink-0 shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <span>⚙️</span> 카카오 연계 설정 관리 →
+              </button>
+            </div>
+
             {/* 50만원 예산 분배 현황 */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
@@ -1312,7 +1615,7 @@ create policy "owner write" on affiliated_academies for all
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                    • 무료 가입자라도 오너가 그 회원(학생/학부모)의 등급을 <strong className="text-amber-700">VIP(모든 기능 사용 가능)</strong>로 변경하면 전 기능 잠금이 즉시 해제됩니다.<br />
+                    • 무료 가입자라도 오너가 그 회원(학생/학부모)의 등급을 <strong className="text-amber-700">PREMIUM(모든 기능 사용 가능)</strong>으로 변경하면 전 기능 잠금이 즉시 해제됩니다.<br />
                     • <strong className="text-emerald-700">연습001 (ID: ID-20260820-6RKR)</strong> 회원 등 아래 목록에서 클릭 한 번으로 등급을 부여할 수 있습니다.
                   </p>
                 </div>
@@ -1335,7 +1638,7 @@ create policy "owner write" on affiliated_academies for all
                   <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                     연습001
                     <span className="text-sm font-bold text-amber-800 bg-amber-100 border border-amber-300 px-3 py-0.5 rounded-full">
-                      👑 VIP (모든 기능 사용 가능)
+                      💎 PREMIUM (모든 기능 사용 가능)
                     </span>
                   </h3>
                   <p className="text-xs text-slate-600">
@@ -1344,18 +1647,6 @@ create policy "owner write" on affiliated_academies for all
                 </div>
 
                 <div className="flex flex-wrap gap-2 shrink-0">
-                  <button
-                    onClick={() => handleGrantTier('ID-20260820-6RKR', 'vip', '연습001', '모든 기능 사용 가능 (오너 지정)')}
-                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
-                  >
-                    <span>👑</span> VIP (모든 기능 부여)
-                  </button>
-                  <button
-                    onClick={() => handleGrantTier('ID-20260820-6RKR', 'premium_plus', '연습001', 'Premium Plus 등급 조정')}
-                    className="px-3.5 py-2.5 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
-                  >
-                    ✨ Premium Plus
-                  </button>
                   <button
                     onClick={() => handleGrantTier('ID-20260820-6RKR', 'premium', '연습001', 'Premium 등급 조정')}
                     className="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
@@ -1367,6 +1658,53 @@ create policy "owner write" on affiliated_academies for all
                     className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all border border-slate-200"
                   >
                     🌱 Free
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Featured Highlight Card: limsd7 */}
+            <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-white border-2 border-blue-400 rounded-2xl p-6 shadow-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-bl-xl uppercase tracking-wider shadow-sm">
+                ⚡ PRO 정밀 진단 스타터 패스 수험생
+              </div>
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-black">
+                      개발자/수험생 지정 계정
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">ID: limsd7</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                    limsd7
+                    <span className="text-sm font-bold text-blue-800 bg-blue-100 border border-blue-300 px-3 py-0.5 rounded-full">
+                      ⚡ {tierOverrides['limsd7']?.tier ? tierOverrides['limsd7'].tier.toUpperCase() : 'PRO'} (정밀 진단 스타터 패스)
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    현재 상태: <span className="text-blue-700 font-bold">오너 승인 완료</span> — 뇌피로 집중곤란 신경인지 정밀 진단 2회 기록 보유 및 PRO 맞춤 처방전 사용 중
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <button
+                    onClick={() => handleGrantTier('limsd7', 'pro', 'limsd7', 'PRO 1회 스타터 패스 (오너 승인)')}
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                  >
+                    <span>⚡</span> PRO 부여
+                  </button>
+                  <button
+                    onClick={() => handleGrantTier('limsd7', 'premium', 'limsd7', 'Premium 승급')}
+                    className="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
+                  >
+                    💎 Premium
+                  </button>
+                  <button
+                    onClick={() => handleGrantTier('limsd7', 'expert', 'limsd7', 'EXPERT 오류검증 모드')}
+                    className="px-3.5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
+                  >
+                    🛠️ Expert
                   </button>
                 </div>
               </div>
@@ -1397,9 +1735,7 @@ create policy "owner write" on affiliated_academies for all
                   onChange={e => setManualTierInput(e.target.value as MembershipTier)}
                   className="px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
                 >
-                  <option value="vip">👑 VIP (모든 기능 사용 가능)</option>
-                  <option value="premium_plus">✨ PREMIUM PLUS (AI 클리닉+의학 리포트북)</option>
-                  <option value="premium">💎 PREMIUM (심층 리포트+알림톡)</option>
+                  <option value="premium">💎 PREMIUM (정기구독·전기능)</option>
                   <option value="pro">⚡ PRO (1회 스타터 패스)</option>
                   <option value="free">🌱 FREE (기본 무료 진단)</option>
                 </select>
@@ -1439,12 +1775,13 @@ create policy "owner write" on affiliated_academies for all
                   .filter(st => !tierSearch.trim() || st.name.toLowerCase().includes(tierSearch.toLowerCase()) || st.id.toLowerCase().includes(tierSearch.toLowerCase()))
                   .map(st => {
                     const currentEffectiveTier = UserTierService.getEffectiveTier(st.id || st.name, st.tier);
-                    const isVip = currentEffectiveTier === 'vip';
+                    const isTopTier = currentEffectiveTier === 'premium';
+                    const tierKey: string = currentEffectiveTier;
                     return (
                       <div
                         key={st.id}
-                        className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${isVip
-                          ? 'bg-amber-50/50 border-amber-300 shadow-sm'
+                        className={`p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${isTopTier
+                          ? 'bg-indigo-50/50 border-indigo-300 shadow-sm'
                           : 'bg-white border-slate-200'
                           }`}
                       >
@@ -1452,17 +1789,15 @@ create policy "owner write" on affiliated_academies for all
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 text-sm">{st.name}</span>
                             <span className="text-xs text-slate-500 font-mono">({st.id})</span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isVip
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : currentEffectiveTier === 'premium_plus'
+                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isTopTier
+                              ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                              : tierKey === 'expert'
                                 ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                                : currentEffectiveTier === 'premium'
-                                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
-                                  : currentEffectiveTier === 'pro'
-                                    ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                : tierKey === 'pro'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
                               }`}>
-                              {isVip ? '👑 VIP (모든 기능 사용)' : currentEffectiveTier === 'premium_plus' ? '✨ Premium Plus' : TIER_INFO[currentEffectiveTier]?.name || currentEffectiveTier.toUpperCase()}
+                              {TIER_INFO[currentEffectiveTier]?.name || currentEffectiveTier.toUpperCase()}
                             </span>
                           </div>
                           {st.date && (
@@ -1472,24 +1807,6 @@ create policy "owner write" on affiliated_academies for all
 
                         {/* Tier Change Buttons */}
                         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                          <button
-                            onClick={() => handleGrantTier(st.id, 'vip', st.name, '오너 승인 (전 기능 무제한)')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentEffectiveTier === 'vip'
-                              ? 'bg-amber-500 text-white shadow-sm'
-                              : 'bg-slate-100 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                              }`}
-                          >
-                            👑 VIP (전기능)
-                          </button>
-                          <button
-                            onClick={() => handleGrantTier(st.id, 'premium_plus', st.name, '오너 승인 (Premium Plus)')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentEffectiveTier === 'premium_plus'
-                              ? 'bg-purple-600 text-white shadow-sm'
-                              : 'bg-slate-100 hover:bg-purple-100 text-purple-800 border border-slate-200'
-                              }`}
-                          >
-                            ✨ Premium Plus
-                          </button>
                           <button
                             onClick={() => handleGrantTier(st.id, 'premium', st.name, '오너 승인 (Premium)')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${currentEffectiveTier === 'premium'
@@ -1593,6 +1910,77 @@ create policy "owner write" on affiliated_academies for all
             </div>
 
             {/* Connection Credentials Form */}
+            {/* Realtime 동기화 상태 진단 패널 */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>🛰️</span> 실시간 동기화 상태
+                  {realtimeStatus === 'connected' && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold border border-emerald-300">🟢 Realtime 연결됨</span>
+                  )}
+                  {realtimeStatus === 'connecting' && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold border border-amber-300">🟡 Realtime 연결 중</span>
+                  )}
+                  {realtimeStatus === 'disabled' && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-300">⚪ Realtime 꺼짐 (키 미설정)</span>
+                  )}
+                  {realtimeStatus === 'error' && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold border border-rose-300">🔴 Realtime 오류</span>
+                  )}
+                  {realtimeStatus === 'closed' && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-300">⚪ Realtime 종료됨</span>
+                  )}
+                </h4>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleManualPull}
+                    disabled={syncBusy}
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                  >
+                    ⬇ 지금 내려받기
+                  </button>
+                  <button
+                    onClick={handleManualPush}
+                    disabled={syncBusy}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                  >
+                    ⬆ 지금 올리기
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 font-mono break-all">
+                endpoint: {(() => { try { return new URL(getSupabaseConfig().url).host; } catch { return getSupabaseConfig().url || '(미설정)'; } })()}
+                {' '}· key: {keyFormat(getSupabaseConfig().key)}
+              </div>
+
+              {syncMsg && (
+                <div className="p-2.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                  {syncMsg}
+                </div>
+              )}
+
+              {diagTables.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {diagTables.map(t => (
+                    <div
+                      key={t.table}
+                      title={t.ok ? `${t.latencyMs ?? 0}ms` : t.error}
+                      className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border truncate ${t.ok
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border-rose-200'}`}
+                    >
+                      {t.ok ? '✅' : '❌'} {t.table}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  테이블 준비 상태 미확인 — 상단의 [📡 실시간 연결 테스트]를 눌러 10개 동기화 테이블을 점검하세요. ❌가 있으면 해당 SQL이 Supabase에 미실행된 것입니다.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
                 <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -2261,6 +2649,601 @@ CREATE POLICY "Allow public insert assessments" ON public.assessments FOR ALL US
 
             </div>
           </div>
+        )}
+
+        {/* Tab 9: KakaoTalk Service Integration Settings */}
+        {activeTab === 'kakao' && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-400 rounded-3xl p-6 sm:p-8 text-slate-950 shadow-lg relative overflow-hidden">
+              <div className="absolute right-4 -bottom-6 text-9xl opacity-10 font-black select-none pointer-events-none">
+                TALK
+              </div>
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-950/10 backdrop-blur-sm rounded-full text-xs font-black tracking-wide mb-2 text-slate-900 border border-slate-950/10">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                    NBASS 비즈니스 알림톡 &amp; 마케팅 게이트웨이
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 flex items-center gap-2.5">
+                    <span className="p-1 px-2.5 rounded-2xl bg-[#FEE500] text-[#3C1E1E] text-lg font-black shadow">TALK</span>
+                    카카오톡 서비스 연계 설정
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-800 font-medium mt-1.5 max-w-2xl leading-relaxed">
+                    <strong>전문가 계정 발급(의료/학원)</strong> 즉시 안내 및 <strong>24시간 자율 AI 마케팅</strong> 진단 리드 알림톡, 2주 리텐션 퍼널을 실시간 중앙 통제합니다.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="px-4 py-2 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/60 shadow-sm text-xs">
+                    <div className="text-[10px] text-slate-600 font-bold">발송 모드</div>
+                    <div className="font-extrabold text-amber-900 flex items-center gap-1.5 mt-0.5">
+                      <span className={`w-2 h-2 rounded-full ${kakaoConfig.isSandbox ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                      {kakaoConfig.isSandbox ? '샌드박스 (가상 테스트)' : '실서버 Live API'}
+                    </div>
+                  </div>
+                  <div className="px-4 py-2 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/60 shadow-sm text-xs">
+                    <div className="text-[10px] text-slate-600 font-bold">누적 발송 이력</div>
+                    <div className="font-extrabold text-slate-900 mt-0.5">
+                      {kakaoLogs.length}건 <span className="text-[10px] font-normal text-slate-500">(단가 ~₩8)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Toast Alert */}
+            {kakaoToast && (
+              <div className={`p-4 rounded-2xl border shadow-md flex items-center justify-between text-xs font-bold transition-all ${
+                kakaoToast.type === 'error'
+                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}>
+                <span>{kakaoToast.message}</span>
+                <button onClick={() => setKakaoToast(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+              </div>
+            )}
+
+            {/* Main 2-Column Content */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+              {/* LEFT COLUMN: Configuration & Auto-Rules (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+
+                {/* 1. API Gateway & Channel Profile */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🔌</span>
+                      <h3 className="text-base font-extrabold text-slate-900">1. 알림톡 API &amp; 카카오 비즈니스 채널 연동</h3>
+                    </div>
+                    <button
+                      onClick={handleTestKakaoConnection}
+                      disabled={kakaoStatus.testing}
+                      className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                    >
+                      <span>{kakaoStatus.testing ? '⏳' : '⚡'}</span>
+                      {kakaoStatus.testing ? '테스트 중...' : '연결 핑 테스트'}
+                    </button>
+                  </div>
+
+                  {kakaoStatus.message && kakaoStatus.message !== '연결 확인 대기' && (
+                    <div className={`p-3 rounded-xl border text-xs font-medium flex items-center justify-between ${
+                      kakaoStatus.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'
+                    }`}>
+                      <span>{kakaoStatus.message}</span>
+                      <span className="text-[10px] font-bold opacity-75">{kakaoStatus.success ? '정상 응답' : '확인 필요'}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">알림톡 중계 딜러사 *</label>
+                      <select
+                        value={kakaoConfig.provider}
+                        onChange={e => handleSaveKakaoConfig({ provider: e.target.value as any })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="aligo">알리고 (Aligo 알림톡 API) - 공식 권장</option>
+                        <option value="kakao_biz">카카오 비즈메시지 직접 연동 (Kakao Biz)</option>
+                        <option value="solapi">솔라피 (Solapi / 구 쿨에스엠에스)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">카카오톡 채널 ID (@검색용 아이디) *</label>
+                      <input
+                        type="text"
+                        placeholder="@nbass_neuro"
+                        value={kakaoConfig.channelId}
+                        onChange={e => handleSaveKakaoConfig({ channelId: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">API Key (인증키) *</label>
+                      <input
+                        type="password"
+                        placeholder="aligo_api_key_xxxxxxxx"
+                        value={kakaoConfig.apiKey}
+                        onChange={e => handleSaveKakaoConfig({ apiKey: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">User ID (고유 계정 아이디) *</label>
+                      <input
+                        type="text"
+                        placeholder="nbass_master"
+                        value={kakaoConfig.userId}
+                        onChange={e => handleSaveKakaoConfig({ userId: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">발신 프로필 키 (Sender Key / 40자리) *</label>
+                      <input
+                        type="password"
+                        placeholder="kakao_sender_profile_key_40chars..."
+                        value={kakaoConfig.senderKey}
+                        onChange={e => handleSaveKakaoConfig({ senderKey: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">발신 대표번호 (사전 등록된 번호) *</label>
+                      <input
+                        type="text"
+                        placeholder="02-1588-0000"
+                        value={kakaoConfig.senderPhone}
+                        onChange={e => handleSaveKakaoConfig({ senderPhone: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sandbox Mode Toggle */}
+                  <div className="p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="font-extrabold text-amber-950 flex items-center gap-1.5 text-xs">
+                        <span>🛡️</span> 샌드박스 (가상 시뮬레이션 발송) 모드
+                      </div>
+                      <div className="text-[11px] text-amber-800/80 mt-0.5">
+                        ON 시 실제 알림톡 과금 및 API 호출 없이 가상 전송 및 발송 로그 저장만 안전하게 수행됩니다.
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                      <input
+                        type="checkbox"
+                        checked={kakaoConfig.isSandbox}
+                        onChange={e => handleSaveKakaoConfig({ isSandbox: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 2. Expert Account Issuance Rules */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">👨‍⚕️ 🎓</span>
+                      <div>
+                        <h3 className="text-base font-extrabold text-slate-900">2. 전문가 계정 발급 &amp; 승인 연계 규칙</h3>
+                        <p className="text-xs text-slate-500">오너의 전문가 계정 생성 및 승인 큐 심사 시 카카오 알림톡 자동 발송을 제어합니다.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <span>🔑 전문가 계정 직접 발급 시 자동 발송</span>
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">임시비번 포함</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          오너가 [전문가 계정 직접 발급] 모달에서 계정을 생성하면, 전문가 휴대폰으로 접속 URL 및 임시 비밀번호가 즉시 발송됩니다.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={kakaoConfig.autoSendOnExpertCreated}
+                          onChange={e => handleSaveKakaoConfig({ autoSendOnExpertCreated: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    <div className="p-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <span>✅ 가입 심사 대기 전문가 승인 시 축하 알림 발송</span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">권한 활성화</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          [승인 큐] 탭에서 심사 대기 중인 전문가를 1-클릭 승인하면 자격 검증 완료 및 데이터 열람 권한 활성화 알림톡이 전송됩니다.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={kakaoConfig.autoSendOnExpertApproved}
+                          onChange={e => handleSaveKakaoConfig({ autoSendOnExpertApproved: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs flex items-center justify-between">
+                    <span className="text-slate-600 font-medium">전문가 템플릿 실시간 미리보기 확인</span>
+                    <button
+                      onClick={() => setKakaoPreviewTemplate('EXPERT_ACCOUNT_ISSUED')}
+                      className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-slate-800 font-bold shadow-sm cursor-pointer"
+                    >
+                      말풍선 프리뷰 전환 ↗
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. AI Marketing & Lead Rules */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚀 📢</span>
+                      <div>
+                        <h3 className="text-base font-extrabold text-slate-900">3. AI 마케팅 &amp; 수험생/학부모 리드 연계 규칙</h3>
+                        <p className="text-xs text-slate-500">무료 진단 완료 리드 확보 및 유료 전환율 극대화를 위한 자동 알림톡 트리거입니다.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <span>📊 무료 성향 진단 완료 즉시 학부모 AI 3분 요약 리포트 발송</span>
+                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">리드 전환</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          검사를 마친 수험생의 학부모 연락처로 전두엽 인지 상태 및 3-Tier 맞춤 솔루션 링크를 알림톡으로 전송합니다.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={kakaoConfig.autoSendOnDiagnosticComplete}
+                          onChange={e => handleSaveKakaoConfig({ autoSendOnDiagnosticComplete: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
+                    </div>
+
+                    <div className="p-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <span>🔄 PRO 미전환 회원 대상 2주 리텐션 퍼널 (맛보기 5회) 자동 가동</span>
+                          <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold">D+7 / D+14</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          1회 진단 후 정기구독으로 전환하지 않은 학부모에게 D+7일 주간 리포트 맛보기 및 D+14일 최종 구독 혜택 알림톡을 순차 예약 발송합니다.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={kakaoConfig.autoSendRetentionFunnel}
+                          onChange={e => handleSaveKakaoConfig({ autoSendRetentionFunnel: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                      </label>
+                    </div>
+
+                    <div className="p-4 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                          <span>🚨 정기결제 수험생 고위험 번아웃 감지 시 학부모 긴급 SOS Alert</span>
+                          <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 text-[10px] font-bold">자율신경 이상</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          교감신경 과항진(SNS &gt; 75%) 또는 수면 회복 부전 감지 시 즉시 학부모에게 긴급 리셋 처방 알림톡을 발송합니다.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={kakaoConfig.autoSendBurnoutAlert}
+                          onChange={e => handleSaveKakaoConfig({ autoSendBurnoutAlert: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RIGHT COLUMN: Interactive Bubble Preview & Test Sender (5 cols) */}
+              <div className="lg:col-span-5 space-y-6">
+
+                {/* 4. Interactive Kakao Bubble Preview */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📱</span>
+                      <h3 className="text-base font-extrabold text-slate-900">카카오톡 말풍선 실시간 프리뷰</h3>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-bold text-xs mb-1">미리보기 템플릿 선택</label>
+                    <select
+                      value={kakaoPreviewTemplate}
+                      onChange={e => setKakaoPreviewTemplate(e.target.value as KakaoTemplateType)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                    >
+                      <optgroup label="👨‍⚕️ 전문가 발급 &amp; 승인">
+                        <option value="EXPERT_ACCOUNT_ISSUED">🔑 전문가 계정 직접 발급 (임시비번 안내)</option>
+                        <option value="EXPERT_ACCOUNT_APPROVED">✅ 전문가 자격 심사 승인 완료 (권한 활성화)</option>
+                      </optgroup>
+                      <optgroup label="🚀 AI 마케팅 &amp; 진단 리드">
+                        <option value="MARKETING_LEAD_SUMMARY">📊 무료 진단 완료 즉시 리포트 요약</option>
+                        <option value="PRO_RETENTION_MOM_WEEKLY_1">🔄 2주 리텐션: 1주차 주간 리포트 맛보기</option>
+                        <option value="PREMIUM_MOM_SUNDAY_REPORT">📅 정기 학부모 일요일 주간 브리핑</option>
+                        <option value="PLUS_AI_CONSULTATION_MOM_SUMMARY">💬 AI 1:1 상담 직후 학부모 안심 브리핑</option>
+                        <option value="VIP_BURNOUT_EMERGENCY_ALERT">🚨 고위험 번아웃 긴급 SOS Alert</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  {/* Kakao Bubble Mockup */}
+                  <div className="bg-[#B2C7DA] rounded-3xl p-4 shadow-inner">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-black/5 text-[11px] text-slate-700 font-bold">
+                      <span className="flex items-center gap-1">
+                        <span className="w-4 h-4 rounded bg-[#FEE500] text-[#3C1E1E] text-[9px] font-black flex items-center justify-center">TALK</span>
+                        NBASS 수험생 뉴로-케어
+                      </span>
+                      <span className="text-[10px] text-slate-500">알림톡 도착</span>
+                    </div>
+
+                    {/* Speech Bubble */}
+                    <div className="bg-white rounded-2xl p-4 shadow-md text-xs text-slate-800 space-y-3 leading-relaxed relative border border-slate-100">
+                      <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100 text-[11px] font-extrabold text-amber-900">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        [카카오 공식 인증 알림톡]
+                      </div>
+
+                      <div className="whitespace-pre-wrap font-sans text-xs text-slate-800">
+                        {kakaoNotificationService.renderTemplatePreview(kakaoPreviewTemplate)}
+                      </div>
+
+                      {/* Interactive Button in Bubble */}
+                      <div className="pt-2 border-t border-slate-100">
+                        <div className="w-full py-2.5 bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] font-black text-xs rounded-xl text-center shadow-sm transition-all cursor-pointer">
+                          {kakaoPreviewTemplate.startsWith('EXPERT') ? '전문가 관제 포털 바로가기' : '자녀 심층 리포트 즉시 확인'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Direct Test Sender */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⚡</span>
+                      <h3 className="text-base font-extrabold text-slate-900">1-클릭 테스트 알림톡 발송기</h3>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                      {kakaoConfig.isSandbox ? '샌드박스 가상' : '실제 발송'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">테스트 수신 번호</label>
+                      <input
+                        type="text"
+                        placeholder="010-1234-5678"
+                        value={kakaoTestPhone}
+                        onChange={e => setKakaoTestPhone(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-mono text-slate-900 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">발송할 템플릿</label>
+                      <select
+                        value={kakaoTestTemplate}
+                        onChange={e => setKakaoTestTemplate(e.target.value as KakaoTemplateType)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="EXPERT_ACCOUNT_ISSUED">🔑 [전문가] 계정 직접 발급 (임시비번)</option>
+                        <option value="EXPERT_ACCOUNT_APPROVED">✅ [전문가] 자격 심사 승인 완료</option>
+                        <option value="MARKETING_LEAD_SUMMARY">📊 [학부모] AI 무료 진단 3분 요약</option>
+                        <option value="PRO_RETENTION_MOM_WEEKLY_1">🔄 [학부모] 2주 리텐션 맛보기 리포트</option>
+                        <option value="VIP_BURNOUT_EMERGENCY_ALERT">🚨 [학부모] 고위험 번아웃 긴급 SOS</option>
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleSendTestKakao}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-slate-950 font-black rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>💬</span> 테스트 알림톡 즉시 발송
+                    </button>
+                  </div>
+                </div>
+
+                {/* 5-1. 주간 브리핑 실발송 (실측 델타 연결) */}
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📅</span>
+                      <h3 className="text-base font-extrabold text-slate-900">주간 브리핑 실발송 (변화량 자동 반영)</h3>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                      최근 2건 기록 자동 비교
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">대상 학생</label>
+                      <select
+                        value={sundayStudentId}
+                        onChange={e => setSundayStudentId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="">학생을 선택하세요</option>
+                        {historyStudents.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.id}) · {s.tier}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">학부모 수신 번호</label>
+                      <input
+                        type="text"
+                        placeholder="010-1234-5678"
+                        value={sundayPhone}
+                        onChange={e => setSundayPhone(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSendSundayBriefing}
+                      disabled={sundaySending}
+                      className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>📅</span> {sundaySending ? '발송 중...' : '주간 브리핑 실발송'}
+                    </button>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      판정 완료 기록이 없으면 발송되지 않습니다. 자동 주간 스케줄러는 별도 서버 크론이 필요하며, 현재는 수동 발송만 지원합니다.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* 6. Send Logs & Quotas Table */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📋</span>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900">최근 알림톡 전송 이력 및 상태 로그</h3>
+                    <p className="text-xs text-slate-500">전문가 발급, 가입 승인, AI 마케팅 리드 발송 내역이 실시간 기록됩니다.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">총 {kakaoLogs.length}건 기록</span>
+                  <button
+                    onClick={() => {
+                      if (confirm('모든 알림톡 전송 로그를 초기화하시겠습니까?')) {
+                        kakaoNotificationService.clearLogs();
+                        setKakaoLogs([]);
+                      }
+                    }}
+                    className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  >
+                    로그 비우기
+                  </button>
+                </div>
+              </div>
+
+              {kakaoLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  전송된 알림톡 기록이 없습니다. 상단의 '테스트 알림톡 발송' 또는 '전문가 계정 발급'을 통해 발송을 시작하세요.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3">전송 일시</th>
+                        <th className="py-2.5 px-3">수신 대상</th>
+                        <th className="py-2.5 px-3">수신자 / 연락처</th>
+                        <th className="py-2.5 px-3">템플릿 유형</th>
+                        <th className="py-2.5 px-3">발송 모드</th>
+                        <th className="py-2.5 px-3">상태</th>
+                        <th className="py-2.5 px-3 text-right">예상 단가</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {kakaoLogs.slice(0, 20).map((log, i) => (
+                        <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-mono text-slate-500">
+                            {new Date(log.sentAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              log.recipientType === 'expert'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                : log.recipientType === 'parent'
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {log.recipientType === 'expert' ? '의료/학원 전문가' : log.recipientType === 'parent' ? '학부모' : '수험생'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-slate-800">{log.recipientName || '미지정'}</span>
+                            <span className="text-[11px] text-slate-500 font-mono ml-1.5">({log.recipientPhone})</span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-slate-700">
+                            {log.template}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              log.isSimulated
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            }`}>
+                              {log.isSimulated ? '샌드박스(가상)' : '실서버 Live'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-emerald-600 font-bold flex items-center gap-1">
+                              <span>✓</span> 전송 성공
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                            ₩{log.costWon || 8}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* Tab 10: Grade Cutoffs & University Prediction DB Management */}
+        {activeTab === 'cutoffs' && (
+          <GradeCutoffsManager />
         )}
       </div>
 

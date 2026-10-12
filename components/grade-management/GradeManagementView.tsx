@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StudentInfo, GradeRecord, GradeGoal, AssessmentResult, AIModelConfig } from '../../types';
+import { StudentInfo, GradeRecord, GradeGoal, AssessmentResult, AIModelConfig, LadderStageLevel } from '../../types';
 import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
+import { resolveEffectiveStudentId } from '../../services/studentIdentity';
 import { SUNEUNG_SUBJECTS } from '../../data/suneungSubjects';
 import { GradeInputModal } from './GradeInputModal';
-import { GradeTrendChart } from './GradeTrendChart';
-import { GradeGoalSetting } from './GradeGoalSetting';
 import { GradeSimulationView } from './GradeSimulationView';
 import { CorrelationHeatmap } from './CorrelationHeatmap';
 import { DDayRoadmap } from './DDayRoadmap';
@@ -13,10 +12,15 @@ import { ActionPlanCalendar } from './ActionPlanCalendar';
 import { PeerBenchmarkingChart } from './PeerBenchmarkingChart';
 import { UniversityPredictionView } from './UniversityPredictionView';
 import { GradeSimulationEngine } from '../../services/gradeSimulationEngine';
-import { useUniversities } from '../../hooks/useUniversities';
-import { SearchableSelect } from '../ui/SearchableSelect';
+import { detectGradeDrop } from '../../services/gradeDropDetector';
+import {
+    parseCsv,
+    rowsToGradeRecords,
+    sameExamKey,
+    buildExportCsv,
+} from '../../services/gradeCsv';
 import { PaywallOverlay } from '../ui/PaywallOverlay';
-import { MembershipTier } from '../../utils/featureGate';
+import { MembershipTier, normalizeTier } from '../../utils/featureGate';
 import { GradeManualModal } from './GradeManualModal';
 import { StudyDashboard } from './StudyDashboard';
 import { StudyGradeManager } from './StudyGradeManager';
@@ -32,39 +36,58 @@ interface GradeManagementViewProps {
     aiModels?: AIModelConfig | null;
     membershipTier?: MembershipTier;
     onUpgradeClick?: (targetTier?: MembershipTier) => void;
+    onStartAssessment?: () => void;
 }
 
-export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ student, onBack, currentAssessment, aiModels, membershipTier, onUpgradeClick }) => {
+export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ student, onBack, currentAssessment, aiModels, membershipTier, onUpgradeClick, onStartAssessment }) => {
     const [records, setRecords] = useState<GradeRecord[]>([]);
     const [goals, setGoals] = useState<GradeGoal[]>([]);
     const [isInputModalOpen, setIsInputModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<GradeRecord | null>(null);
-    const [selectedSubjectForGoal, setSelectedSubjectForGoal] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'study_dashboard' | 'ladder_training' | 'study_grades' | 'study_goals' | 'roadmap' | 'overview' | 'goals' | 'simulation' | 'analysis' | 'university'>('study_dashboard');
+    const [activeTab, setActiveTab] = useState<'study_dashboard' | 'ladder_training' | 'study_grades' | 'study_goals' | 'roadmap' | 'simulation' | 'analysis' | 'university'>('study_dashboard');
     const [isParentReportOpen, setIsParentReportOpen] = useState(false);
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
     const [latestAssessment, setLatestAssessment] = useState<AssessmentResult | undefined>(currentAssessment);
+
+    // 진단 미완료 시 CareType 맞춤으로 보이지 않게 (미검사 HEALTHY 가정 금지)
+    const hasAssessment = Boolean(latestAssessment?.careType) &&
+        (latestAssessment?.careType as any) !== 'Unassessed' &&
+        (latestAssessment?.careType as any) !== 'UNASSESSED' &&
+        (latestAssessment?.careType as any) !== '알 수 없음';
+
+    // 성적 하락 감지 → 컨디션 재검사 권고 (P2 루프 닫기)
+    const gradeDrop = React.useMemo(() => detectGradeDrop(records), [records]);
 
     const [ladderModalData, setLadderModalData] = useState<{
         isOpen: boolean;
         subjectName: string;
         unitName: string;
         weakPriority: number;
+        initialStage?: LadderStageLevel;
+        startReason?: string;
     } | null>(null);
+
+    // 사다리 시작 단계 개인화 (작업기억 점수 기반, 추정치 명시)
+    const ladderEntry = React.useMemo(() => {
+        const wm: any = (latestAssessment as any)?.workingMemoryResults;
+        const score = wm?.score ?? wm?.overallScore;
+        if (typeof score === 'number') {
+            if (score >= 85) return { stage: 'C' as LadderStageLevel, reason: `작업기억 ${score}점 기반 C단계 시작` };
+            if (score >= 70) return { stage: 'B' as LadderStageLevel, reason: `작업기억 ${score}점 기반 B단계 시작` };
+        }
+        return { stage: 'A' as LadderStageLevel, reason: 'A단계(기본)부터 시작' };
+    }, [latestAssessment]);
 
     const handleOpenLadderModal = (subjectName: string, unitName: string, weakPriority: number = 1) => {
         setLadderModalData({
             isOpen: true,
             subjectName,
             unitName,
-            weakPriority
+            weakPriority,
+            initialStage: ladderEntry.stage,
+            startReason: ladderEntry.reason
         });
     };
-
-    const { universities, isUpdating, lastUpdated, updateUniversities } = useUniversities();
-
-    const [globalUnivId, setGlobalUnivId] = useState<string>('');
-    const [globalDeptName, setGlobalDeptName] = useState<string>('');
 
     const selectedSubjectIds = student.selectedSubjects || [];
     const focusSubjectIds = student.focusSubjects || (student.weakSubject ? [student.weakSubject] : []);
@@ -78,9 +101,18 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
         return Array.from(new Set([...baseSubjects, ...selectedSubjectIds, ...recordSubjectIds]));
     }, [selectedSubjectIds, records]);
 
+    const effectiveStudentId = resolveEffectiveStudentId(student);
+
+    const safeUUID = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+        return `id_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    };
+
     useEffect(() => {
         loadData();
-    }, [student.id]);
+    }, [student.id, effectiveStudentId]);
 
     useEffect(() => {
         if (currentAssessment) {
@@ -90,14 +122,15 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
 
     const loadData = async () => {
         try {
-            const loadedRecords = await DatabaseService.getGradeRecords(student.id);
+            const targetId = effectiveStudentId;
+            const loadedRecords = await DatabaseService.getGradeRecords(targetId);
             setRecords(loadedRecords);
 
-            const loadedGoals = await DatabaseService.getGradeGoals(student.id);
+            const loadedGoals = await DatabaseService.getGradeGoals(targetId);
             setGoals(loadedGoals);
 
             if (!currentAssessment) {
-                const history = await DatabaseService.getHistoryByStudent(student.id);
+                const history = await DatabaseService.getHistoryByStudent(targetId);
                 if (history && history.length > 0) {
                     setLatestAssessment(history[0]);
                 }
@@ -108,16 +141,21 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
     };
 
     const handleSaveRecord = async (record: GradeRecord) => {
-        if (records.some(r => r.id === record.id)) {
-            await DatabaseService.updateGradeRecord(record);
+        const recordToSave: GradeRecord = {
+            ...record,
+            studentId: record.studentId || effectiveStudentId
+        };
+
+        if (records.some(r => r.id === recordToSave.id)) {
+            await DatabaseService.updateGradeRecord(recordToSave);
         } else {
-            await DatabaseService.addGradeRecord(record);
+            await DatabaseService.addGradeRecord(recordToSave);
         }
 
         // 역피드백: 최신 성적 이력을 AssessmentResult.gradeHistory에 주입 및 HistoryRecord 업데이트
         try {
-            const updatedRecords = await DatabaseService.getGradeRecords(student.id);
-            const history = await DatabaseService.getHistoryByStudent(student.id);
+            const updatedRecords = await DatabaseService.getGradeRecords(effectiveStudentId);
+            const history = await DatabaseService.getHistoryByStudent(effectiveStudentId);
             if (history && history.length > 0) {
                 const latestHistory = history[0];
                 latestHistory.gradeHistory = updatedRecords;
@@ -128,17 +166,8 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
             console.error('Failed to sync gradeHistory into assessment history:', e);
         }
 
-        // Clear AI Study Guide Cache
-        localStorage.removeItem(`ai_report_${student.id}_grade_simulation`);
-        allRelevantSubjectIds.forEach(subjectId => {
-            const prefix = `ai_plan_${student.id}_${subjectId}_`;
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith(prefix)) {
-                    localStorage.removeItem(key);
-                }
-            }
-        });
+        // Clear AI Study Guide Cache (단건 저장·CSV 반입 공통 헬퍼)
+        clearAiCaches();
 
         await loadData();
         alert('성적이 저장되었습니다. (진단 리포트 연동 및 AI 분석 캐시가 갱신되었습니다)');
@@ -148,8 +177,8 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
         if (confirm('이 성적 기록을 삭제하시겠습니까?')) {
             await DatabaseService.deleteGradeRecord(id);
             try {
-                const updatedRecords = await DatabaseService.getGradeRecords(student.id);
-                const history = await DatabaseService.getHistoryByStudent(student.id);
+                const updatedRecords = await DatabaseService.getGradeRecords(effectiveStudentId);
+                const history = await DatabaseService.getHistoryByStudent(effectiveStudentId);
                 if (history && history.length > 0) {
                     const latestHistory = history[0];
                     latestHistory.gradeHistory = updatedRecords;
@@ -163,49 +192,6 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
         }
     };
 
-    const handleSaveGoal = async (goal: GradeGoal) => {
-        await DatabaseService.upsertGradeGoal(goal);
-        setSelectedSubjectForGoal(null);
-        await loadData();
-    };
-
-    const handleDeleteGoal = async (id: string) => {
-        if (confirm('이 과목의 목표를 삭제하시겠습니까?')) {
-            await DatabaseService.deleteGradeGoal(id);
-            setSelectedSubjectForGoal(null);
-            await loadData();
-        }
-    };
-
-    const handleApplyGlobalUniversityGoals = async () => {
-        if (!globalUnivId || !globalDeptName) return;
-        const univ = universities.find(u => u.id === globalUnivId);
-        if (!univ) return;
-        const dept = univ.departments.find(d => d.name === globalDeptName);
-        if (!dept) return;
-
-        const promises = allRelevantSubjectIds.map(async subjectId => {
-            const targetGrade = dept.targetGrades[subjectId] || dept.targetGrades['korean'] || 3;
-            const existingGoal = goals.find(g => g.subjectId === subjectId);
-
-            const newGoal: GradeGoal = {
-                id: existingGoal?.id || crypto.randomUUID(),
-                studentId: student.id,
-                subjectId,
-                tier3Target: targetGrade,
-                tier2Target: Math.max(1, targetGrade + 1),
-                tier1Target: Math.max(1, targetGrade + 2),
-                currentGrade: latestGrades.get(subjectId),
-                memo: `${univ.name} ${dept.name} 진학 목표`
-            };
-            return DatabaseService.upsertGradeGoal(newGoal);
-        });
-
-        await Promise.all(promises);
-        await loadData();
-        alert(`선택하신 ${univ.name} ${dept.name}의 과목별 목표 등급컷이 모든 과목에 일괄 적용되었습니다.`);
-    };
-
     // Calculate latest grades
     const latestGrades = new Map<string, number>();
     for (let i = sortedRecords.length - 1; i >= 0; i--) {
@@ -215,25 +201,39 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
         });
     }
 
-    const handleExportCSV = () => {
-        const headers = ['ID', '시험명', '시험유형', '날짜', '메모', ...SUNEUNG_SUBJECTS.map(s => s.name)];
-        const rows = sortedRecords.map(r => {
-            const baseInfo = [r.id, r.examName, r.examType, r.examDate, (r.memo || '').replace(/,/g, ' ')];
-            const subjectGrades = SUNEUNG_SUBJECTS.map(s => {
-                const sub = r.subjects.find(sub => sub.subjectId === s.id);
-                return sub ? (sub.grade || '') : '';
-            });
-            return [...baseInfo, ...subjectGrades].join(',');
-        });
+    // AI 분석 캐시 무효화 (단건 저장·CSV 반입 공통)
+    const clearAiCaches = () => {
+        localStorage.removeItem(`ai_report_${student.id}_grade_simulation`);
+        localStorage.removeItem(`ai_report_${effectiveStudentId}_grade_simulation`);
+        const studentIds = Array.from(new Set([student.id, effectiveStudentId]));
+        const allKeys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) allKeys.push(key);
+        }
+        for (const sid of studentIds) {
+            for (const subjectId of allRelevantSubjectIds) {
+                const prefix = `ai_plan_${sid}_${subjectId}_`;
+                for (const key of allKeys) {
+                    if (key.startsWith(prefix)) {
+                        localStorage.removeItem(key);
+                    }
+                }
+            }
+        }
+    };
 
-        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
-        const encodedUri = encodeURI(csvContent);
+    const handleExportCSV = () => {
+        const { content, filename } = buildExportCsv(sortedRecords, student.name);
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `성적기록_${student.name}.csv`);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,39 +244,45 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
         reader.onload = async (evt) => {
             try {
                 const text = evt.target?.result as string;
-                const lines = text.split('\n');
-                if (lines.length <= 1) return;
-
-                const headers = lines[0].split(',');
-                for (let i = 1; i < lines.length; i++) {
-                    const row = lines[i].split(',');
-                    if (row.length < 5 || !row[1]) continue;
-
-                    const subjectsToSave = [];
-                    for (let j = 5; j < headers.length; j++) {
-                        const subjectName = headers[j]?.trim();
-                        const gradeVal = parseInt(row[j]);
-                        if (!isNaN(gradeVal) && gradeVal >= 1 && gradeVal <= 9) {
-                            const subjId = SUNEUNG_SUBJECTS.find(s => s.name === subjectName)?.id;
-                            if (subjId) subjectsToSave.push({ subjectId: subjId, grade: gradeVal });
-                        }
-                    }
-
-                    if (subjectsToSave.length > 0) {
-                        await DatabaseService.addGradeRecord({
-                            id: crypto.randomUUID(),
-                            studentId: student.id,
-                            examName: row[1],
-                            examType: (row[2] as any) || 'other',
-                            examDate: row[3] || new Date().toISOString().slice(0, 10),
-                            memo: row[4] || '',
-                            subjects: subjectsToSave,
-                            createdAt: new Date().toISOString()
+                const { records: parsed, imported, skipped, error } = rowsToGradeRecords(
+                    parseCsv(text),
+                    () => safeUUID(),
+                    effectiveStudentId
+                );
+                if (error) {
+                    alert(error);
+                    return;
+                }
+                const existing = await DatabaseService.getGradeRecords(effectiveStudentId);
+                for (const p of parsed) {
+                    // upsert: 동일 날짜+시험명이면 기존 레코드 갱신 (중복 복제 방지)
+                    const dup = existing.find(r => sameExamKey(r, p));
+                    if (dup) {
+                        const merged = new Map(dup.subjects.map(s => [s.subjectId, s]));
+                        for (const s of p.subjects) merged.set(s.subjectId, { ...(merged.get(s.subjectId) || {}), ...s });
+                        await DatabaseService.updateGradeRecord({
+                            ...dup,
+                            examType: p.examType as any,
+                            memo: p.memo || dup.memo,
+                            subjects: Array.from(merged.values()) as any
                         });
+                    } else {
+                        const newRecord = {
+                            id: safeUUID(),
+                            studentId: effectiveStudentId,
+                            examName: p.examName,
+                            examType: (p.examType as any) || 'other',
+                            examDate: p.examDate,
+                            memo: p.memo,
+                            subjects: p.subjects,
+                            createdAt: new Date().toISOString()
+                        };
+                        await DatabaseService.addGradeRecord(newRecord as any);
+                        existing.push(newRecord as any);
                     }
                 }
-                alert('CSV 가져오기가 완료되었습니다.');
-                localStorage.removeItem(`ai_report_${student.id}_grade_simulation`);
+                alert(`CSV 가져오기가 완료되었습니다. (반영 ${imported}건${skipped > 0 ? `, 건너뜀 ${skipped}건` : ''})`);
+                clearAiCaches();
                 loadData();
             } catch (err) {
                 alert('CSV 파일을 처리하는 중 오류가 발생했습니다. 양식을 확인해주세요.');
@@ -287,49 +293,54 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
-                <div className="flex items-center gap-4">
+        <div className="w-full flex flex-col animate-in fade-in duration-500">
+            {/* Sub Header Card */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-sm px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={onBack}
-                        className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        title="검사결과로 돌아가기"
                     >
-                        ←
+                        <span>←</span>
+                        <span>검사결과로</span>
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800">성적 관리 시스템</h1>
-                        <p className="text-sm text-slate-500">{student.name} 학생 ({student.grade})</p>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-black text-slate-900 dark:text-white">성적 관리 시스템</h1>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">PREMIUM</span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">{student.name} 학생 ({student.grade}) · 목표 대학 및 신경인지 성적 연동 트래킹</p>
                     </div>
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex flex-wrap gap-2 items-center">
                     <button
                         onClick={() => setIsManualModalOpen(true)}
-                        className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2"
+                        className="px-3.5 py-2 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                         <span>📖</span> 사용매뉴얼
                     </button>
-                    <label className="px-4 py-2 bg-white text-slate-700 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors border border-slate-200 cursor-pointer">
+                    <label className="px-3.5 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600 cursor-pointer flex items-center gap-1.5">
                         <span>📥</span> CSV 가져오기
                         <input type="file" accept=".csv" className="hidden" onChange={handleImportCSV} />
                     </label>
                     <button
                         onClick={handleExportCSV}
-                        className="px-4 py-2 bg-white text-slate-700 rounded-lg font-bold shadow-sm hover:bg-slate-50 transition-colors border border-slate-200"
+                        className="px-3.5 py-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors border border-slate-200 dark:border-slate-600 cursor-pointer flex items-center gap-1.5"
                     >
                         <span>📤</span> CSV 내보내기
                     </button>
                     <button
                         onClick={() => setIsInputModalOpen(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs sm:text-sm font-black shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                         <span>+</span> 성적 수동 입력
                     </button>
                 </div>
             </div>
 
-            {/* Content — 좌우여백 제거 및 유연한 전체 폭 적용 */}
-            <div className="flex-1 px-4 sm:px-6 md:px-8 py-6 w-full space-y-6">
+            {/* Content */}
+            <div className="w-full space-y-6">
                 <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="grade_management" onUpgradeClick={onUpgradeClick}>
 
                     {/* Tabs — 고대비 & 선명한 프리미엄 네비게이션 */}
@@ -416,6 +427,31 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                         </button>
                     </div>
 
+                    {!hasAssessment && (
+                        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-relaxed">
+                            <span className="font-black">진단 미완료 안내:</span> 성적 기록은 가능하지만, 신경인지 진단이 없어 CareType 맞춤 분석은 제공되지 않습니다.
+                            기본 플랜으로 표시되며, 진단 완료 후 맞춤으로 전환됩니다.
+                        </div>
+                    )}
+
+                    {gradeDrop.dropped && (
+                        <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 leading-relaxed flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <span className="font-black">📉 성적 하락 감지:</span> {gradeDrop.prevName}(평균 {gradeDrop.prevAvg?.toFixed(1)}등급) → {gradeDrop.latestName}(평균 {gradeDrop.latestAvg?.toFixed(1)}등급), {gradeDrop.delta.toFixed(1)}등급 하락.
+                                컨디션 변화가 원인일 수 있습니다.
+                            </div>
+                            {onStartAssessment && (
+                                <button
+                                    type="button"
+                                    onClick={onStartAssessment}
+                                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl transition-colors shrink-0 cursor-pointer"
+                                >
+                                    컨디션 재검사 받기 →
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'study_dashboard' && (
                         <StudyDashboard
                             student={student}
@@ -433,6 +469,7 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                             student={student}
                             records={records}
                             careTypeCode={latestAssessment?.careType || 'HEALTHY'}
+                            hasAssessment={hasAssessment}
                             onOpenLadderModal={handleOpenLadderModal}
                             onOpenInputModal={() => setIsInputModalOpen(true)}
                         />
@@ -445,16 +482,22 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                             onRefresh={loadData}
                             onOpenManualInput={() => setIsInputModalOpen(true)}
                             onOpenLadderModal={handleOpenLadderModal}
+                            onEditRecord={(recordId) => {
+                                const target = records.find(r => r.id === recordId);
+                                if (!target) return;
+                                setEditingRecord(target);
+                                setIsInputModalOpen(true);
+                            }}
                         />
                     )}
 
                     {activeTab === 'study_goals' && (
                         <StudyGoalsAndAIPlan
-                            student={student}
+                            student={{ ...student, id: effectiveStudentId }}
                             records={records}
                             goals={goals}
                             latestAssessment={latestAssessment}
-                            membershipTier={membershipTier || (student.membershipTier as MembershipTier) || 'premium'}
+                            membershipTier={normalizeTier(membershipTier || (student.membershipTier as MembershipTier) || 'free')}
                             onRefreshGoals={loadData}
                         />
                     )}
@@ -463,233 +506,26 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                         <NeuroRoadmapStudio
                             student={student}
                             careTypeCode={latestAssessment?.careType || 'HEALTHY'}
+                            carePrimaryScore={latestAssessment?.classificationResult?.primaryScore}
+                            focusSubjectIds={focusSubjectIds}
+                            hasAssessment={hasAssessment}
                             records={records}
                             latestGrades={latestGrades}
                             onOpenLadderModal={handleOpenLadderModal}
                         />
                     )}
 
-                    {activeTab === 'overview' && (
-                        <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                            {/* Chart Section */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <h2 className="text-lg font-bold text-slate-800 mb-6">수능 과목 성적 추이</h2>
-                                <GradeTrendChart
-                                    records={records}
-                                    goals={goals}
-                                    selectedSubjectIds={allRelevantSubjectIds}
-                                />
-                            </div>
-
-                            {/* Recent Exams List */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <h2 className="text-lg font-bold text-slate-800 mb-6">최근 시험 기록</h2>
-                                {records.length === 0 ? (
-                                    <p className="text-slate-500 text-center py-8">아직 입력된 성적이 없습니다.</p>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {sortedRecords.map(record => (
-                                            <div key={record.id} className="border border-slate-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <h3 className="font-bold text-slate-800">{record.examName}</h3>
-                                                        <p className="text-xs text-slate-500">{record.examDate} · {record.examType}</p>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingRecord(record);
-                                                                setIsInputModalOpen(true);
-                                                            }}
-                                                            className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 bg-blue-50 rounded"
-                                                        >
-                                                            수정
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteRecord(record.id)}
-                                                            className="text-xs text-rose-500 hover:text-rose-700 px-2 py-1 bg-rose-50 rounded"
-                                                        >
-                                                            삭제
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {record.subjects.map(sub => {
-                                                        const info = SUNEUNG_SUBJECTS.find(s => s.id === sub.subjectId);
-                                                        if (!info) return null;
-                                                        return (
-                                                            <div key={sub.subjectId} className="bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-100 flex flex-col gap-1.5">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-bold text-slate-700">{info.name}</span>
-                                                                    {sub.grade && <span className="text-blue-600 font-bold">{sub.grade}등급</span>}
-                                                                    {sub.percentile && <span className="text-slate-400 text-xs">({sub.percentile}%)</span>}
-                                                                </div>
-                                                                {sub.weakUnits && sub.weakUnits.length > 0 && (
-                                                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                                                        <span className="text-[10px] text-slate-400 font-bold">취약:</span>
-                                                                        {sub.weakUnits.map((u, uIdx) => (
-                                                                            <button
-                                                                                key={u}
-                                                                                type="button"
-                                                                                onClick={() => handleOpenLadderModal(info.name, u, uIdx + 1)}
-                                                                                className="px-1.5 py-0.5 rounded bg-white hover:bg-amber-50 text-[10px] font-bold border border-slate-200 hover:border-amber-300 text-slate-700 cursor-pointer flex items-center gap-1 transition-all"
-                                                                                title={`${u} 6단계 AI 사다리 훈련 시작`}
-                                                                            >
-                                                                                <span>{uIdx === 0 ? '🥇1위' : uIdx === 1 ? '🥈2위' : '🥉3위'}</span>
-                                                                                <span>{u}</span>
-                                                                                <span className="text-amber-500 font-normal">⚡</span>
-                                                                            </button>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {record.memo && (
-                                                    <p className="mt-3 text-sm text-slate-600 bg-slate-50 p-2 rounded">{record.memo}</p>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'goals' && (
-                        <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                            {selectedSubjectForGoal ? (
-                                <GradeGoalSetting
-                                    studentId={student.id}
-                                    subjectId={selectedSubjectForGoal}
-                                    currentGoal={goals.find(g => g.subjectId === selectedSubjectForGoal)}
-                                    currentGrade={latestGrades.get(selectedSubjectForGoal)}
-                                    onSave={handleSaveGoal}
-                                    onDelete={handleDeleteGoal}
-                                    onCancel={() => setSelectedSubjectForGoal(null)}
-                                />
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* Global University Target Setter */}
-                                    <div className="bg-blue-50 p-5 rounded-2xl border border-blue-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
-                                        <div className="flex-1 space-y-2 w-full">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-sm font-bold text-blue-800 flex items-center gap-2">
-                                                    <span>🎓 목표 대학/학과 기반 자동 설정 (전체 과목 일괄 적용)</span>
-                                                </label>
-                                                <button
-                                                    onClick={updateUniversities}
-                                                    disabled={isUpdating}
-                                                    className="text-xs flex items-center gap-1 bg-white/60 hover:bg-white text-blue-700 px-2 py-1 rounded-lg border border-blue-200 transition-colors"
-                                                >
-                                                    {isUpdating ? '🔄 업데이트 중...' : '🔄 대학 DB 최신화'}
-                                                </button>
-                                            </div>
-                                            {lastUpdated && <p className="text-xs text-blue-500">최근 업데이트: {lastUpdated}</p>}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-50">
-                                                <SearchableSelect
-                                                    value={globalUnivId}
-                                                    onChange={(val) => { setGlobalUnivId(val); setGlobalDeptName(''); }}
-                                                    options={universities.map(u => ({ value: u.id, label: u.name }))}
-                                                    placeholder="대학 검색..."
-                                                />
-                                                <SearchableSelect
-                                                    value={globalDeptName}
-                                                    onChange={setGlobalDeptName}
-                                                    options={
-                                                        globalUnivId
-                                                            ? (universities.find(u => u.id === globalUnivId)?.departments.map(d => ({ value: d.name, label: d.name })) || [])
-                                                            : []
-                                                    }
-                                                    placeholder="학과 검색..."
-                                                    disabled={!globalUnivId}
-                                                />
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={handleApplyGlobalUniversityGoals}
-                                            disabled={!globalUnivId || !globalDeptName}
-                                            className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-                                        >
-                                            모든 과목 일괄 적용하기
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {allRelevantSubjectIds.map(subjectId => {
-                                            const info = SUNEUNG_SUBJECTS.find(s => s.id === subjectId);
-                                            if (!info) return null;
-
-                                            const goal = goals.find(g => g.subjectId === subjectId);
-                                            const currentGrade = latestGrades.get(subjectId);
-                                            const isFocused = focusSubjectIds.includes(subjectId);
-
-                                            return (
-                                                <div key={subjectId} className={`bg-white p-5 rounded-2xl border ${isFocused ? 'border-rose-300 shadow-md' : 'border-slate-200 shadow-sm'} flex flex-col`}>
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <h3 className="font-bold text-slate-800 text-lg">{info.name}</h3>
-                                                            {isFocused && <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded uppercase">Focus</span>}
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setSelectedSubjectForGoal(subjectId)}
-                                                            className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
-                                                        >
-                                                            목표 {goal ? '수정' : '설정'}
-                                                        </button>
-                                                    </div>
-
-                                                    <div className="flex-1 space-y-4">
-                                                        <div className="flex justify-between items-end border-b border-slate-100 pb-2">
-                                                            <span className="text-sm text-slate-500">현재 등급</span>
-                                                            <span className="font-bold text-slate-700">{currentGrade ? `${currentGrade}등급` : '데이터 없음'}</span>
-                                                        </div>
-
-                                                        {goal ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex justify-between items-center text-sm">
-                                                                    <span className="text-slate-500">1차 목표</span>
-                                                                    <span className="font-bold text-blue-600">{goal.tier1Target}등급</span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center text-sm">
-                                                                    <span className="text-slate-500">2차 목표</span>
-                                                                    <span className="font-bold text-indigo-600">{goal.tier2Target}등급</span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center text-sm">
-                                                                    <span className="text-slate-500">최종 목표</span>
-                                                                    <span className="font-bold text-emerald-600">{goal.tier3Target}등급</span>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex-1 flex items-center justify-center py-4">
-                                                                <p className="text-sm text-slate-400 text-center">아직 설정된 목표가 없습니다.<br />우측 상단에서 목표를 설정하세요.</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {allRelevantSubjectIds.length === 0 && (
-                                            <div className="col-span-full p-8 text-center bg-white rounded-2xl border border-slate-200">
-                                                <p className="text-slate-500">학생 정보에서 응시할 수능 과목을 먼저 선택하거나, 성적을 입력해주세요.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
 
                     {activeTab === 'simulation' && (
                         <div className="animate-in fade-in duration-300">
                             <PaywallOverlay currentTier={membershipTier || (student.membershipTier as MembershipTier) || 'free'} requiredFeature="grade_simulation" onUpgradeClick={onUpgradeClick || (() => alert('업그레이드가 필요합니다. 관리자에게 문의하세요.'))}>
                                 <GradeSimulationView
-                                    student={{ ...student, selectedSubjects: allRelevantSubjectIds }}
+                                    student={{ ...student, id: effectiveStudentId, selectedSubjects: allRelevantSubjectIds }}
                                     records={sortedRecords}
                                     goals={goals}
                                     assessment={latestAssessment}
                                     aiModels={aiModels}
+                                    onOpenInputModal={() => setIsInputModalOpen(true)}
                                 />
                             </PaywallOverlay>
                         </div>
@@ -742,7 +578,7 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                                         allRelevantSubjectIds,
                                         student
                                     )?.projections || []}
-                                    student={student}
+                                    student={{ ...student, id: effectiveStudentId }}
                                 />
                             </div>
                         </div>
@@ -767,7 +603,7 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
 
             <GradeInputModal
                 isOpen={isInputModalOpen}
-                studentId={student.id}
+                studentId={effectiveStudentId}
                 studentGrade={student.grade}
                 selectedSubjectIds={allRelevantSubjectIds}
                 existingRecord={editingRecord || undefined}
@@ -784,9 +620,12 @@ export const GradeManagementView: React.FC<GradeManagementViewProps> = ({ studen
                     isOpen={ladderModalData.isOpen}
                     student={student}
                     careTypeCode={latestAssessment?.careType || 'HEALTHY'}
+                    hasAssessment={hasAssessment}
                     subjectName={ladderModalData.subjectName}
                     unitName={ladderModalData.unitName}
                     weakPriority={ladderModalData.weakPriority}
+                    initialStage={ladderModalData.initialStage}
+                    startReason={ladderModalData.startReason}
                     onClose={() => setLadderModalData(null)}
                 />
             )}

@@ -1,5 +1,6 @@
 // 취약 단원별 6단계 문항 사다리 데이터셋 (A ~ F 단계 x 5문항 = 30문항)
 import { LadderQuestion, LadderStageLevel } from '../types';
+import { getLightLadder } from './inquiryLadderQuestions';
 
 /**
  * 1. [수열] 단원 전수 30문항 (A: 5문항, B: 5문항, C: 5문항, D: 5문항, E: 5문항, F: 5문항)
@@ -1894,9 +1895,31 @@ export const ENGLISH_KILLER_LADDER_QUESTIONS: LadderQuestion[] = [
 ];
 
 /**
+ * 선지 순서 셔플 (정답 위치 고정 악용 방지)
+ * - 정답은 텍스트 매칭(String(answer) === 선택 선지)으로 판정하므로 순서 변경이 안전
+ * - 호출 시점(모달 오픈·AI 파싱)에 1회만 적용하고, 풀이 중에는 순서 고정
+ */
+export function shuffleLadderOptions<T extends { options?: unknown[] }>(questions: T[]): T[] {
+  return questions.map(q => {
+    if (!Array.isArray(q.options) || q.options.length < 2) return q;
+    const opts = [...q.options];
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+    return { ...q, options: opts };
+  });
+}
+
+/**
  * 5. 과목별 및 단원별 6단계 문항 사다리 통합 라우터
  */
 export function getQuestionsForUnit(unitName: string, subjectId: string = 'math'): LadderQuestion[] {
+  // 0) 탐구 라이트 뱅크(큐레이션 15문항) 우선 — A/B/C 3단계
+  try {
+    const light = getLightLadder(unitName, subjectId);
+    if (light && light.length > 0) return light;
+  } catch { /* ignore — 라이트 뱅크 미적중 시 기존 경로 */ }
   const normName = unitName.trim();
   const normSub = subjectId.toLowerCase();
 
@@ -1952,13 +1975,21 @@ function generateDynamicLadderQuestions(unitName: string, subjectId: string): La
   const questions: LadderQuestion[] = [];
   const isKor = subjectId.includes('kor') || unitName.includes('국어');
   const isEng = subjectId.includes('eng') || unitName.includes('영어');
+  const normLower = `${subjectId} ${unitName}`.toLowerCase();
+  const isInquiry = !isKor && !isEng && (
+    normLower.includes('탐구') || normLower.includes('물리') || normLower.includes('화학') ||
+    normLower.includes('생명') || normLower.includes('지구') || normLower.includes('윤리') ||
+    normLower.includes('지리') || normLower.includes('역사') || normLower.includes('경제') ||
+    normLower.includes('정치') || normLower.includes('사회') || normLower.includes('한국사') ||
+    normLower.includes('한문') || normLower.includes('외국어')
+  );
 
   const stageDescriptions = {
-    A: { diff: '기본' as const, name: isKor ? '기본 어휘 및 핵심 정의' : isEng ? '기본 구문 및 어휘 식별' : '기본 개념 및 공식 정의' },
-    B: { diff: '응용' as const, name: isKor ? '문단 요약 및 전개 방식' : isEng ? '대의 파악 및 주제 도출' : '1단계 기본 응용 및 변형' },
-    C: { diff: '심화' as const, name: isKor ? '다면적 문맥 추론과 전제' : isEng ? '문맥 어휘 및 연결사 추적' : '다개념 복합 심화 문제' },
+    A: { diff: '기본' as const, name: isKor ? '기본 어휘 및 핵심 정의' : isEng ? '기본 구문 및 어휘 식별' : isInquiry ? '핵심 개념 및 용어 정의' : '기본 개념 및 공식 정의' },
+    B: { diff: '응용' as const, name: isKor ? '문단 요약 및 전개 방식' : isEng ? '대의 파악 및 주제 도출' : isInquiry ? '개념 적용 및 사례 연결' : '1단계 기본 응용 및 변형' },
+    C: { diff: '심화' as const, name: isKor ? '다면적 문맥 추론과 전제' : isEng ? '문맥 어휘 및 연결사 추적' : isInquiry ? '자료 해석 및 조건 분석' : '다개념 복합 심화 문제' },
     D: { diff: '기출' as const, name: '평가원/수능 빈출 기출 변형' },
-    E: { diff: '준킬러' as const, name: isKor ? '고난도 <보기> 적용 준킬러' : isEng ? '순서/삽입 논리 Gap 준킬러' : '조건 추론 및 케이스 분류 준킬러' },
+    E: { diff: '준킬러' as const, name: isKor ? '고난도 <보기> 적용 준킬러' : isEng ? '순서/삽입 논리 Gap 준킬러' : isInquiry ? '복합 자료 추론 준킬러' : '조건 추론 및 케이스 분류 준킬러' },
     F: { diff: '수능킬러' as const, name: '최상위 1등급 결정 수능 킬러' }
   };
 
@@ -2005,6 +2036,26 @@ function generateDynamicLadderQuestions(unitName: string, subjectId: string): La
           solution: `[English Solution] In '${unitName}' Stage ${stage}, follow the standardized reading algorithm:\nStep 1: Identify Topic Sentence and Signal Words (However, Therefore, Thus).\nStep 2: Trace pronoun references and logical transitions.\nStep 3: Eliminate distractor options containing reverse logic or extreme modifiers.`,
           hint: `Focus on the main thesis and eliminate choices that contradict the passage's directional flow.`,
           conceptKey: `English: ${unitName} ${meta.name}`,
+          difficulty: meta.diff
+        });
+      } else if (isInquiry) {
+        questions.push({
+          id,
+          stage,
+          questionNumber: qNum,
+          title: `[탐구: ${unitName}] ${stage}단계-${qNum}번: ${meta.name}`,
+          question: `'${unitName}'의 ${meta.name} 문항입니다. 핵심 개념과 주어진 자료·조건을 종합적으로 분석했을 때 가장 타당한 판단은?`,
+          options: [
+            `핵심 개념과 자료 조건을 정확히 연결한 진술 (${stage}-${qNum})`,
+            '흔한 오개념에 근거하여 자료를 자의적으로 해석한 진술',
+            '자료의 단위·조건을 착각하여 도출된 진술',
+            '일부 사례에만 성립하는 내용을 전체로 과도하게 일반화한 진술',
+            '자료와 무관한 지엽적 사실을 끌어온 진술'
+          ],
+          answer: `핵심 개념과 자료 조건을 정확히 연결한 진술 (${stage}-${qNum})`,
+          solution: `[탐구 해설] '${unitName}'의 ${stage}단계 핵심 원리에 따라 해결합니다.\n1단계: 핵심 개념과 용어의 정의를 확인합니다.\n2단계: 자료·도표·조건의 축과 단위를 판독합니다.\n3단계: 오개념·단위 착각·과도한 일반화 선지를 소거하여 정답을 확정합니다.`,
+          hint: `'${unitName}'의 핵심 개념 정의와 자료의 조건·단위를 먼저 확인하세요.`,
+          conceptKey: `탐구: ${unitName} ${meta.name}`,
           difficulty: meta.diff
         });
       } else {

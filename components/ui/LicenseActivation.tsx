@@ -237,7 +237,7 @@ export const LicenseActivation: React.FC<LicenseActivationProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span>NB1-XXXX-XXXX-XXXX → ⭐ 베이직</span>
               <span>NB2-XXXX-XXXX-XXXX → 💎 프리미엄</span>
-              <span>NB3-XXXX-XXXX-XXXX → 👑 VIP</span>
+              <span>NB3-XXXX-XXXX-XXXX → 💎 PREMIUM</span>
             </div>
           </div>
         </div>
@@ -378,7 +378,7 @@ export const LicenseActivation: React.FC<LicenseActivationProps> = ({
             구독 플랜 비교
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {(['free', 'basic', 'premium', 'vip'] as MembershipTier[]).map((t) => (
+            {(['free', 'pro', 'premium'] as MembershipTier[]).map((t) => (
               <MembershipBadge key={t} tier={t} variant="full" size="sm" />
             ))}
           </div>

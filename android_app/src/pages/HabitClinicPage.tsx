@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, BadHabitItem } from '../types';
 import { dataSyncService } from '../services/dataSyncService';
+import { useNbassRemoteRefresh } from '../hooks/useNbassRemoteRefresh';
 import { hasRequiredTier } from '../services/featureGate';
 import { LockedCard } from '../components/tiered-features/LockedCard';
 import { Brain, AlertOctagon, Sparkles, CheckCircle2, Play, Pause, Flame, Clock, ShieldAlert, ArrowRight, RotateCcw, Printer, X, FileText, Lock, Wind, Mic, Zap, HeartPulse, BookOpen, Check, EyeOff, Moon, Coffee, ShieldCheck, Smartphone, Send } from 'lucide-react';
@@ -147,14 +148,38 @@ const BAD_HABITS_LIST: BadHabitItem[] = [
 
 export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgradeClick }) => {
   const isPremiumOrAbove = hasRequiredTier(user.tier, 'premium');
-  const isPlusOrAbove = hasRequiredTier(user.tier, 'premium_plus');
+  const isPlusOrAbove = hasRequiredTier(user.tier, 'premium');
 
-  // 체크된 습관 목록
-  const [checkedIds, setCheckedIds] = useState<string[]>(['habit-01', 'habit-04']);
-  const [isDiagnosisSaved, setIsDiagnosisSaved] = useState(false);
+  // 체크된 습관 목록 (저장된 진단이 있으면 복원, 없으면 기본값)
+  const [checkedIds, setCheckedIds] = useState<string[]>(() => {
+    try {
+      const saved = dataSyncService.getHabitDiagnosis(user.studentId);
+      if (saved && Array.isArray(saved.checkedHabitIds) && saved.checkedHabitIds.length > 0) {
+        return saved.checkedHabitIds;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [isDiagnosisSaved, setIsDiagnosisSaved] = useState(() => {
+    try {
+      return !!dataSyncService.getHabitDiagnosis(user.studentId);
+    } catch {
+      return false;
+    }
+  });
   const [showReportModal, setShowReportModal] = useState(false);
 
-  // 실시간 행동 교정기 (PLUS+ 전용) 10대 뇌신경 프로토콜 상태
+  // 실시간 행동 교정기 (PREMIUM 전용) 10대 뇌신경 프로토콜 상태
+  useNbassRemoteRefresh(() => {
+    try {
+      const saved = dataSyncService.getHabitDiagnosis(user.studentId);
+      if (saved && Array.isArray(saved.checkedHabitIds)) {
+        setCheckedIds(saved.checkedHabitIds);
+        setIsDiagnosisSaved(true);
+      }
+    } catch { /* ignore */ }
+  }, ['habit', 'remote']);
+
   type ProtocolId = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'p7' | 'p8' | 'p9' | 'p10';
 
   const PROTOCOL_META: Record<ProtocolId, { no: number; group: 'core' | 'boost'; step: string; name: string; fullTitle: string; icon: string }> = {
@@ -175,7 +200,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
   const [selectedTargetHabit, setSelectedTargetHabit] = useState<string>('habit-01');
   const [isRoutineRunning, setIsRoutineRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
-  const [successStreak, setSuccessStreak] = useState(7); // 7일 연속 교정 중
+  const [successStreak, setSuccessStreak] = useState(0); // 교정 시작 전
   const [todayCompleted, setTodayCompleted] = useState(false);
 
   // [프로토콜 1] 물리 차단 & 점진 힌트
@@ -194,9 +219,9 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
   const [isAnalyzingRecall, setIsAnalyzingRecall] = useState(false);
 
   // [프로토콜 4] 도파민 연속 스트릭 & 손실 회피 금고
-  const [dopamineStreak, setDopamineStreak] = useState(7);
-  const [dopaminePoints, setDopaminePoints] = useState(1450);
-  const [isStreakProtected, setIsStreakProtected] = useState(true);
+  const [dopamineStreak, setDopamineStreak] = useState(0);
+  const [dopaminePoints, setDopaminePoints] = useState(0);
+  const [isStreakProtected, setIsStreakProtected] = useState(false);
   const [streakNotice, setStreakNotice] = useState(false);
 
   // [프로토콜 5] 학부모 실시간 안심 동기화 루프
@@ -207,13 +232,13 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
   const [isSighRunning, setIsSighRunning] = useState(false);
   const [sighSeconds, setSighSeconds] = useState(180);
   const [sighPhase, setSighPhase] = useState<'inhale1' | 'inhale2' | 'exhale'>('inhale1');
-  const [hrvStatus, setHrvStatus] = useState<number>(55); // 55% -> 98%
+  const [hrvStatus, setHrvStatus] = useState<number>(0); // 호흡 시작 전 0% (실측 연동 전까지 추정치 미표시)
 
   // [프로토콜 7] 3색 뇌신경 오답 분해기
   const [redTrap, setRedTrap] = useState('');
   const [yellowMissing, setYellowMissing] = useState('');
   const [greenAction, setGreenAction] = useState('');
-  const [savedErrorCount, setSavedErrorCount] = useState(2);
+  const [savedErrorCount, setSavedErrorCount] = useState(0);
   const [errorSavedNotice, setErrorSavedNotice] = useState(false);
 
   // [프로토콜 8] 시각 터널링 & 모노태스킹 블랙아웃
@@ -228,7 +253,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
   const [isUltradianApplied, setIsUltradianApplied] = useState(false);
 
   // [프로토콜 10] 취침 직전 15분 해마 수면 고착
-  const [sleepPledgeChecked, setSleepPledgeChecked] = useState(true);
+  const [sleepPledgeChecked, setSleepPledgeChecked] = useState(false);
   const [sleepReplayActive, setSleepReplayActive] = useState(false);
   const [replayCardIndex, setReplayCardIndex] = useState(0);
 
@@ -495,9 +520,9 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
               ${h.expectedScoreBoost ? `<div style="font-size: 9.5px; font-weight: 800; color: #d97706; background: #fef3c7; padding: 3px 6px; border-radius: 4px; border: 1px solid #fde68a;">${h.expectedScoreBoost}</div>` : ''}
             </div>
             <div style="background: ${isPlusOrAbove ? '#f0fdf4' : '#fdf4ff'}; border: 1px solid ${isPlusOrAbove ? '#bbf7d0' : '#f0abfc'}; border-radius: 8px; padding: 7px;">
-              <div style="font-size: 10px; font-weight: 800; color: ${isPlusOrAbove ? '#15803d' : '#86198f'}; margin-bottom: 2px;">💊 임상 교정 처방 (Rx) ${isPlusOrAbove ? '' : '[PLUS+ 전용]'}</div>
+              <div style="font-size: 10px; font-weight: 800; color: ${isPlusOrAbove ? '#15803d' : '#86198f'}; margin-bottom: 2px;">💊 임상 교정 처방 (Rx) ${isPlusOrAbove ? '' : '[PREMIUM 전용]'}</div>
               <div style="color: ${isPlusOrAbove ? '#166534' : '#701a75'}; line-height: 1.4;">
-                ${isPlusOrAbove ? (h.prescription || '') : '🔒 본 습관의 정밀 임상 처방전(Rx) 및 3단계 힌트 프로토콜은 PREMIUM PLUS 등급 전용입니다.'}
+                ${isPlusOrAbove ? (h.prescription || '') : '🔒 본 습관의 정밀 임상 처방전(Rx) 및 3단계 힌트 프로토콜은 PREMIUM 등급 전용입니다.'}
               </div>
             </div>
           </div>
@@ -602,7 +627,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
   const seconds = timerSeconds % 60;
 
   return (
-    <div className="p-4 space-y-4 pb-20 max-w-md mx-auto">
+    <div className="p-4 space-y-4 pb-24 max-w-4xl mx-auto">
       {/* 인쇄 최적화 전용 스타일: 인쇄 시 모달 외 모든 요소 숨김 및 다중 페이지 중복 방지 */}
       <style>{`
         @media print {
@@ -780,15 +805,15 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
         )}
       </div>
 
-      {/* 4. [PREMIUM PLUS 등급 분기]: 실시간 10대 뇌신경 행동 교정 스위트 (PLUS+ 전용 개방) */}
+      {/* 4. [PREMIUM 등급 분기]: 실시간 10대 뇌신경 행동 교정 스위트 (PREMIUM 전용 개방) */}
       <div className="space-y-4">
         <h3 className="text-sm font-black text-slate-900 px-1 flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <Flame className="w-4 h-4 text-purple-600 animate-pulse" />
-            <span>2단계: PLUS+ 10대 뇌신경 행동 교정 스위트</span>
+            <span>2단계: PREMIUM 10대 뇌신경 행동 교정 스위트</span>
           </span>
           <span className="text-[10px] bg-purple-100 text-purple-800 font-black px-2 py-0.5 rounded-md border border-purple-300">
-            👑 PLUS+ 전용
+            👑 PREMIUM 전용
           </span>
         </h3>
 
@@ -1697,7 +1722,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                 10대 뇌신경 행동 교정 스위트 잠금
               </h4>
               <p className="text-[11px] text-slate-300 mt-1 leading-snug">
-                물리 차단, IF-THEN 조건반사, 60초 파인만 인출기, 도파민 스트릭 금고, 학부모 안심 동기화, 3분 생리학적 한숨, 3색 오답 분해기, 시각 터널링, 울트라디안 리듬, 15분 수면 고착 등 10대 실전 교정기는 <strong>PREMIUM PLUS 등급 전용</strong>입니다.
+                물리 차단, IF-THEN 조건반사, 60초 파인만 인출기, 도파민 스트릭 금고, 학부모 안심 동기화, 3분 생리학적 한숨, 3색 오답 분해기, 시각 터널링, 울트라디안 리듬, 15분 수면 고착 등 10대 실전 교정기는 <strong>PREMIUM 등급 전용</strong>입니다.
               </p>
             </div>
             {onUpgradeClick && (
@@ -1705,7 +1730,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                 onClick={onUpgradeClick}
                 className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 cursor-pointer"
               >
-                PLUS+(월 ₩19,900)으로 10대 행동 교정기 풀버전 열기
+                PREMIUM(월 ₩19,900)으로 10대 행동 교정기 풀버전 열기
               </button>
             )}
           </div>
@@ -1810,7 +1835,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                         <span>진단된 습관별 뇌과학 소견 및 임상 처방 (Rx)</span>
                       </span>
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-300">
-                        👑 PLUS+ 전용
+                        👑 PREMIUM 전용
                       </span>
                     </div>
 
@@ -1854,16 +1879,16 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                         })}
                       </div>
                     ) : (
-                      /* PLUS+ 전용 안내 및 4대 킬러 기능 소개 */
+                      /* PREMIUM 전용 안내 및 4대 킬러 기능 소개 */
                       <div className="p-4 bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-950 text-white rounded-2xl border border-purple-500/30 space-y-3.5 shadow-lg">
                         <div className="flex items-start gap-2.5">
                           <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-400/30 flex items-center justify-center shrink-0 mt-0.5">
                             <Lock className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="text-[9px] font-black uppercase text-purple-300 tracking-wider block">PLUS+ 전용 임상 소견서</span>
+                            <span className="text-[9px] font-black uppercase text-purple-300 tracking-wider block">PREMIUM 전용 임상 소견서</span>
                             <h5 className="font-bold text-white text-xs leading-snug">
-                              진단된 습관별 뇌과학 소견 및 긴급 처방 (Rx)은 PLUS+ 이상에서 열람 가능합니다
+                              진단된 습관별 뇌과학 소견 및 긴급 처방 (Rx)은 PREMIUM 이상에서 열람 가능합니다
                             </h5>
                           </div>
                         </div>
@@ -1900,7 +1925,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                           className="w-full py-3 bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span>PLUS+ (월 ₩19,900)으로 처방전 및 4대 킬러 기능 즉시 열기</span>
+                          <span>PREMIUM (월 ₩19,900)으로 처방전 및 4대 킬러 기능 즉시 열기</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -1951,7 +1976,7 @@ export const HabitClinicPage: React.FC<HabitClinicPageProps> = ({ user, onUpgrad
                   onClick={() => { setShowReportModal(false); onUpgradeClick(); }}
                   className="flex-1 py-2 bg-purple-600 text-white rounded-xl text-xs font-black cursor-pointer"
                 >
-                  PLUS+ 실전 교정기 열기
+                  PREMIUM 실전 교정기 열기
                 </button>
               )}
             </div>

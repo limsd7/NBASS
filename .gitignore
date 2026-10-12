@@ -32,6 +32,13 @@ Output/
 
 # Temp files
 temp/
+tmp/
 *.pdf
 .env
 tsc_errors*.txt
+backups/
+**/*.backup*
+**/*.bak.*
+.work/
+outputs/
+scratch/

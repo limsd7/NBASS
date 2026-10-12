@@ -11,6 +11,7 @@ import {
     normalizeGrade,
     initialStudent as defaultStudent,
 } from '../utils/constants';
+import { findExistingStudentId, mintLoginStudentId } from '../utils/studentIdentity';
 
 const freshStudent = (): StudentInfo => ({
     ...defaultStudent,
@@ -40,20 +41,33 @@ export const persistStudentProfile = (studentData: StudentInfo, email?: string |
 
 export const resolveStudentProfile = async (
     email?: string | null,
+    name?: string | null,
 ): Promise<{ profile: Partial<StudentInfo>; isYearChanged: boolean } | null> => {
     try {
         let savedProfile: Partial<StudentInfo> | null = null;
         const cleanEmail = email?.trim().toLowerCase();
+        const cleanName = name?.trim().toLowerCase();
 
-        if (cleanEmail) {
-            // 1. 이메일/아이디 전용 로컬 프로필 조회
-            const emailSaved =
-                localStorage.getItem(`nbass_student_profile_${cleanEmail}`) ||
-                (cleanEmail !== email?.trim() ? localStorage.getItem(`nbass_student_profile_${email?.trim()}`) : null);
-            if (emailSaved) {
-                try {
-                    savedProfile = JSON.parse(emailSaved);
-                } catch { /* ignore */ }
+        if (cleanEmail || cleanName) {
+            // 1. 이메일 또는 이름 기반 프로필 키 조회
+            const candidateKeys = [
+                cleanEmail ? `nbass_student_profile_${cleanEmail}` : null,
+                cleanName ? `nbass_student_profile_${cleanName}` : null,
+                email?.trim() ? `nbass_student_profile_${email.trim()}` : null,
+                name?.trim() ? `nbass_student_profile_${name.trim()}` : null,
+            ].filter(Boolean) as string[];
+
+            for (const k of candidateKeys) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && typeof parsed === 'object') {
+                            savedProfile = parsed;
+                            break;
+                        }
+                    } catch { /* ignore */ }
+                }
             }
 
             // 2. 현재 로그인 사용자(nbass_user)가 동일한 경우
@@ -62,27 +76,53 @@ export const resolveStudentProfile = async (
                 if (rawUser) {
                     try {
                         const u = JSON.parse(rawUser);
-                        if (u && (u.email?.toLowerCase() === cleanEmail || u.name?.toLowerCase() === cleanEmail)) {
+                        if (u && (
+                            (cleanEmail && u.email?.toLowerCase() === cleanEmail) ||
+                            (cleanName && u.name?.toLowerCase() === cleanName) ||
+                            (cleanName && u.id?.toLowerCase() === cleanName)
+                        )) {
                             savedProfile = u;
                         }
                     } catch { /* ignore */ }
                 }
             }
 
-            // 3. 해당 사용자 고유의 DB 히스토리 조회
+            // 3. nbass_student_profile 또는 nbass_last_student_profile 확인
+            if (!savedProfile) {
+                for (const sk of ['nbass_student_profile', 'nbass_last_student_profile']) {
+                    const rawS = localStorage.getItem(sk);
+                    if (rawS) {
+                        try {
+                            const s = JSON.parse(rawS);
+                            if (s && (
+                                (cleanEmail && s.email?.toLowerCase() === cleanEmail) ||
+                                (cleanName && s.name?.toLowerCase() === cleanName) ||
+                                (cleanName && s.id?.toLowerCase() === cleanName)
+                            )) {
+                                savedProfile = s;
+                                break;
+                            }
+                        } catch { /* ignore */ }
+                    }
+                }
+            }
+
+            // 4. 해당 사용자 고유의 DB 히스토리 조회
             if (!savedProfile) {
                 try {
-                    const userHistory = await DatabaseService.getHistoryByStudent(cleanEmail);
+                    const searchId = cleanEmail || cleanName || '';
+                    const userHistory = await DatabaseService.getHistoryByStudent(searchId);
                     if (userHistory && userHistory.length > 0 && userHistory[0].student) {
                         savedProfile = userHistory[0].student;
                     }
                 } catch { /* ignore */ }
             }
 
-            // 4. 신규 계정일 경우: 타인(연습홍길동 등)의 기록을 절대 상속하지 않고 본인 아이디 기반 프로필 생성
+            // 5. 신규 계정일 경우: 기존 ID 재사용 > 로그인 ID(이메일) > Serial 순으로 확정
             if (!savedProfile) {
-                const defaultName = cleanEmail.split('@')[0];
-                const defaultId = generateSerialID();
+                const defaultName = name?.trim() || cleanName || (cleanEmail ? cleanEmail.split('@')[0] : '');
+                const reusedId = await findExistingStudentId({ name: defaultName, email: cleanEmail });
+                const defaultId = reusedId || mintLoginStudentId(cleanEmail);
                 const effectiveTier = UserTierService.getEffectiveTier(
                     { id: defaultId, name: defaultName, email: cleanEmail },
                     'free'
@@ -92,6 +132,15 @@ export const resolveStudentProfile = async (
                         ...freshStudent(),
                         id: defaultId,
                         name: defaultName,
+                        // 입력값 없음: 기본값 주입 금지 (빈 값 유지)
+                        grade: '',
+                        birthDate: '',
+                        age: 0,
+                        height: undefined,
+                        weight: undefined,
+                        bmi: undefined,
+                        mbti: undefined,
+                        activityLevel: undefined,
                         membershipTier: effectiveTier,
                         testDate: getTodayStr(),
                     },
@@ -99,16 +148,11 @@ export const resolveStudentProfile = async (
                 };
             }
         } else {
-            // 로그인 정보 없는 익명 접속일 때만 마지막 작업 프로필 참조 (단, DB 타인 기록은 조회하지 않음)
-            const generalSaved = localStorage.getItem('nbass_last_student_profile');
-            if (generalSaved) {
-                try {
-                    savedProfile = JSON.parse(generalSaved);
-                } catch { /* ignore */ }
-            }
+            // 로그인 정보 없는 익명 접속: 마지막 작업 프로필을 끌어오지 않는다.
+            return null;
         }
 
-        if (savedProfile && savedProfile.name) {
+        if (savedProfile && (savedProfile.name || cleanName || cleanEmail)) {
             const currentYear = new Date().getFullYear();
             const savedDateStr =
                 savedProfile.testDate ||
@@ -119,17 +163,23 @@ export const resolveStudentProfile = async (
             const isYearChanged = !isNaN(savedYear) && savedYear > 0 && savedYear < currentYear;
             const calculatedAge = savedProfile.birthDate
                 ? calculateAge(savedProfile.birthDate)
-                : savedProfile.age || 18;
+                : (savedProfile.age || 0);
+            // 학년: 저장값 우선, 생년월일이 있으면 추정, 둘 다 없으면 빈 값 (기본값 주입 금지)
             const rawGrade =
                 savedProfile.grade ||
                 (savedProfile.birthDate
                     ? estimateGradeByAgeOrBirthDate(savedProfile.birthDate)
-                    : estimateGradeByAgeOrBirthDate(calculatedAge));
-            const estimatedGrade = normalizeGrade(rawGrade);
+                    : '');
+            const estimatedGrade = rawGrade ? normalizeGrade(rawGrade) : '';
             const studentId =
                 savedProfile.id ||
-                (savedProfile.name === '연습001' ? 'ID-20260820-6RKR' : generateSerialID());
-            const studentName = savedProfile.name || (cleanEmail ? cleanEmail.split('@')[0] : '');
+                (await findExistingStudentId({
+                    name: savedProfile.name || cleanName,
+                    email: cleanEmail || savedProfile.email,
+                    birthDate: savedProfile.birthDate,
+                })) ||
+                (savedProfile.name === '연습001' ? 'ID-20260820-6RKR' : mintLoginStudentId(cleanEmail || savedProfile.email));
+            const studentName = savedProfile.name || name?.trim() || cleanName || (cleanEmail ? cleanEmail.split('@')[0] : '');
             const effectiveTier = UserTierService.getEffectiveTier(
                 { id: studentId, name: studentName, email: cleanEmail || savedProfile.email },
                 (savedProfile.membershipTier as any) || 'free'
@@ -170,7 +220,7 @@ export const useStudentProfile = (currentUserEmail: string | null) => {
         overrideFields?: Partial<StudentInfo> | null
     ) => {
         try {
-            const resolved = await resolveStudentProfile(email);
+            const resolved = await resolveStudentProfile(email, overrideName);
             if (resolved) {
                 const effectiveName = overrideName || resolved.profile.name || (email ? email.trim().toLowerCase().split('@')[0] : '');
                 setStudent((prev) => ({
@@ -183,9 +233,10 @@ export const useStudentProfile = (currentUserEmail: string | null) => {
                 return true;
             } else if (overrideName || email) {
                 const effectiveName = overrideName || (email ? email.trim().toLowerCase().split('@')[0] : '');
+                const stableId = await findExistingStudentId({ name: effectiveName, email }) || mintLoginStudentId(email);
                 setStudent((prev) => ({
                     ...prev,
-                    id: generateSerialID(),
+                    id: stableId,
                     name: effectiveName,
                     testDate: getTodayStr(),
                     ...(overrideFields || {}),

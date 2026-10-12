@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AssessmentResult } from '../../types';
 import { generateNutritionalPrescription, PrescriptionResult } from '../../services/prescriptionEngine';
-import { PNT_PRODUCTS, PntProduct } from '../../data/pntProducts';
+import { PNT_PRODUCTS, PntProduct, getStandard6ProductLineup } from '../../data/pntProducts';
 import { printElement } from '../../utils/printUtils';
 import { AnalystConfig, getAnalystDisplayText } from '../../utils/analystConfig';
 
@@ -24,19 +24,9 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
     useEffect(() => {
         if (isOpen) {
             try {
-                // Ensure 3-Tier order matching Dashboard: 1st ESSENTIAL, 2nd HL BOOSTER, 3rd RECOMMENDED, 4th SUPPORTIVE
-                const essentialItem = recommendedProducts.find(p => p.tier === 'ESSENTIAL' && p.productId !== 'hl_focus_booster');
-                const recommendedItem = recommendedProducts.find(p => p.tier === 'RECOMMENDED' && p.productId !== 'hl_focus_booster');
-                const supportiveItem = recommendedProducts.find(p => p.tier === 'SUPPORTIVE' && p.productId !== 'hl_focus_booster');
-
-                const p1 = essentialItem ? PNT_PRODUCTS[essentialItem.productId] : (PNT_PRODUCTS['1000000021'] || PNT_PRODUCTS['active_b_complex']);
-                const p2 = PNT_PRODUCTS['hl_focus_booster'];
-                const p3 = recommendedItem ? PNT_PRODUCTS[recommendedItem.productId] : (PNT_PRODUCTS['calm_sleep'] || PNT_PRODUCTS['active_b_complex']);
-                const p4 = supportiveItem ? PNT_PRODUCTS[supportiveItem.productId] : PNT_PRODUCTS['1000000001'];
-                const p5 = PNT_PRODUCTS['1000000008'] || PNT_PRODUCTS['active_b_complex'];
-                const p6 = PNT_PRODUCTS['1000000003'] || PNT_PRODUCTS['1000000002'];
-
-                const logicBasedProducts = [p1, p2, p3, p4, p5, p6].filter(Boolean) as PntProduct[];
+                // 심층 대시보드 및 16P 전문 종합 리포트와 100% 동일한 표준 6종 라인업 동기화
+                const standardLineup = getStandard6ProductLineup(recommendedProducts, data.careType);
+                const logicBasedProducts = standardLineup.allProducts;
 
                 const result = generateNutritionalPrescription(data, logicBasedProducts);
                 setPrescription(result);
@@ -159,9 +149,8 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
                 {/* Printable Content */}
                 <div id="nutrition-prescription-print" className="flex-1 overflow-y-auto prescription-print-root">
                     <style>{`
-                        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Roboto+Mono&display=swap');
                         .prescription-print-root { 
-                            font-family: 'Noto Sans KR', sans-serif; 
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", sans-serif !important; 
                             -webkit-print-color-adjust: exact !important; 
                             print-color-adjust: exact !important; 
                         }
@@ -444,14 +433,18 @@ export const NutritionalPrescriptionModal: React.FC<Props> = ({ isOpen, onClose,
                                                 0{index + 1}
                                             </div>
                                             <div className="w-12 h-12 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden p-0.5">
-                                                <img
-                                                    src={product.id === 'HL-COFFEE-001' ? '/hl_coffee_circle.png' : product.image}
-                                                    alt={product.name}
-                                                    className={`w-full h-full object-contain ${product.id === 'HL-COFFEE-001' ? 'p-0.5' : 'mix-blend-multiply'}`}
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
-                                                />
+                                                {(product.id === 'HL-COFFEE-001' || product.image) ? (
+                                                    <img
+                                                        src={product.id === 'HL-COFFEE-001' ? '/hl_coffee_circle.png' : product.image}
+                                                        alt={product.name}
+                                                        className={`w-full h-full object-contain ${product.id === 'HL-COFFEE-001' ? 'p-0.5' : 'mix-blend-multiply'}`}
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <span className="text-xl">💊</span>
+                                                )}
                                             </div>
                                             <span className="text-[7px] px-1 py-0.2 bg-slate-100 text-slate-700 rounded font-bold uppercase font-mono border border-slate-200">
                                                 {product.category}

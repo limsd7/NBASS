@@ -333,12 +333,12 @@ export const getDynamicSubjectRoadmap = (
 
     const metaInfo: Record<'korean' | 'math' | 'english' | 'inquiry', { name: string; subBadge: string; code: string; icon: string; readLabel: string; probLabel: string }> = {
         korean: { name: '국어', subBadge: '1교시 최적화', code: 'KOREAN', icon: '📖', readLabel: '🔍 독해:', probLabel: '⚡ 풀이:' },
-        math: { name: '수학', subBadge: '킬러 정복', code: 'MATH', icon: '📐', readLabel: '🔍 개념:', probLabel: '⚡ 풀이:' },
+        math: { name: '수학', subBadge: '수리 추론', code: 'MATH', icon: '📐', readLabel: '🔍 개념:', probLabel: '⚡ 풀이:' },
         english: { name: '영어', subBadge: '절대평가 1등급', code: 'ENGLISH', icon: '🌐', readLabel: '🔍 어휘:', probLabel: '⚡ 대의:' },
         inquiry: { name: '탐구', subBadge: '단권화 만점', code: 'INQUIRY', icon: '🔬', readLabel: '🔍 백지:', probLabel: '⚡ 기출:' },
     };
 
-    // 단일 최우선 집중 과목 결정: weakSubject > focusList[0] > currentFocusRank 1위
+    // 단일 최우선 집중 과목 결정: weakSubject > focusList[0] > currentFocusRank 1위 (미선택 시 강제 배정하지 않음)
     const primaryFocusSubj = (weakSubj && subjects.includes(weakSubj as any))
         ? weakSubj
         : (focusList.find(f => subjects.includes(f as any)))
@@ -346,11 +346,11 @@ export const getDynamicSubjectRoadmap = (
             : subjects.find(s => {
                 const pKey = s === 'inquiry' ? 'korean_history' : s;
                 return student.subjectPriorities?.currentFocusRank?.[pKey] === 1;
-            }) || 'math';
+            }) || undefined;
 
     subjects.forEach((subj) => {
         const pKey = subj === 'inquiry' ? 'korean_history' : subj;
-        const isFocus = subj === primaryFocusSubj;
+        const isFocus = Boolean(primaryFocusSubj && subj === primaryFocusSubj);
         const levelTier = getSubjectLevel(subj, isFocus);
         const preset = SUBJECT_PRESETS[subj][levelTier];
         const meta = metaInfo[subj];

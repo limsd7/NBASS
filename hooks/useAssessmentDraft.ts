@@ -4,6 +4,14 @@ import {
 } from '../types';
 import { StudyEfficiencyResults } from '../services/studyEfficiencyService';
 import { CognitivePerformanceResults } from '../components/CognitivePerformanceAssessment';
+import { safeStorage } from '../utils/safeStorage';
+
+// 초안 저장 시 원시 시계열(수천 샘플 배열)은 제외 — 요약 지표만으로 이어하기에 충분, 용량 포화 방지
+const stripRawSignal = (hrv: any): any => {
+    if (!hrv || typeof hrv !== 'object') return hrv;
+    const { portableHrv, rrIntervals, rawSeries, timeSeries, samples, waveform, ppgSeries, eegSeries, ...summary } = hrv as any;
+    return summary;
+};
 
 interface AssessmentDraft {
     timestamp: number;
@@ -181,35 +189,43 @@ export const useAssessmentDraft = ({
         setPendingDraft(null);
     };
 
-    // Auto-Save Effect
+    // Auto-Save Effect (디바운스: 연속 입력 중에는 1.5초 후 1회만 저장)
+    const draftSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         // Don't save on results page, admin page, or if not in assessment menu
         if (step === 'results' || step === 'admin_expertise' || activeMenu !== 'assessment') {
             return;
         }
 
-        const draft: AssessmentDraft = {
-            timestamp: Date.now(),
-            step,
-            student,
-            hrv,
-            protocol,
-            analytics,
-            bloodTest,
-            snsSymptomSelection,
-            pnsSymptomSelection,
-            baiAnswers,
-            isiAnswers,
-            concentrationAnswers,
-            adrenalAnswers,
-            fatigueCore,
-            fatigueSymptoms,
-            studyEfficiencyResults,
-            workingMemoryResults,
-            cognitiveResults // Save cognitive results
-        };
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = setTimeout(() => {
+            const draft: AssessmentDraft = {
+                timestamp: Date.now(),
+                step,
+                student,
+                hrv: stripRawSignal(hrv),
+                protocol,
+                analytics,
+                bloodTest,
+                snsSymptomSelection,
+                pnsSymptomSelection,
+                baiAnswers,
+                isiAnswers,
+                concentrationAnswers,
+                adrenalAnswers,
+                fatigueCore,
+                fatigueSymptoms,
+                studyEfficiencyResults,
+                workingMemoryResults,
+                cognitiveResults // Save cognitive results
+            };
 
-        localStorage.setItem('sn1_assessment_draft', JSON.stringify(draft));
+            // Quota 초과 시에도 예외를 던지지 않음 (앱 크래시 방지)
+            safeStorage.saveJSON('sn1_assessment_draft', draft as never);
+        }, 1500);
+        return () => {
+            if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        };
     }, [
         step, student, hrv, protocol, analytics, bloodTest,
         snsSymptomSelection, pnsSymptomSelection, baiAnswers,

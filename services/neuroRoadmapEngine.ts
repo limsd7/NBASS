@@ -1,13 +1,15 @@
 // 12대 CareType & 성적 연계 수능 1·2·3년 듀얼트랙 로드맵 생성 및 관리 엔진
-import { 
-  StudentInfo, 
-  GradeRecord, 
-  RoadmapDuration, 
-  StudentRoadmap, 
-  RoadmapPhase, 
-  RoadmapMilestone 
+import {
+  StudentInfo,
+  GradeRecord,
+  RoadmapDuration,
+  StudentRoadmap,
+  RoadmapPhase,
+  RoadmapMilestone,
+  RoadmapInputSnapshot
 } from '../types';
-import { getCareTypeDetail } from '../data/careTypesData';
+import { getCareTypeDetail, normalizeCareTypeCode } from '../data/careTypesData';
+import { SUNEUNG_SUBJECTS } from '../data/suneungSubjects';
 
 /**
  * 12대 CareType별 4분기 핵심 두뇌 케어 가이드라인 매트릭스
@@ -54,6 +56,36 @@ const CARE_TYPE_ROADMAP_TRACKS: Record<string, {
     q3: { title: '수면 NREM 깊은 수면 25% 확보', desc: '자기 전 따뜻한 족욕 및 4-7-8 호흡, 침실 온도 19~21도 유지로 뇌 피로 완전 회복', hours: 4 },
     q4: { title: '수능 기상 시간 완벽 동기화 (기상 6시)', desc: '수능 한 달 전부터 6시 기상 습관화, 8시 40분 1교시 시작 시점에 뇌가 완전히 깨어있도록 세팅', hours: 5 }
   },
+  ADRENAL: {
+    q1: { title: '코르티솔 리듬 회복 & 카페인 단계적 감량', desc: '기상 후 30분 이내 햇빛 10분, 오후 2시 이후 카페인 금지, 밤 10시 취침 고정으로 아침 각성 복원', hours: 3 },
+    q2: { title: '오후 방전 대비 에너지 분할 배치', desc: '오후 4시 전후 고난도 학습 금지, 가벼운 오답 정리와 10분 파워냅으로 방전 구간 완충', hours: 4 },
+    q3: { title: '부신 회복기 학습량 파도타기', desc: '컨디션 좋은 오전에 핵심 진도, 오후는 복습 위주로 배치하여 누적 피로 없이 진도 유지', hours: 4 },
+    q4: { title: '수능 당일 각성 피크 오전 고정', desc: '시험 2주 전부터 6시 30분 기상·밤 11시 취침 리듬으로 1교시 각성 피크 동기화', hours: 5 }
+  },
+  STRESS_OVERLOAD: {
+    q1: { title: '자극 차단 학습 환경 셋업 & 긴장 이완', desc: '독립 공간·백색소음 확보, 학습 전 1분 어깨·목 스트레칭으로 교감신경 과항진 완화', hours: 3 },
+    q2: { title: '6월 모평 대비 압박 분산 루틴', desc: '모의고사는 실전 80% 강도로 주 1회만, 나머지는 단원별 분할 풀이로 스트레스 노출량 조절', hours: 4 },
+    q3: { title: '여름철 예민도 관리 & 휴식 처방', desc: '50분 집중 후 무조건 10분 휴식(화면 금지), 짜증·산만 신호 시 즉시 장소 전환 규칙', hours: 4 },
+    q4: { title: '수능 당일 긴장 안정화 앵커', desc: '교시 사이 3분 복식호흡 루틴 고정, 쉬는 시간 스마트폰 확인 금지로 자극 누수 차단', hours: 5 }
+  },
+  DEPRESSION_AMOTIVATION: {
+    q1: { title: '초소형 성취 퀘스트 & 도파민 재가동', desc: '하루 15분·문제 5개 같은 최소 과제로 매일 달성 체크, 달성 스티커로 보상 회로 자극', hours: 3 },
+    q2: { title: '성취 기록 누적 & 학습 의미 연결', desc: '주간 오답 감소량·맞힌 개수 그래프화로 "늘고 있다"는 증거를 눈에 보이게 축적', hours: 4 },
+    q3: { title: '9월 모평 대비 작은 승리 설계', desc: '목표를 등급이 아닌 "취약 1순위 오답률 절반" 같은 통제 가능 지표로 재설정', hours: 4 },
+    q4: { title: '수능 당일 "할 수 있는 것만" 전략', desc: '킬러 집착 금지·아는 문제 무감점 루틴으로 실전 성취감을 최대화하는 운영 전략', hours: 5 }
+  },
+  HYPERSENSITIVE: {
+    q1: { title: '시각·청각 노이즈 제로 책상 & 감각 차단', desc: '책상 위 교재 1권만, 귀마개·가림막 활용, 알림 전면 차단으로 주의 자원 보호', hours: 3 },
+    q2: { title: '단일 과제 몰입 블록 & 전환 의식', desc: '과목 전환 시 2분 정리 루틴(책상 리셋+심호흡)으로 잔여 자극을 끊고 다음 블록 진입', hours: 4 },
+    q3: { title: '고자극 시기(9모 전후) 자극 다이어트', desc: '학원·스터디카페 대신 1인실 위주, SNS·쇼츠 시청 시간을 절반으로 제한', hours: 4 },
+    q4: { title: '수능장 감각 과부하 대비 루틴', desc: '예비 마킹·시험지 넘김 등 손 루틴을 고정하여 낯선 환경 자극에도 자동 조종 유지', hours: 5 }
+  },
+  CIRCULATION: {
+    q1: { title: '1시간마다 3분 혈류 펌프 루틴', desc: '발목 펌프·제자리 걷기·따뜻한 온수 섭취로 뇌 혈류 공급 유지, 장시간 앉아있기 금지', hours: 3 },
+    q2: { title: '6월 모평 대비 두뇌 산소 루틴', desc: '모의고사 전 가벼운 스트레칭과 수분 500mL 섭취로 후반 집중력 저하 방지', hours: 4 },
+    q3: { title: '여름철 냉방·수분 밸런스 관리', desc: '과도한 냉방 자제·수시 수분 보충, 손발 저림 신호 시 즉시 기립 스트레칭', hours: 4 },
+    q4: { title: '수능 당일 컨디션 유지 프로토콜', desc: '교시 사이 가벼운 목 돌리기와 온수 섭취, 점심 과식 금지로 식곤증·뇌 무거움 차단', hours: 5 }
+  },
   HEALTHY: {
     q1: { title: '최적 딥플로우 셋업 & 심화 개념 완주', desc: '흔들림 없는 자율신경 균형 유지, 하루 순공 8시간 몰입 루틴 체화', hours: 4 },
     q2: { title: '수능 실전 100분 연속 풀블록 지구력 훈련', desc: '수학 100분, 국어 80분 시험 시간 동안 지치지 않고 킬러를 공략하는 뇌 신경망 강화', hours: 5 },
@@ -63,6 +95,280 @@ const CARE_TYPE_ROADMAP_TRACKS: Record<string, {
 };
 
 /**
+ * 적응형 로드맵 생성 옵션 (규칙 뼈대 개인화 입력)
+ */
+export interface RoadmapGenOptions {
+  primaryScore?: number;       // CareType 주분류 점수 (0-100, neuro 강도 조절용)
+  focusSubjectIds?: string[];  // 집중 취약 과목 ID (시간 가중용)
+}
+
+// 과목별 적응 계획 (등급 궤적 + 페이스 + 시간 계수)
+export interface SubjectAdaptivePlan {
+  subjectId: string;
+  current: number;
+  finalTarget: number;
+  pace: 'maintain' | 'step' | 'foundation'; // 유지·심화 / 단계적 / 기초재건
+  hourFactor: number; // 0.8 ~ 1.4
+  trend: 'improving' | 'stable' | 'declining';
+}
+
+const clampGrade9 = (v: unknown): number | null => {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  return r >= 1 && r <= 9 ? r : null;
+};
+
+const scaleHours = (base: number, factor: number): number => {
+  const b = Number.isFinite(base) ? base : 4;
+  const f = Number.isFinite(factor) ? Math.max(0.8, Math.min(1.4, factor)) : 1;
+  return Math.max(2, Math.min(10, Math.round(b * f * 2) / 2));
+};
+
+// 과목 ID → 수능 카테고리 (단원 오분류 방지용, SUNEUNG_SUBJECTS 기준)
+const subjectCategoryOf = (subjectId: string): string => {
+  const found = SUNEUNG_SUBJECTS.find(s => s.id === subjectId);
+  return found ? found.category : 'common';
+};
+
+// 성적 기록에서 과목군별 취약단원 추출 (탐구는 inquiry 버킷으로 분리)
+export function extractWeakUnitsByBucket(records: GradeRecord[]): {
+  korean: string[]; math: string[]; english: string[]; inquiry: string[];
+} {
+  const buckets: { korean: string[]; math: string[]; english: string[]; inquiry: string[] } =
+    { korean: [], math: [], english: [], inquiry: [] };
+  if (!Array.isArray(records)) return buckets;
+  const push = (arr: string[], u: unknown) => {
+    if (typeof u !== 'string' || !u.trim()) return;
+    if (!arr.includes(u)) arr.push(u);
+  };
+  for (const r of records) {
+    if (!r || !Array.isArray((r as any).subjects)) continue;
+    for (const s of (r as any).subjects) {
+      const units = (s as any)?.weakUnits;
+      if (!Array.isArray(units) || units.length === 0) continue;
+      const cat = subjectCategoryOf((s as any)?.subjectId || '');
+      const sid = String((s as any)?.subjectId || '');
+      const bucket =
+        sid === 'korean' || cat === 'required' ? buckets.korean :
+        sid === 'math' ? buckets.math :
+        sid === 'english' ? buckets.english :
+        (cat === 'social' || cat === 'science') ? buckets.inquiry :
+        sid === 'korean' ? buckets.korean :
+        sid === 'english' ? buckets.english : buckets.math;
+      for (const u of units) push(bucket, u);
+    }
+  }
+  return buckets;
+}
+
+// 과목별 최근 등급 추세 (숫자 상승=악화 기준 가중 추세선)
+const gradeTrendOf = (records: GradeRecord[], subjectId: string): 'improving' | 'stable' | 'declining' => {
+  if (!Array.isArray(records)) return 'stable';
+  const timeOf = (d: unknown): number => {
+    const t = new Date(d as string).getTime();
+    return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+  };
+  const past = [...records]
+    .filter(r => Number.isFinite(new Date((r as any)?.examDate as string).getTime()))
+    .sort((a, b) => timeOf((b as any).examDate) - timeOf((a as any).examDate))
+    .map(r => clampGrade9((r.subjects || []).find(s => s?.subjectId === subjectId)?.grade))
+    .filter((g): g is number => g !== null)
+    .slice(0, 5);
+  if (past.length < 2) return 'stable';
+  let total = 0; let wSum = 0;
+  for (let i = 0; i < past.length - 1; i++) {
+    const w = past.length - 1 - i;
+    total += (past[i] - past[i + 1]) * w;
+    wSum += w;
+  }
+  const slope = wSum > 0 ? total / wSum : 0;
+  if (!Number.isFinite(slope)) return 'stable';
+  if (slope > 0.5) return 'declining';
+  if (slope < -0.5) return 'improving';
+  return 'stable';
+};
+
+// 등급 갭 기반 페이스 결정 (유지·심화 / 단계적 / 기초재건)
+const paceOf = (current: number): SubjectAdaptivePlan['pace'] => {
+  const gap = current - 1;
+  if (gap <= 1) return 'maintain';
+  if (gap <= 3) return 'step';
+  return 'foundation';
+};
+
+const PACE_LABEL: Record<SubjectAdaptivePlan['pace'], string> = {
+  maintain: '유지·킬러 심화',
+  step: '단계적 등급 상승',
+  foundation: '기초 재건 우선'
+};
+
+// 과목별 적응 계획 생성 (목표치·시간계수 일괄 산출)
+export function planSubjectAdaptive(
+  subjectId: string,
+  currentGrade: number,
+  records: GradeRecord[],
+  duration: RoadmapDuration,
+  focusSubjectIds: string[] = []
+): SubjectAdaptivePlan {
+  const current = clampGrade9(currentGrade) ?? 3;
+  const pace = paceOf(current);
+  const steps = duration === '1year' ? 1 : 2;
+  const finalTarget = pace === 'maintain' ? current : Math.max(1, current - Math.min(steps, current - 1));
+  const trend = gradeTrendOf(records, subjectId);
+  const gap = current - finalTarget;
+  let factor = 1 + 0.1 * Math.min(3, gap) + (trend === 'declining' ? 0.2 : trend === 'improving' ? -0.1 : 0);
+  if (focusSubjectIds.includes(subjectId)) factor += 0.15;
+  if (pace === 'foundation') factor += 0.1;
+  factor = Math.max(0.8, Math.min(1.4, factor));
+  return { subjectId, current, finalTarget, pace, hourFactor: factor, trend };
+}
+
+export const paceLabelOf = (pace: SubjectAdaptivePlan['pace']): string => PACE_LABEL[pace];
+
+// 생성 입력 스냅샷 (stale 감지용)
+export function buildRoadmapSnapshot(
+  careTypeCode: string,
+  primaryScore: number | undefined,
+  records: GradeRecord[],
+  latestGrades: Map<string, number>
+): RoadmapInputSnapshot {
+  const validDates = (Array.isArray(records) ? records : [])
+    .map(r => new Date((r as any)?.examDate as string).getTime())
+    .filter(t => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  const g = (k: string): number | null => {
+    const v = latestGrades?.get(k);
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  };
+  return {
+    careTypeCode: String(careTypeCode || 'HEALTHY'),
+    primaryScore: typeof primaryScore === 'number' && Number.isFinite(primaryScore) ? primaryScore : undefined,
+    recordCount: Array.isArray(records) ? records.length : 0,
+    latestExamDate: validDates.length > 0 ? new Date(validDates[validDates.length - 1]).toISOString().slice(0, 10) : undefined,
+    gradesKey: `${g('korean') ?? '-'}/${g('math') ?? '-'}/${g('english') ?? '-'}`
+  };
+}
+
+// 스냅샷 비교 (하나라도 다르면 재생성 대상)
+export function isRoadmapSnapshotStale(prev: RoadmapInputSnapshot | undefined, next: RoadmapInputSnapshot): boolean {
+  if (!prev) return true;
+  return prev.careTypeCode !== next.careTypeCode ||
+    (prev.primaryScore ?? -1) !== (next.primaryScore ?? -1) ||
+    prev.recordCount !== next.recordCount ||
+    (prev.latestExamDate || '') !== (next.latestExamDate || '') ||
+    prev.gradesKey !== next.gradesKey;
+}
+
+// 완료상태·커스텀 보존 병합 재생성 (같은 id는 완료 유지, 커스텀은 이관)
+export function mergeRoadmapProgress(prev: StudentRoadmap, fresh: StudentRoadmap): StudentRoadmap {
+  const doneIds = new Set<string>();
+  const customByPhase = new Map<string, RoadmapMilestone[]>();
+  for (const p of prev.phases || []) {
+    for (const m of p.milestones || []) {
+      if (m.isCompleted) doneIds.add(m.id);
+      if (m.isCustom) {
+        const arr = customByPhase.get(p.id) || [];
+        arr.push({ ...m, isCompleted: false });
+        customByPhase.set(p.id, arr);
+      }
+    }
+  }
+  const phases = fresh.phases.map(p => {
+    const milestones = p.milestones.map(m => (doneIds.has(m.id) ? { ...m, isCompleted: true } : m));
+    const customs = (customByPhase.get(p.id) || []).filter(c => !milestones.some(m => m.id === c.id));
+    // 동일 제목 커스텀 중복 방지
+    const titles = new Set(milestones.map(m => m.title));
+    const merged = [...milestones];
+    for (const c of customs) {
+      if (!titles.has(c.title)) {
+        merged.push(c);
+        titles.add(c.title);
+      }
+    }
+    return { ...p, milestones: merged };
+  });
+  // 기존에만 있던 phase의 커스텀 마일스톤은 첫 phase에 이관하지 않고 그대로 두지 않음 (id 체계 변경 시 유실 방지용으로 fresh 기준 유지)
+  let total = 0; let done = 0;
+  for (const p of phases) for (const m of p.milestones) { total++; if (m.isCompleted) done++; }
+  return {
+    ...fresh,
+    id: prev.id,
+    createdAt: prev.createdAt,
+    phases,
+    customNotes: fresh.customNotes ?? prev.customNotes,
+    overallProgress: total > 0 ? Math.round((done / total) * 100) : 0,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+// 시간 가중 후처리 (분기 템플릿 골격 유지, 시간만 개인화)
+function applyAdaptiveHours(
+  phases: RoadmapPhase[],
+  factors: Record<string, number>,
+  neuroBoost: number
+): RoadmapPhase[] {
+  return phases.map(p => ({
+    ...p,
+    milestones: p.milestones.map(m => {
+      if (m.track === 'neuro') {
+        const base = typeof m.targetHoursPerWeek === 'number' ? m.targetHoursPerWeek : 3;
+        return { ...m, targetHoursPerWeek: scaleHours(base + neuroBoost, 1) };
+      }
+      const f = factors[m.subjectId || ''] ?? 1;
+      const base = typeof m.targetHoursPerWeek === 'number' ? m.targetHoursPerWeek : 4;
+      return { ...m, targetHoursPerWeek: scaleHours(base, f) };
+    })
+  }));
+}
+
+// (선택) LLM 문구 다듬기: 구조·시간·ID 불변, phase 목표 문구만 개선. 실패 시 원본 반환.
+export async function polishRoadmapWithAI(
+  roadmap: StudentRoadmap,
+  aiModels: unknown,
+  generateFn?: (prompt: string, system: string) => Promise<string>
+): Promise<StudentRoadmap> {
+  try {
+    if (!roadmap || !Array.isArray(roadmap.phases)) return roadmap;
+    const input = roadmap.phases.map(p => ({
+      phaseNumber: p.phaseNumber,
+      academicGoal: p.academicGoal,
+      neuroCareGoal: p.neuroCareGoal
+    }));
+    const prompt = `다음 수능 로드맵 분기 목표 문구를 학생·학부모가 읽기 쉽도록 다듬어주세요. 분기 수와 순서를 바꾸지 말고, 각 분기의 academicGoal/neuroCareGoal만 1~2문장으로 다듬어 JSON 배열로 반환하세요(키는 phaseNumber, academicGoal, neuroCareGoal만).\n${JSON.stringify(input)}`;
+    let text = '';
+    if (generateFn) {
+      text = await generateFn(prompt, '당신은 입시 학습 컨설턴트입니다. JSON 배열만 반환하세요.');
+    } else {
+      const { generateAIResponse } = await import('./aiService');
+      const res: any = await generateAIResponse(prompt, '당신은 입시 학습 컨설턴트입니다. JSON 배열만 반환하세요.', aiModels as any, 'premium');
+      text = res?.text || '';
+    }
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start < 0 || end <= start) return roadmap;
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(parsed)) return roadmap;
+    const byPhase = new Map<number, any>(parsed.map((p: any) => [Number(p?.phaseNumber), p]));
+    return {
+      ...roadmap,
+      phases: roadmap.phases.map(p => {
+        const polished = byPhase.get(p.phaseNumber);
+        if (!polished) return p;
+        return {
+          ...p,
+          academicGoal: typeof polished.academicGoal === 'string' && polished.academicGoal.trim() ? polished.academicGoal.trim() : p.academicGoal,
+          neuroCareGoal: typeof polished.neuroCareGoal === 'string' && polished.neuroCareGoal.trim() ? polished.neuroCareGoal.trim() : p.neuroCareGoal
+        };
+      }),
+      updatedAt: new Date().toISOString()
+    };
+  } catch {
+    return roadmap;
+  }
+}
+
+/**
  * 1년, 2년, 3년 수능 준비 기간별 AI 맞춤 듀얼트랙 로드맵 템플릿 생성기
  */
 export function generateAdaptiveRoadmap(
@@ -70,33 +376,25 @@ export function generateAdaptiveRoadmap(
   duration: RoadmapDuration = '1year',
   careTypeCode: string = 'HEALTHY',
   records: GradeRecord[] = [],
-  latestGrades: Map<string, number> = new Map()
+  latestGrades: Map<string, number> = new Map(),
+  options: RoadmapGenOptions = {}
 ): StudentRoadmap {
-  const normCareType = careTypeCode?.toUpperCase() || 'HEALTHY';
-  const careTracks = CARE_TYPE_ROADMAP_TRACKS[normCareType] || CARE_TYPE_ROADMAP_TRACKS['HEALTHY'];
-  const careDetail = getCareTypeDetail(normCareType);
+  // CareType 정규화 (enum 한글명·코드 모두 코드로 통일, 미상→UNASSESSED→HEALTHY 트랙)
+  const normalized = normalizeCareTypeCode(careTypeCode);
+  const trackKey = normalized === 'UNASSESSED' ? 'HEALTHY' : normalized;
+  const careTracks = CARE_TYPE_ROADMAP_TRACKS[trackKey] || CARE_TYPE_ROADMAP_TRACKS['HEALTHY'];
+  const careDetail = getCareTypeDetail(trackKey);
+  const primaryScore = typeof options.primaryScore === 'number' && Number.isFinite(options.primaryScore)
+    ? Math.max(0, Math.min(100, options.primaryScore))
+    : undefined;
+  const focusIds = Array.isArray(options.focusSubjectIds) ? options.focusSubjectIds : [];
 
-  // 1. 학생의 등록된 과목별 취약단원 추출
-  const koreanWeakUnits: string[] = [];
-  const mathWeakUnits: string[] = [];
-  const englishWeakUnits: string[] = [];
-
-  records.forEach(r => {
-    r.subjects.forEach(s => {
-      if (s.weakUnits && s.weakUnits.length > 0) {
-        const subId = s.subjectId.toLowerCase();
-        s.weakUnits.forEach(u => {
-          if (subId.includes('kor') || subId.includes('국어') || u.includes('독서') || u.includes('문학') || u.includes('문법')) {
-            if (!koreanWeakUnits.includes(u)) koreanWeakUnits.push(u);
-          } else if (subId.includes('eng') || subId.includes('영어') || u.includes('빈칸') || u.includes('순서') || u.includes('어법')) {
-            if (!englishWeakUnits.includes(u)) englishWeakUnits.push(u);
-          } else {
-            if (!mathWeakUnits.includes(u)) mathWeakUnits.push(u);
-          }
-        });
-      }
-    });
-  });
+  // 1. 학생의 등록된 과목별 취약단원 추출 (카테고리 기준, 탐구 분리)
+  const buckets = extractWeakUnitsByBucket(records);
+  const koreanWeakUnits = buckets.korean;
+  const mathWeakUnits = buckets.math;
+  const englishWeakUnits = buckets.english;
+  const inquiryWeakUnits = buckets.inquiry;
 
   const korWeak1 = koreanWeakUnits[0] || '[독서] 과학·기술 고난도 메커니즘 지문';
   const korWeak2 = koreanWeakUnits[1] || '[문학] 고전시가·고전산문 융합';
@@ -110,13 +408,29 @@ export function generateAdaptiveRoadmap(
   const engWeak2 = englishWeakUnits[1] || '[수능 킬러] 글의 순서 배열 & 문장 삽입';
   const engWeak3 = englishWeakUnits[2] || '[어법·어휘] 29번 어법 & 30번 밑줄 어휘';
 
-  const currentKorGrade = latestGrades.get('korean') || 3;
-  const currentMathGrade = latestGrades.get('math') || 3;
-  const currentEngGrade = latestGrades.get('english') || 2;
+  const currentKorGrade = clampGrade9(latestGrades.get('korean')) ?? 3;
+  const currentMathGrade = clampGrade9(latestGrades.get('math')) ?? 3;
+  const currentEngGrade = clampGrade9(latestGrades.get('english')) ?? 2;
 
-  const targetKorGrade = Math.max(1, currentKorGrade - 1);
-  const targetMathGrade = Math.max(1, currentMathGrade - 1);
-  const targetEngGrade = Math.max(1, currentEngGrade - 1);
+  // 과목별 적응 계획 (목표·페이스·시간계수)
+  const korPlan = planSubjectAdaptive('korean', currentKorGrade, records, duration, focusIds);
+  const mathPlan = planSubjectAdaptive('math', currentMathGrade, records, duration, focusIds);
+  const engPlan = planSubjectAdaptive('english', currentEngGrade, records, duration, focusIds);
+
+  const targetKorGrade = korPlan.finalTarget;
+  const targetMathGrade = mathPlan.finalTarget;
+  const targetEngGrade = engPlan.finalTarget;
+
+  // 분기 목표 등급 보간 (1년 4분기 / 2년 8분기 / 3년 12분기 공용)
+  const totalPhaseCount = duration === '1year' ? 4 : duration === '2year' ? 8 : 12;
+  const phaseTargetOf = (plan: SubjectAdaptivePlan, phaseIdx: number): number => {
+    if (plan.pace === 'maintain') return plan.current;
+    const steps = plan.current - plan.finalTarget;
+    if (steps <= 0) return plan.current;
+    const done = Math.min(phaseIdx + 1, totalPhaseCount);
+    const drop = Math.round((steps * done) / totalPhaseCount);
+    return Math.max(plan.finalTarget, plan.current - drop);
+  };
 
   const currentYear = new Date().getFullYear();
   let phases: RoadmapPhase[] = [];
@@ -517,6 +831,46 @@ export function generateAdaptiveRoadmap(
 
   const targetExamYear = duration === '1year' ? currentYear + 1 : duration === '2year' ? currentYear + 2 : currentYear + 3;
 
+  // 시간 가중 후처리 (템플릿 골격 유지, 주당 시간만 개인화)
+  // neuro 강도: 주분류 점수 70점 이상이면 회복 우선 +1h
+  const neuroBoost = primaryScore !== undefined && primaryScore >= 70 ? 1 : 0;
+  const factors: Record<string, number> = {
+    korean: korPlan.hourFactor,
+    math: mathPlan.hourFactor,
+    english: engPlan.hourFactor,
+    inquiry: Math.max(korPlan.hourFactor, mathPlan.hourFactor, engPlan.hourFactor)
+  };
+  phases = applyAdaptiveHours(phases, factors, neuroBoost);
+
+  // 탐구 취약단원이 있으면 첫 분기에 탐구 마일스톤 추가 (국·수·영 구조 불변)
+  if (inquiryWeakUnits.length > 0 && phases.length > 0) {
+    const first = phases[0];
+    const unit = inquiryWeakUnits[0];
+    if (!first.milestones.some(m => m.subjectId === 'inquiry')) {
+      first.milestones.push({
+        id: `${first.id}_inquiry`,
+        phaseId: first.id,
+        track: 'academic',
+        subjectId: 'inquiry',
+        title: `[탐구] 취약 1순위 '${unit}' 개념 체계도 & 기출 자료해석 훈련`,
+        description: `핵심 파트인 '${unit}'의 개념 구조화와 평가원 기출 도표·자료 해석 공식을 정리합니다.`,
+        targetUnit: unit,
+        targetHoursPerWeek: scaleHours(3, factors.inquiry),
+        isCompleted: false,
+        dueDate: first.milestones[0]?.dueDate
+      });
+      first.academicGoal = `${first.academicGoal} + 탐구('${unit}') 병행`;
+    }
+  }
+
+  // 1년차 2분기 목표 등급을 궤적 보간값으로 갱신 (유지 페이스는 현재 등급 유지 명시)
+  if (duration === '1year' && phases[1]) {
+    const q = phases[1];
+    q.academicGoal = `평가원 5개년 기출 코드 체화: 국어 ${phaseTargetOf(korPlan, 1)}등급(${paceLabelOf(korPlan.pace)}), 수학 ${phaseTargetOf(mathPlan, 1)}등급(${paceLabelOf(mathPlan.pace)}), 영어 ${phaseTargetOf(engPlan, 1)}등급(${paceLabelOf(engPlan.pace)}) 진입`;
+  }
+
+  const inputSnapshot = buildRoadmapSnapshot(trackKey, primaryScore, records, latestGrades);
+
   return {
     id: `roadmap_${student.id}_${duration}`,
     studentId: student.id,
@@ -525,7 +879,8 @@ export function generateAdaptiveRoadmap(
     phases,
     overallProgress: 0,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    inputSnapshot
   };
 }
 

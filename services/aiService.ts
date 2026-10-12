@@ -1,5 +1,5 @@
 import { AIModelConfig, MembershipTier } from '../types';
-import { MODEL_ALLOWLIST, SOTA_MODELS } from './aiModelConfig';
+import { MODEL_ALLOWLIST, SOTA_MODELS, SUBJECT_LADDER_AI_CONFIG } from './aiModelConfig';
 import { logger } from '../utils/logger';
 
 export interface AIResponse {
@@ -11,7 +11,7 @@ export interface AIResponse {
 
 // 허용 모델/권장 모델 목록은 services/aiModelConfig.ts 로 단일화되었습니다.
 // 기존 import 경로(services/aiService) 호환을 위해 재-export 합니다.
-export { MODEL_ALLOWLIST, SOTA_MODELS } from './aiModelConfig';
+export { MODEL_ALLOWLIST, SOTA_MODELS, SUBJECT_LADDER_AI_CONFIG } from './aiModelConfig';
 
 const CACHE_KEY = 'nbass_ai_cache_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -261,7 +261,7 @@ export const generateAIResponse = async (
   const startedAt = Date.now();
   const safePrompt = truncate(prompt, MAX_PROMPT_CHARS);
   const safeSystem = truncate(systemContext, 2000);
-  const isHighTier = ['premium', 'premium_plus', 'vip', 'expert'].includes(membershipTier);
+  const isHighTier = ['premium', 'expert'].includes(membershipTier);
   const maxTokens = isHighTier ? 1500 : 800;
 
   const primary = getEffectiveModel(config?.openRouterModel, isHighTier ? SOTA_MODELS.CLAUDE_LATEST : SOTA_MODELS.DEEPSEEK_CHAT);
@@ -328,3 +328,84 @@ export const generateAIResponse = async (
     error: '클라우드 응답 지연으로 표준 분석으로 대체되었습니다.',
   };
 };
+
+/**
+ * 국·수·영 과목별 특화 AI(국어 Claude 5.5, 수학 DeepSeek V4.1, 영어 Gemini 3.8) 직접 호출 지원 함수
+ */
+export const generateAIResponseWithModel = async (
+  prompt: string,
+  systemContext: string,
+  primaryModel: string,
+  fallbackModel: string,
+  config: AIModelConfig | null = null,
+  maxTokens: number = 3000,
+): Promise<AIResponse> => {
+  const startedAt = Date.now();
+  const safePrompt = truncate(prompt, MAX_PROMPT_CHARS);
+  const safeSystem = truncate(systemContext, 2500);
+  const primary = getEffectiveModel(primaryModel, SOTA_MODELS.CLAUDE_LATEST);
+  const secondary = getEffectiveModel(fallbackModel, SOTA_MODELS.GEMINI_LATEST);
+  const cacheKey = hashPrompt(primary, safeSystem, safePrompt);
+
+  const cached = getCached(cacheKey);
+  if (cached) {
+    logger.debug('ai', 'cache hit', { model: cached.model });
+    return { text: cached.text, cached: true, model: cached.model };
+  }
+
+  const limited = checkRateLimit();
+  if (limited) {
+    logger.warn('ai', 'rate limited', { error: limited });
+    return { text: generateOfflineFallback(), error: limited };
+  }
+
+  // 1순위: 서버 프록시 (설정된 경우)
+  if (isProxyEnabled()) {
+    markCall();
+    const viaProxy = await callViaProxy(primary, safeSystem, safePrompt, maxTokens);
+    if (viaProxy) {
+      setCached(cacheKey, viaProxy, primary);
+      logger.timing('ai', 'response ok', Date.now() - startedAt, { model: primary, via: 'proxy' });
+      return { text: viaProxy, model: primary };
+    }
+    const viaProxy2 = await callViaProxy(secondary, safeSystem, safePrompt, maxTokens);
+    if (viaProxy2) {
+      setCached(cacheKey, viaProxy2, secondary);
+      logger.timing('ai', 'response ok', Date.now() - startedAt, { model: secondary, via: 'proxy-fallback' });
+      return { text: viaProxy2, model: secondary };
+    }
+    logger.warn('ai', 'proxy timeout fallback', { model: primary });
+    return { text: generateOfflineFallback(), error: '프록시 응답 지연으로 대체되었습니다.' };
+  }
+
+  // 2순위: OpenRouter 직접 호출
+  const apiKey = getRuntimeApiKey(config);
+  if (!apiKey) {
+    logger.warn('ai', 'no api key / proxy, offline fallback');
+    return {
+      text: generateOfflineFallback(),
+      error: 'API 키가 설정되지 않아 오프라인 분석으로 표시되었습니다.',
+    };
+  }
+
+  markCall();
+  const first = await callDirect(primary, safeSystem, safePrompt, maxTokens, apiKey);
+  if (first) {
+    setCached(cacheKey, first, primary);
+    logger.timing('ai', 'response ok', Date.now() - startedAt, { model: primary, via: 'direct' });
+    return { text: first, model: primary };
+  }
+  const second = await callDirect(secondary, safeSystem, safePrompt, maxTokens, apiKey);
+  if (second) {
+    setCached(cacheKey, second, secondary);
+    logger.timing('ai', 'response ok', Date.now() - startedAt, { model: secondary, via: 'direct-fallback' });
+    return { text: second, model: secondary };
+  }
+
+  logger.warn('ai', 'cloud timeout fallback', { model: primary });
+  return {
+    text: generateOfflineFallback(),
+    error: '클라우드 응답 지연으로 표준 분석으로 대체되었습니다.',
+  };
+};
+

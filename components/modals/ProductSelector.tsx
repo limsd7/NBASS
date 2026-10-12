@@ -70,7 +70,11 @@ export const ProductSelector: React.FC<Props> = ({ onSelect, selectedIds, isOpen
                         const isSelected = selectedIds.includes(product.id);
                         return (
                             <div key={product.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-indigo-300'}`}>
-                                <img src={product.image} alt={product.name} className="w-12 h-12 object-contain bg-white rounded-md border border-slate-100" />
+                                {product.image ? (
+                                    <img src={product.image} alt={product.name} className="w-12 h-12 object-contain bg-white rounded-md border border-slate-100" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                ) : (
+                                    <div className="w-12 h-12 flex items-center justify-center bg-white rounded-md border border-slate-100 text-2xl">💊</div>
+                                )}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                         <h4 className="font-bold text-slate-800 text-sm truncate">{product.name}</h4>

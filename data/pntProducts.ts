@@ -9,6 +9,9 @@ export interface PntProduct {
     capacity: string; // e.g. "1개월분"
     category: 'Liver' | 'Gut' | 'Thyroid' | 'Diet' | 'Kidney' | 'Immunity' | 'Fatigue' | 'Brain' | 'Sleep' | 'Circulation' | 'Other' | 'Bone' | 'Men' | 'Women' | 'Joint' | 'Skin';
 
+    // 식약처 기능성 원료 및 영양 설계 메타데이터 (의료법/식품광고법 준수용)
+    functionalNutrient?: string;
+
     // 처방 로직용 메타데이터
     mainIngredients: string[];
     targetSymptoms: string[]; // e.g., "소화불량", "만성피로"
@@ -22,6 +25,20 @@ export interface PntProduct {
     image: string; // Local path or Remote URL
     url: string; // Pntmall URL
 }
+
+// 🏥 PNTmall 공식몰 및 병원코드 설정 (추후 대표님 제휴 병원번호 등록 시 즉시 반영)
+export const PNT_HOSPITAL_CONFIG = {
+    // 우선 기본 병원코드 (placeholder 또는 기본 설정 코드)
+    hospitalCode: 'NBASS-CARE',
+    hospitalName: 'NBASS 수험생 뉴로케어센터',
+    officialMallUrl: 'https://www.pntmall.com',
+    officialMallName: 'Dr.PNT 공식몰 (PNTmall)',
+    yesUWellbeing: {
+        status: 'PREPARING' as const, // 'PREPARING' | 'ACTIVE'
+        title: '예스유웰빙 (수험생 특별 할인 채널)',
+        notice: '공식 유통 파트너사 [예스유웰빙]을 통한 단독 수험생 특별 할인 채널이 구축 준비 중입니다. (현재는 공식 PNTmall 정가 구매만 지원됩니다)'
+    }
+};
 
 export const ALL_PNT_PRODUCTS: Record<string, PntProduct> = {
     ...SPECIAL_THERAPIES, // 스페셜 처방 제일 호단에 추가 (검색 시 노출)
@@ -505,3 +522,92 @@ export const ALL_PNT_PRODUCTS: Record<string, PntProduct> = {
 };
 
 export const PNT_PRODUCTS = ALL_PNT_PRODUCTS;
+
+/**
+ * 📊 심층 분석 대시보드와 📋 정밀 종합 리포트(16P) 간 영양제 6종 목록 및 순서를 100% 동일하게 동기화하는 단일 표준 함수
+ */
+export function getStandard6ProductLineup(
+    recommendedProducts: { productId: string; tier?: string }[] = [],
+    careType?: string
+): {
+    p1: PntProduct;
+    p2: PntProduct;
+    p3: PntProduct;
+    p4: PntProduct;
+    p5: PntProduct;
+    p6: PntProduct;
+    allProducts: PntProduct[];
+    byTier: {
+        ESSENTIAL: PntProduct[];
+        RECOMMENDED: PntProduct[];
+        SUPPORTIVE: PntProduct[];
+    };
+} {
+    const usedIds = new Set<string>();
+
+    const getProduct = (idOrKey: string): PntProduct | null => {
+        return PNT_PRODUCTS[idOrKey] || Object.values(PNT_PRODUCTS).find(p => p.id === idOrKey) || null;
+    };
+
+    // 2순위: ⚡ HL 스마트 커피 부스터 (항상 핵심 2순위에 고정 배치)
+    const p2 = PNT_PRODUCTS['hl_focus_booster'];
+    usedIds.add(p2.id);
+    usedIds.add('hl_focus_booster');
+
+    // 추천 목록에서 HL 커피 제외한 유효 제품 리스트 추출
+    const validRecs = (recommendedProducts || [])
+        .map(r => getProduct(r.productId))
+        .filter((p): p is PntProduct => p !== null && p.id !== 'HL-COFFEE-001' && p.id !== 'hl_focus_booster');
+
+    // 1순위: 🔴 진단 케어타입 1순위 핵심 타겟 영양제 (ex: 마그네슘 / 슈퍼아르기닌 / 엔오카디징코 등)
+    let p1: PntProduct = validRecs.find(p => !usedIds.has(p.id)) ||
+        PNT_PRODUCTS['magnesium_capsule'] ||
+        PNT_PRODUCTS['1000000021'] ||
+        PNT_PRODUCTS['active_b_complex'];
+    usedIds.add(p1.id);
+
+    // 3순위: 🟡 집중 추천 1순위 (ex: 캄 슬립 L-테아닌 등)
+    let p3: PntProduct = validRecs.find(p => !usedIds.has(p.id)) ||
+        PNT_PRODUCTS['calm_sleep'] ||
+        PNT_PRODUCTS['active_b_complex'];
+    usedIds.add(p3.id);
+
+    // 4순위: 🟡 집중 추천 2순위 / 두뇌 혈류 (ex: 알티지 오메가3 플러스 / 엔오카디징코)
+    let p4: PntProduct = validRecs.find(p => !usedIds.has(p.id)) ||
+        PNT_PRODUCTS['rtg_omega3_plus'] ||
+        PNT_PRODUCTS['1000000001'] ||
+        PNT_PRODUCTS['no_cardi_ginkgo'];
+    usedIds.add(p4.id);
+
+    // 5순위: 🟢 보조 시너지 1순위 / 대사 활성 & 비타민 (ex: 액티브 B 컴플렉스 / 메가 비타민C)
+    let p5: PntProduct = validRecs.find(p => !usedIds.has(p.id)) ||
+        PNT_PRODUCTS['active_b_complex'] ||
+        PNT_PRODUCTS['1000000008'] ||
+        PNT_PRODUCTS['every_d_plus'];
+    usedIds.add(p5.id);
+
+    // 6순위: 🟢 보조 시너지 2순위 / 세포 회복 & 장-뇌 축 면역 (ex: 프로바이오틱스 컴플리트 / 에브리 D 플러스 / 이뮨 원)
+    let p6: PntProduct = validRecs.find(p => !usedIds.has(p.id)) ||
+        PNT_PRODUCTS['probiotics_complete'] ||
+        PNT_PRODUCTS['1000000003'] ||
+        PNT_PRODUCTS['every_d_plus'] ||
+        PNT_PRODUCTS['immune_one'];
+    usedIds.add(p6.id);
+
+    const allProducts = [p1, p2, p3, p4, p5, p6];
+
+    return {
+        p1,
+        p2,
+        p3,
+        p4,
+        p5,
+        p6,
+        allProducts,
+        byTier: {
+            ESSENTIAL: [p1, p2],
+            RECOMMENDED: [p3, p4],
+            SUPPORTIVE: [p5, p6]
+        }
+    };
+}

@@ -64,13 +64,25 @@ export const sessionManager = {
     if (typeof window === 'undefined') return;
     try {
       window.sessionStorage.removeItem(SESSION_ALIVE_KEY);
-      localStorage.removeItem('nbass_current_role');
-      localStorage.removeItem('nbass_current_email');
-      localStorage.removeItem('nbass_user');
-      localStorage.removeItem('nbass_student_profile');
-      localStorage.removeItem('nbass_assessment_mode');
-      localStorage.removeItem('nbass_active_role');
-      localStorage.removeItem('nbass_is_owner');
+      window.sessionStorage.clear();
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith('nbass_current_') ||
+          key.startsWith('nbass_active_') ||
+          key.startsWith('nbass_student_profile') ||
+          (key.startsWith('nbass_user') && key !== 'nbass_user_tier_overrides') ||
+          key.startsWith('nbass_last_student_profile') ||
+          key.startsWith('nbass_pro_used_') ||
+          key === 'nbass_is_owner' ||
+          key === 'nbass_assessment_mode' ||
+          key === 'nbass_pro_assessment_completed'
+        )) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
     } catch (e) {
       /* ignore */
     }

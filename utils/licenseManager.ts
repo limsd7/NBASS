@@ -22,20 +22,23 @@ export async function activateLicense(key: string): Promise<LicenseInfo> {
         throw new Error('유효하지 않은 라이선스 키 형식입니다.');
     }
 
-    let tier: MembershipTier = 'basic';
+    let tier: MembershipTier = 'free';
     let daysToAdd = 30; // default trial
 
     if (cleanKey.startsWith('NB1-')) {
-        tier = 'basic';
-        daysToAdd = 365; // example: 1 year
+        tier = 'pro';
+        daysToAdd = 365;
     } else if (cleanKey.startsWith('NB2-')) {
         tier = 'premium';
         daysToAdd = 365;
     } else if (cleanKey.startsWith('NB3-')) {
-        tier = 'vip';
+        tier = 'premium';
         daysToAdd = 365;
+    } else if (cleanKey.startsWith('NBASS-')) {
+        tier = 'pro';
+        daysToAdd = 30;
     } else {
-        tier = 'basic'; // trial
+        tier = 'free';
         daysToAdd = 30;
     }
 
@@ -103,7 +106,7 @@ export function generateTrialLicense(): LicenseInfo {
     
     return {
         key,
-        tier: 'basic',
+        tier: 'pro',
         activatedAt: now.toISOString(),
         expiresAt: expires.toISOString(),
         isValid: true

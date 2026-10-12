@@ -1,5 +1,5 @@
 import React from 'react';
-import { MembershipTier, TIER_INFO } from '../../utils/featureGate';
+import { MembershipTier, TIER_INFO, normalizeTier } from '../../utils/featureGate';
 
 interface MembershipBadgeProps {
   tier: MembershipTier;
@@ -23,12 +23,6 @@ const TIER_STYLES: Record<MembershipTier, {
     border: '#cbd5e1',
     glow: 'none',
   },
-  basic: {
-    bg: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
-    text: '#475569',
-    border: '#cbd5e1',
-    glow: 'none',
-  },
   pro: {
     bg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
     text: '#1d4ed8',
@@ -41,18 +35,6 @@ const TIER_STYLES: Record<MembershipTier, {
     border: '#a78bfa',
     glow: '0 0 12px rgba(139, 92, 246, 0.25)',
   },
-  premium_plus: {
-    bg: 'linear-gradient(135deg, #f3e8ff, #e9d5ff)',
-    text: '#7e22ce',
-    border: '#c084fc',
-    glow: '0 0 14px rgba(168, 85, 247, 0.3)',
-  },
-  vip: {
-    bg: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-    text: '#b45309',
-    border: '#f59e0b',
-    glow: '0 0 16px rgba(245, 158, 11, 0.35)',
-  },
   expert: {
     bg: 'linear-gradient(135deg, #fae8ff, #f0abfc)',
     text: '#86198f',
@@ -63,11 +45,8 @@ const TIER_STYLES: Record<MembershipTier, {
 
 const TIER_SHORT_NAMES: Record<MembershipTier, string> = {
   free: 'FREE (무료)',
-  basic: 'BASIC (기본)',
   pro: 'PRO (1회권)',
   premium: 'PREMIUM (구독)',
-  premium_plus: 'PREMIUM+ (AI클리닉)',
-  vip: 'VIP (마스터)',
   expert: 'EXPERT (전권)',
 };
 
@@ -81,7 +60,7 @@ const SIZE_STYLES = {
  * MembershipBadge
  * 
  * 사용자의 멤버십 등급을 시각적으로 표시하는 배지 컴포넌트.
- * VIP, Premium 등급에는 글로우 애니메이션 효과가 적용됩니다.
+ * Premium 등급에는 글로우 애니메이션 효과가 적용됩니다.
  */
 export const MembershipBadge: React.FC<MembershipBadgeProps> = ({
   tier,
@@ -89,11 +68,12 @@ export const MembershipBadge: React.FC<MembershipBadgeProps> = ({
   size = 'md',
   onClick,
 }) => {
-  const info = TIER_INFO[tier] || TIER_INFO.free;
-  const styles = TIER_STYLES[tier] || TIER_STYLES.free;
+  const norm = normalizeTier(tier);
+  const info = TIER_INFO[norm] || TIER_INFO.free;
+  const styles = TIER_STYLES[norm] || TIER_STYLES.free;
   const sizeStyle = SIZE_STYLES[size] || SIZE_STYLES.md;
   const displayName = size === 'sm' && variant === 'compact'
-    ? (TIER_SHORT_NAMES[tier] || info.name)
+    ? (TIER_SHORT_NAMES[norm] || info.name)
     : info.name;
 
   return (

@@ -78,12 +78,19 @@ export const WorkingMemoryStep: React.FC<WorkingMemoryStepProps> = ({
                                 >
                                     검사 시작하기 →
                                 </button>
-                                <div>
+                                <div className="flex items-center justify-center gap-3">
                                     <button
                                         onClick={onBack}
-                                        className="px-6 py-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold transition-colors"
+                                        className="px-4 py-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold transition-colors"
                                     >
                                         ← 이전 단계로 돌아가기
+                                    </button>
+                                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                                    <button
+                                        onClick={onNext}
+                                        className="px-4 py-2.5 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 text-xs font-bold transition-colors"
+                                    >
+                                        검사 건너뛰기 →
                                     </button>
                                 </div>
                             </div>

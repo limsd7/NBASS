@@ -74,8 +74,8 @@ export const SleepTrendChart: React.FC<SleepTrendChartProps> = ({ data, targetDu
   };
 
   return (
-    <div className="h-80 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-80 w-full min-w-0">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
         <ComposedChart data={chartData} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
           <XAxis 

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
+import { pullAssessmentsByStudentCode } from '../../services/supabaseRealtimeSync';
 import type { HistoryRecord } from '../../services/database';
 import { UserTierService, UserTierOverride } from '../../services/userTierService';
-import { MembershipTier, TIER_INFO } from '../../utils/featureGate';
+import { MembershipTier, TIER_INFO, normalizeTier } from '../../utils/featureGate';
 import { StudentInfo, AssessmentResult } from '../../types';
+import { getLimsd7Records, getPractice001Records, getTestExpert01Records } from '../../services/defaultStudentRecords';
 
 interface StudentDirectoryItem {
   id: string;
   name: string;
+  email?: string;
   grade?: string;
   gender?: string;
   school?: string;
@@ -57,6 +60,30 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // 관제에서 삭제한 하드코딩 샘플 계정의 재생성 방지 플래그 (UI 없음, localStorage)
+  const HIDDEN_SAMPLES_KEY = 'nbass_hidden_sample_ids';
+  const KNOWN_SAMPLE_KEYS = new Set(['limsd7', 'test_expert_01', 'id-20260820-6rkr', '연습001', '오류검증_전문가01']);
+
+  const getHiddenSampleIds = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_SAMPLES_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set((Array.isArray(arr) ? arr : []).map((s: unknown) => String(s).toLowerCase()));
+    } catch {
+      return new Set();
+    }
+  };
+
+  const hideSampleId = (id?: string | null, name?: string | null): void => {
+    try {
+      const targets = [id, name].filter(Boolean).map(s => String(s).trim().toLowerCase());
+      if (!targets.some(t => KNOWN_SAMPLE_KEYS.has(t))) return;
+      const set = getHiddenSampleIds();
+      targets.forEach(t => set.add(t));
+      localStorage.setItem(HIDDEN_SAMPLES_KEY, JSON.stringify([...set].slice(0, 100)));
+    } catch { /* ignore */ }
+  };
+
   // Load and consolidate student data
   const loadData = async () => {
     setLoading(true);
@@ -64,40 +91,68 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
       const allHistory = await DatabaseService.getAllHistory();
       const overrides = UserTierService.getOverrides();
       setTierOverrides(overrides);
+      const hiddenSamples = getHiddenSampleIds();
 
       const studentMap = new Map<string, StudentDirectoryItem>();
 
-      // 1. Initialize sample/default test accounts
+      // 1. Initialize sample/default test accounts with realistic assessment records
+      // (관제에서 🗑️ 삭제한 샘플은 다시 주입하지 않음 — 삭제 존중)
+      const limsd7Records = getLimsd7Records();
+      const practiceRecords = getPractice001Records();
+      const expertRecords = getTestExpert01Records();
+
       const defaultSamples: StudentDirectoryItem[] = [
+        {
+          id: 'limsd7',
+          name: 'limsd7',
+          email: 'limsd7@naver.com',
+          grade: '고3',
+          gender: '남성',
+          school: '대치 미래탐구 (PRO 집중케어반)',
+          birthDate: '2008-07-15',
+          careType: '뇌피로 집중곤란 (Brain Fatigue)',
+          examCount: limsd7Records.length,
+          latestDate: limsd7Records[0]?.date || new Date().toISOString().split('T')[0],
+          tier: 'pro',
+          latestRecord: limsd7Records[0],
+          records: limsd7Records
+        },
         {
           id: 'TEST_EXPERT_01',
           name: '오류검증_전문가01',
+          email: 'expert01@nbass.io',
           grade: '고3 (N수)',
           gender: '남성',
           school: 'NBASS 시스템 검증 연구팀',
+          birthDate: '2007-11-10',
           careType: '전 기능 무제한 검증 모드',
-          examCount: 5,
-          latestDate: new Date().toISOString().split('T')[0],
+          examCount: expertRecords.length,
+          latestDate: expertRecords[0]?.date || new Date().toISOString().split('T')[0],
           tier: 'expert',
-          records: []
+          latestRecord: expertRecords[0],
+          records: expertRecords
         },
         {
           id: 'ID-20260820-6RKR',
           name: '연습001',
+          email: 'practice001@nbass.io',
           grade: '고3',
           gender: '남성',
           school: '대치 미래탐구',
-          careType: '몰입저하형',
-          examCount: 2,
-          latestDate: new Date().toISOString().split('T')[0],
-          tier: 'vip',
-          records: []
+          birthDate: '2008-03-20',
+          careType: '과긴장 번아웃 (Burnout)',
+          examCount: practiceRecords.length,
+          latestDate: practiceRecords[0]?.date || new Date().toISOString().split('T')[0],
+          tier: 'premium',
+          latestRecord: practiceRecords[0],
+          records: practiceRecords
         }
       ];
 
       defaultSamples.forEach(item => {
+        if (hiddenSamples.has(item.id.toLowerCase()) || hiddenSamples.has(item.name.toLowerCase())) return;
         const effTier = UserTierService.getEffectiveTier(item.id || item.name, item.tier);
-        studentMap.set(item.id, { ...item, tier: effTier });
+        studentMap.set(item.id.toLowerCase(), { ...item, tier: effTier });
       });
 
       // 2. Consolidate records from IndexedDB History
@@ -108,18 +163,33 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
         const sId = (student.id || '').trim();
         if (!sName && !sId) return;
 
-        // 학생 중복 방지 키: 이름이 같으면 동일 학생으로 통합 (단, ID가 명시적인 경우 우선순위 고려)
-        const studentKey = sName ? `NAME_${sName.toLowerCase()}` : (sId || 'UNKNOWN');
+        // 학생 매칭 키: ID 우선, 이름 차선
+        const canonicalKey = sId ? sId.toLowerCase() : `name_${sName.toLowerCase()}`;
         
+        // Find if this student already exists in studentMap (by id, email, or name)
+        // 이메일 병합: 구 Serial ID 행과 신 로그인 ID 행을 동일인으로 묶어 표시
+        let existingKey: string | null = null;
+        const sEmail = ((student as any).email || '').trim().toLowerCase();
+        for (const [k, s] of studentMap.entries()) {
+          const sidMatch = sId && s.id.toLowerCase() === sId.toLowerCase();
+          const nameMatch = sName && s.name.toLowerCase() === sName.toLowerCase();
+          const emailMatch = sEmail && ((s.email || '').toLowerCase() === sEmail);
+          if (sidMatch || nameMatch || emailMatch) {
+            existingKey = k;
+            break;
+          }
+        }
+
         const effectiveTier = UserTierService.getEffectiveTier(
           student.id || student.name, 
           (student.membershipTier as MembershipTier) || 'free'
         );
 
-        if (!studentMap.has(studentKey)) {
-          studentMap.set(studentKey, {
-            id: student.id || studentKey,
+        if (!existingKey) {
+          studentMap.set(canonicalKey, {
+            id: student.id || canonicalKey,
             name: student.name || '무명 수험생',
+            email: student.email || record.student?.email,
             grade: student.grade || '고3',
             gender: (student.gender === 'Male' || (student.gender as any) === 'male') ? '남성' : (student.gender === 'Female' || (student.gender as any) === 'female') ? '여성' : undefined,
             school: student.school || student.affiliatedAcademyId || '일반 수험생',
@@ -132,13 +202,19 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
             records: [record]
           });
         } else {
-          const item = studentMap.get(studentKey)!;
-          // 더 구체적인 ID가 있다면 업데이트
-          if (student.id && (!item.id || item.id.startsWith('NAME_'))) {
+          const item = studentMap.get(existingKey)!;
+          if (student.id && (!item.id || item.id.startsWith('name_'))) {
             item.id = student.id;
           }
-          item.examCount += 1;
-          item.records.push(record);
+          if (student.email && !item.email) {
+            item.email = student.email;
+          }
+          // 중복 레코드 방지 (동일 날짜 및 케어타입 확인)
+          const isDuplicate = item.records.some(r => r.date === record.date && r.careType === record.careType);
+          if (!isDuplicate) {
+            item.records.push(record);
+          }
+          item.examCount = item.records.length;
           
           const recordDate = new Date(record.date || '').getTime();
           const currentDate = new Date(item.latestDate || '').getTime();
@@ -150,12 +226,29 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
         }
       });
 
-      // Also merge default test accounts with matching names if any
-      defaultSamples.forEach(def => {
-        const defKey = `NAME_${def.name.toLowerCase()}`;
-        if (studentMap.has(defKey)) {
-          const existing = studentMap.get(defKey)!;
-          existing.id = def.id; // ensure canonical id like ID-20260820-6RKR
+      // 3. Ensure all accounts with active overrides in UserTierService are present
+      // (삭제된 샘플의 오버라이드 유령 항목은 재생성하지 않음)
+      Object.entries(overrides).forEach(([key, override]) => {
+        const oId = override.studentId || key;
+        const oName = override.name || oId;
+        if (hiddenSamples.has(oId.toLowerCase()) || hiddenSamples.has(oName.toLowerCase())) return;
+        const alreadyExists = Array.from(studentMap.values()).some(s => 
+          s.id.toLowerCase() === oId.toLowerCase() || 
+          s.name.toLowerCase() === oName.toLowerCase()
+        );
+        if (!alreadyExists) {
+          studentMap.set(oId.toLowerCase(), {
+            id: oId,
+            name: oName,
+            grade: '고3',
+            gender: '남성',
+            school: 'NBASS 회원 수험생',
+            careType: '신규 등록 대기',
+            examCount: 0,
+            latestDate: override.updatedAt ? override.updatedAt.split('T')[0] : new Date().toISOString().split('T')[0],
+            tier: override.tier || 'free',
+            records: []
+          });
         }
       });
 
@@ -181,11 +274,13 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
 
   // Handle tier change by Owner
   const handleTierChange = async (student: StudentDirectoryItem, newTier: MembershipTier) => {
+    const studentEmail = student.email || student.records.find(r => r.student?.email)?.student?.email;
     UserTierService.setUserTier(
       student.id, 
       newTier, 
       student.name, 
-      `오너 실시간 등급 변경 (${newTier.toUpperCase()})`
+      `오너 실시간 등급 변경 (${newTier.toUpperCase()})`,
+      studentEmail
     );
     
     // Also sync to DB
@@ -193,10 +288,13 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
     if (student.name && student.name !== student.id) {
       await DatabaseService.updateStudentMembershipTier(student.name, newTier);
     }
+    if (studentEmail && studentEmail !== student.id && studentEmail !== student.name) {
+      await DatabaseService.updateStudentMembershipTier(studentEmail, newTier);
+    }
 
     // Update local state
     setStudents(prev => prev.map(s => {
-      if (s.id === student.id || s.name === student.name) {
+      if (s.id === student.id || s.name === student.name || (studentEmail && s.email === studentEmail)) {
         return { ...s, tier: newTier };
       }
       return s;
@@ -243,8 +341,8 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
   // Filter & Sort
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
-      // Tier filter
-      if (selectedTierFilter !== 'all' && s.tier !== selectedTierFilter) {
+      // Tier filter (레거시 vip는 premium으로 간주)
+      if (selectedTierFilter !== 'all' && normalizeTier(s.tier) !== selectedTierFilter) {
         return false;
       }
       // Search filter
@@ -263,7 +361,7 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
       if (sortBy === 'name_asc') return a.name.localeCompare(b.name, 'ko');
       if (sortBy === 'count_desc') return b.examCount - a.examCount;
       if (sortBy === 'tier_desc') {
-        const order: Record<string, number> = { expert: 6, vip: 5, premium_plus: 4, premium: 3, pro: 2, free: 0 };
+        const order: Record<string, number> = { expert: 6, premium: 3, pro: 2, free: 0 };
         return (order[b.tier] ?? 0) - (order[a.tier] ?? 0);
       }
       return 0;
@@ -272,9 +370,10 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
 
   // Tier Counts for Stats
   const counts = useMemo(() => {
-    const res: Record<string, number> = { all: students.length, free: 0, pro: 0, premium: 0, premium_plus: 0, vip: 0, expert: 0 };
+    const res: Record<string, number> = { all: students.length, free: 0, pro: 0, premium: 0, expert: 0 };
     students.forEach(s => {
-      if (res[s.tier] !== undefined) res[s.tier]++;
+      const k = normalizeTier(s.tier);
+      if (res[k] !== undefined) res[k]++;
     });
     return res;
   }, [students]);
@@ -308,7 +407,7 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                회원가입된 모든 수험생의 진단 자료, 히스토리, 24P 처방전 열람 및 실시간 회원 등급(무료/PRO/PREMIUM/PREMIUM+/VIP/EXPERT) 제어
+                회원가입된 모든 수험생의 진단 자료, 히스토리, 24P 처방전 열람 및 실시간 회원 등급(무료/PRO/PREMIUM/EXPERT) 제어
               </p>
             </div>
           </div>
@@ -326,6 +425,24 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
               title="동일 학생의 중복 레코드 정리"
             >
               <span>🧹 중복 기록 정리</span>
+            </button>
+            <button
+              onClick={async () => {
+                const code = prompt('모바일에서 검사한 학생 코드 또는 이름을 입력하세요 (예: STD-2026-001 또는 김민준)');
+                if (!code || !code.trim()) return;
+                showToast('☁️ 클라우드에서 모바일 진단을 가져오는 중...');
+                const res = await pullAssessmentsByStudentCode(code.trim());
+                if (res.matched === 0) {
+                  showToast(`⚠️ [${code.trim()}] 일치하는 클라우드 진단이 없습니다. 모바일에서 저장 + SQL 동기화를 확인하세요.`);
+                } else {
+                  showToast(`✅ [${code.trim()}] ${res.matched}건 중 ${res.added}건을 가져왔습니다.`);
+                  loadData();
+                }
+              }}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl border border-sky-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow"
+              title="모바일 앱에서 저장된 진단을 학생코드/이름으로 직접 가져오기 (목록에 없는 신규학생용)"
+            >
+              <span>☁️ 모바일 진단 가져오기</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
@@ -427,27 +544,7 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
             <div className="text-xl font-black text-indigo-300 mt-1">{counts.premium}명</div>
           </div>
 
-          <div 
-            onClick={() => setSelectedTierFilter('premium_plus')}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${selectedTierFilter === 'premium_plus' ? 'bg-purple-600/20 border-purple-400 shadow-md shadow-purple-500/10' : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'}`}
-          >
-            <div className="text-[11px] font-bold text-purple-300 flex items-center gap-1">
-              <span>✨ PREMIUM+</span>
-            </div>
-            <div className="text-xl font-black text-purple-200 mt-1">{counts.premium_plus}명</div>
-          </div>
-
-          <div 
-            onClick={() => setSelectedTierFilter('vip')}
-            className={`p-3 rounded-2xl border transition-all cursor-pointer ${selectedTierFilter === 'vip' ? 'bg-amber-600/20 border-amber-400 shadow-md shadow-amber-500/10' : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'}`}
-          >
-            <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1">
-              <span>👑 VIP</span>
-            </div>
-            <div className="text-xl font-black text-amber-300 mt-1">{counts.vip}명</div>
-          </div>
-
-          <div 
+          <div
             onClick={() => setSelectedTierFilter('expert')}
             className={`p-3 rounded-2xl border transition-all cursor-pointer ${selectedTierFilter === 'expert' ? 'bg-purple-600/20 border-purple-400 shadow-md shadow-purple-500/10' : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'}`}
           >
@@ -467,8 +564,6 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
               { id: 'free', label: '🌱 무료' },
               { id: 'pro', label: '⚡ PRO' },
               { id: 'premium', label: '💎 PREMIUM' },
-              { id: 'premium_plus', label: '✨ PREMIUM+' },
-              { id: 'vip', label: '👑 VIP' },
               { id: 'expert', label: '🛠️ EXPERT' }
             ].map(tab => (
               <button
@@ -547,7 +642,7 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                   </tr>
                 ) : (
                   filteredStudents.map((student, idx) => {
-                    const tierInfo = TIER_INFO[student.tier] || TIER_INFO.free;
+                    const tierInfo = TIER_INFO[normalizeTier(student.tier)] || TIER_INFO.free;
                     return (
                       <tr 
                         key={student.id + idx}
@@ -613,15 +708,13 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                         {/* Current Tier Badge */}
                         <td className="py-3.5 px-4 text-center">
                           <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black shadow-sm ${
-                            student.tier === 'expert' ? 'bg-purple-600/30 text-purple-200 border border-purple-400' :
-                            student.tier === 'vip' ? 'bg-amber-500/20 text-amber-300 border border-amber-400' :
-                            student.tier === 'premium_plus' ? 'bg-purple-500/20 text-purple-300 border border-purple-400' :
-                            student.tier === 'premium' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-400' :
-                            student.tier === 'pro' ? 'bg-blue-600/20 text-blue-300 border border-blue-400' :
+                            normalizeTier(student.tier) === 'expert' ? 'bg-purple-600/30 text-purple-200 border border-purple-400' :
+                            normalizeTier(student.tier) === 'premium' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-400' :
+                            normalizeTier(student.tier) === 'pro' ? 'bg-blue-600/20 text-blue-300 border border-blue-400' :
                             'bg-slate-800 text-slate-400 border border-slate-700'
                           }`}>
                             <span>{tierInfo.icon}</span>
-                            <span>{student.tier === 'premium_plus' ? 'PREMIUM+' : tierInfo.name.split(' ')[0]}</span>
+                            <span>{tierInfo.name.split(' ')[0]}</span>
                           </span>
                         </td>
 
@@ -635,8 +728,6 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                             <option value="free">🌱 FREE (무료체험)</option>
                             <option value="pro">⚡ PRO (1회권)</option>
                             <option value="premium">💎 PREMIUM (정기구독)</option>
-                            <option value="premium_plus">✨ PREMIUM+ (AI 클리닉+리포트북)</option>
-                            <option value="vip">👑 VIP (올인원)</option>
                             <option value="expert">🛠️ EXPERT (오류검증/전권)</option>
                           </select>
                         </td>
@@ -713,9 +804,26 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                             <button
                               onClick={async () => {
                                 if (confirm(`[${student.name}] 학생의 전체 진단 기록 및 데이터를 DB에서 영구 삭제하시겠습니까?`)) {
-                                  await DatabaseService.deleteStudentRecords(student.id || student.name);
-                                  showToast(`🗑️ [${student.name}] 학생의 데이터가 삭제되었습니다.`);
-                                  loadData();
+                                  try {
+                                    const delRes: any = await DatabaseService.deleteStudentRecords(student.id || student.name);
+                                    hideSampleId(student.id, student.name);
+                                    try {
+                                      window.dispatchEvent(new CustomEvent('nbass_student_deleted', {
+                                        detail: { id: student.id, name: student.name, email: (student as any).email }
+                                      }));
+                                    } catch { /* ignore */ }
+                                    const localN = delRes?.deleted ?? 0;
+                                    const remoteN = delRes?.supabaseDeleted ?? 0;
+                                    if (delRes?.supabaseError) {
+                                      showToast(`⚠️ [${student.name}] PC ${localN}건 삭제, Supabase 실패: ${delRes.supabaseError}`);
+                                    } else {
+                                      showToast(`🗑️ [${student.name}] 삭제됨 (PC ${localN}건 · Supabase ${remoteN}건)`);
+                                    }
+                                    loadData();
+                                  } catch (err) {
+                                    console.error('Delete failed:', err);
+                                    showToast(`❌ [${student.name}] 삭제 실패: ${err instanceof Error ? err.message : String(err)}`);
+                                  }
                                 }
                               }}
                               className="px-2 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-lg border border-rose-500/30 text-[11px] font-bold transition-all"
@@ -893,8 +1001,6 @@ export const StudentDirectoryView: React.FC<StudentDirectoryViewProps> = ({
                   className="w-full bg-slate-950 border border-purple-500/50 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-1 focus:ring-purple-500 font-bold"
                 >
                   <option value="expert">🛠️ EXPERT (전문가 전권 / 오류 검증용 - 권장)</option>
-                  <option value="vip">👑 VIP (올인원 마스터)</option>
-                  <option value="premium_plus">✨ PREMIUM+ (AI 클리닉+리포트북)</option>
                   <option value="premium">💎 PREMIUM (정기구독)</option>
                   <option value="pro">⚡ PRO (1회권)</option>
                   <option value="free">🌱 FREE (무료체험)</option>

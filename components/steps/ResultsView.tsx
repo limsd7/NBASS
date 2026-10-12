@@ -8,14 +8,15 @@ import { ErrorBoundary } from '../../components/common/ErrorBoundary';
 import { NeuroInsightReport } from '../../components/NeuroInsightReport';
 import { ExpertOverlay } from '../../components/ExpertOverlay';
 import { ManualModal } from '../../components/modals/ManualModal';
-import { WellnessPlayer } from '../../components/WellnessPlayer';
 import { PrescriptionZenMode } from '../../components/PrescriptionZenMode';
 import { ConsultantTabs } from '../../components/ConsultantTabs';
 import { SleepDashboard } from '../../components/sleep/SleepDashboard';
 import { TargetedNutritionRecommendation } from '../../components/TargetedNutritionRecommendation';
+import { DailyActionTodoPlanner } from '../../components/DailyActionTodoPlanner';
 import { DetailedAnalysisSection } from '../../components/DetailedAnalysisSection';
 import { AIAssistantPanel } from '../../components/common/AIAssistantPanel';
-import { StepProgressBar } from '../../components/ui/StepProgressBar';
+import { ResultsHeroHeader } from './results/ResultsHeroHeader';
+import { NextStepRoadmapBanner } from './results/NextStepRoadmapBanner';
 import { PortalWindow } from '../../components/common/PortalWindow';
 import { PsychologicalAssessment } from '../../components/PsychologicalAssessment';
 import { ReportNavigator } from '../../components/reports/ReportNavigator';
@@ -23,114 +24,33 @@ import { BrainBodyDashboard } from '../../components/reports/BrainBodyDashboard'
 import { MedicalReport } from '../reports/MedicalReport';
 import { PromptModal } from '../../components/modals/PromptModal';
 import { SubscriptionModal } from '../modals/SubscriptionModal';
-import { MembershipBadge } from '../ui/MembershipBadge';
 import { MembershipTier } from '../../utils/featureGate';
 import { UserTierService } from '../../services/userTierService';
 import { FreeSummaryTeaser } from './FreeSummaryTeaser';
 import { mapSurveyDataToResults } from '../../services/studyEfficiencyService';
+import type { ResultsViewProps } from './results/resultsViewTypes';
+import { resolveUserTier, computeTierFlags } from './results/tierGating';
+import { createNextStepActionHandler } from './results/nextStepAction';
+import { resolveMedicalAnalysis } from './results/medicalAnalysis';
+import { resolveBrainBodyState } from './results/brainBodyState';
+import { computeGradeCorrelationData } from './results/gradeCorrelation';
+import { openResultPrintWindow } from './results/printWindow';
+import { buildMissingSleepAnalysisText } from './results/sleepAnalysisText';
+import { useGradePipeline } from './results/useGradePipeline';
 
 import { BalanceChart, StressGaugeChart, VitalityBarChart } from '../../components/Charts';
-import { VitalityStressChart } from '../../components/VitalityStressChart';
 
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, Area, CartesianGrid, Legend } from 'recharts';
 
-import { unifiedSyncService as DatabaseService } from '../../services/unifiedSyncService';
-import { AssessmentResult, CareType, StrategyMap, StudentInfo, HRVData, SurveyData, ProtocolData, LearningAnalyticsData, GradeRecord, GradeGoal } from '../../types';
-import { DETAILED_INSIGHTS } from '../../data/detailedInsights';
+import { AssessmentResult, CareType, StrategyMap, StudentInfo, HRVData, SurveyData, ProtocolData, LearningAnalyticsData } from '../../types';
 import { SUBJECT_OPTIONS_MAP } from '../../data/subjectOptions';
 import { MENTAL_PRESCRIPTIONS } from '../../data/prescriptions';
-import { ANS_BALANCE_DESCRIPTIONS } from '../../types';
-import { DIGITAL_DETOX_PROTOCOLS, METACOGNITION_RECOMMENDATIONS, CHRONOTYPE_DESCRIPTIONS, VARK_DESCRIPTIONS, TAI_INTERVENTIONS } from '../../data/studyEfficiencyAssessments';
-import { getLearningExplanation, getLearningRecommendations, CARETYPE_SPECIFIC_RECOMMENDATIONS } from '../../data/learningAnalyticsInsights';
-import { getChronotypeAdvice, getVARKAdvice, getTestAnxietyAdvice, getDigitalAddictionAdvice, getMetacognitionAdvice } from '../../data/studyEfficiencyAdvice';
-import { printReport } from '../../utils/printUtils';
-import { generateStudyEfficiencyAnalysis } from '../../services/simulationEngine';
-import { generateAISchedule } from '../../services/schedulingEngine';
-import { evaluateBrainBodyCoherence } from '../../services/brainBodyEngine';
-import { analyzeMedicalData } from '../../services/medicalEngine';
 import { isLearningAnalyticsTested } from '../../utils/constants';
 import CircularSchedule from '../ui/CircularSchedule';
 import { getSubjectCircadianPlan } from '../../services/chronobiologyEngine';
 import { generateSleepPrescription } from '../../utils/sleepLogic';
 
-interface ResultsViewProps {
-    activeMenu: any;
-    setActiveMenu: (menu: any) => void;
-    isDarkMode: boolean;
-    onToggleDarkMode: () => void;
-
-    result: AssessmentResult;
-    config: any;
-    setConfig: (config: any) => void;
-    strategies: StrategyMap;
-    setStrategies: (strategies: StrategyMap) => void;
-    prescriptions: any;
-    setPrescriptions: (p: any) => void;
-    editingStrategyType: CareType;
-    setEditingStrategyType: (type: CareType) => void;
-    selectedSubjectOptions: any;
-    setSelectedSubjectOptions: (opts: any) => void;
-
-    showConfig: boolean;
-    [key: string]: any;
-    setShowConfig: (show: boolean) => void;
-    activeConfigTab: string;
-    setActiveConfigTab: (tab: any) => void;
-
-    showAdminPassword: boolean;
-    setShowAdminPassword: (show: boolean) => void;
-    adminPasswordInput: string;
-    setAdminPasswordInput: (input: string) => void;
-    handleAdminUnlock: () => void;
-    isAdminUnlocked: boolean;
-    setIsAdminUnlocked?: (unlocked: boolean) => void;
-
-    showNutritionalPrescription: boolean;
-    setShowNutritionalPrescription: (show: boolean) => void;
-    showDataEditor: boolean;
-    setShowDataEditor: (show: boolean) => void;
-    showHistoryAnalysisModal: boolean;
-    setShowHistoryAnalysisModal: (show: boolean) => void;
-    showZenMode: boolean;
-    setShowZenMode: (show: boolean) => void;
-    showSecretPoint: boolean;
-    setShowSecretPoint: (show: boolean) => void;
-
-    adminMemo: string;
-    setAdminMemo: React.Dispatch<React.SetStateAction<string>>;
-    medicalNotes: string;
-    setMedicalNotes: (notes: string) => void;
-
-    history: any[];
-    selectedStudentId: string | null;
-    completedItems: string[];
-    toggleCompleted: (id: string) => void;
-    recommendedProducts: any[];
-    evaluatedSecretPoints: any[];
-    handleDataUpdate: (data: AssessmentResult) => void;
-
-    setStep: (step: string) => void;
-    setProtocol: (protocol: ProtocolData) => void;
-    setIsCustomLoc: (isCustom: boolean) => void;
-    initialProtocol: ProtocolData;
-
-    logicConfig: any;
-    handleLogicConfigChange: any;
-    resetLogicConfig: any;
-    productRecommendations: any;
-    handleProductRecommendationsChange: any;
-    resetProductRecommendations: any;
-    predictionRules: any;
-    handlePredictionRulesChange: any;
-    resetPredictionRules: any;
-
-    // New prop for sync studyEfficiencyResults
-    studyEfficiencyResults: any;
-    aiModels: any;
-    handleAiModelsChange: any;
-    currentUserRole?: any;
-    onStartFollowUp?: (result: AssessmentResult) => void;
-}
+// ResultsViewProps moved to ./results/resultsViewTypes.ts (UI unchanged)
 
 export const ResultsView: React.FC<ResultsViewProps> = ({
     activeMenu, setActiveMenu, isDarkMode, onToggleDarkMode,
@@ -155,17 +75,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
     // Auto-generate sleep analysis text if it's missing
     useEffect(() => {
-        if (!result.sleepAnalysisText) {
-            let analysis = `### 🌙 수면 및 학습 패턴 종합 분석\n\n`;
-
-            if (result.studyEfficiencyResults?.chronotype) {
-                analysis += `**크로노타입 기반 조언**: ${result.studyEfficiencyResults.chronotype}형에 맞는 최적의 수면 및 기상 시간을 권장합니다.\n`;
-            }
-
-            analysis += `\n**전문가 코멘트 (${result.careType || '유형 미지정'})**\n`;
-            analysis += `- 수면 패턴과 학습 집중도(집중력/스트레스)의 상관관계를 기반으로 맞춤 관리가 필요합니다.\n`;
-            analysis += `- 현재 데이터에 기반하여 학생에게 가장 효율적인 수면 시간과 기상 시간을 일정표에 반영하세요.\n`;
-
+        const analysis = buildMissingSleepAnalysisText(result);
+        if (analysis) {
             handleDataUpdate({
                 ...result,
                 sleepAnalysisText: analysis
@@ -173,18 +84,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         }
     }, [result.sleepAnalysisText]);
 
-    const userTier: MembershipTier = UserTierService.getEffectiveTier(
-        { id: result.student.id, name: result.student.name, email: result.student.email },
-        (result.student.membershipTier as MembershipTier) || 'free',
-        result.student.name,
-        result.student.email
+    const userTier: MembershipTier = resolveUserTier(result);
+
+    const { isExpertUser, isPaidUser, isVipOrAbove, isPremiumOrAbove, isProUsed } = computeTierFlags(
+        userTier, currentUserRole, isAdminUnlocked, result, history
     );
-
-    const isExpertUser = currentUserRole === 'MEDICAL_EXPERT' || currentUserRole === 'ACADEMY_EXPERT' || currentUserRole === 'EXPERT' || currentUserRole === 'OWNER' || localStorage.getItem('nbass_current_role') === 'MEDICAL_EXPERT' || localStorage.getItem('nbass_current_role') === 'ACADEMY_EXPERT' || localStorage.getItem('nbass_current_role') === 'EXPERT' || localStorage.getItem('nbass_current_role') === 'OWNER' || isAdminUnlocked;
-    const isPaidUser = userTier === 'pro' || userTier === 'premium' || userTier === 'premium_plus' || userTier === 'vip' || userTier === 'expert' || isExpertUser || (result?.student?.membershipTier && result.student.membershipTier !== 'free');
-    const isVipOrAbove = userTier === 'vip' || userTier === 'expert' || isExpertUser;
-
-    const isPremiumOrAbove = userTier === 'premium' || userTier === 'premium_plus' || userTier === 'vip' || userTier === 'expert' || isExpertUser;
 
     const [showAssessmentWindow, setShowAssessmentWindow] = useState(false);
     const [isExpertOverlayOpen, setIsExpertOverlayOpen] = useState(false);
@@ -192,6 +96,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const [showManualModal, setShowManualModal] = useState(false);
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [subscriptionReason, setSubscriptionReason] = useState<string>('');
+    const [subscriptionInitialTier, setSubscriptionInitialTier] = useState<MembershipTier | undefined>(undefined);
+
+    const handleNextStepAction = createNextStepActionHandler({
+        onStartFollowUp, result, onMenuChange, setActiveMenu,
+        setSubscriptionReason, setSubscriptionInitialTier, setIsSubscriptionModalOpen,
+    });
 
     // Dual View Mode: 'dashboard' (심층 분석 인터랙티브 대시보드 - 기본) vs 'comprehensive' (인쇄본 24P 전문 일치)
     const [viewMode, setViewMode] = useState<'comprehensive' | 'dashboard'>('dashboard');
@@ -203,176 +113,31 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         "학습 중간에 4-7-8 호흡법으로 긴장을 완화하세요."
     ]);
 
-    // 의학 분석 결과 자동 연산 (기존 결과 또는 혈액검사 입력치 기반)
-    const effectiveMedicalAnalysis = React.useMemo(() => {
-        if (result.medicalAnalysis) return result.medicalAnalysis;
-        if (result.bloodTest) {
-            try {
-                return analyzeMedicalData(result.bloodTest, result.careType, result.student?.gender);
-            } catch (e) {
-                console.error("MedicalEngine analysis error:", e);
-                return null;
-            }
-        }
-        return null;
-    }, [result.medicalAnalysis, result.bloodTest, result.careType, result.student?.gender]);
+    // 의학 분석 결과 자동 연산 (기존 결과에 한함 — 신규 혈액검사 입력은 제공하지 않음)
+    const effectiveMedicalAnalysis = React.useMemo(() => resolveMedicalAnalysis(result),
+        [result.medicalAnalysis, result.bloodTest, result.careType, result.student?.gender]);
 
     // Grade Management Reverse Pipeline (성적 이력 로드)
-    const [gradeRecords, setGradeRecords] = useState<GradeRecord[]>([]);
-    const [gradeGoals, setGradeGoals] = useState<GradeGoal[]>([]);
-    // 시험 시점별 실측 지표 매칭용 검사 이력 (HistoryRecord extends AssessmentResult)
-    const [assessmentHistory, setAssessmentHistory] = useState<AssessmentResult[]>([]);
-
-    useEffect(() => {
-        if (result?.student?.id) {
-            DatabaseService.getGradeRecords(result.student.id).then(records => {
-                setGradeRecords(records);
-                // [Fix] 직접 변이(mutate) 대신 handleDataUpdate로 불변 갱신
-                if (records.length > 0 && !result.gradeHistory) {
-                    handleDataUpdate({ ...result, gradeHistory: records });
-                }
-            }).catch(err => console.error('Failed to load grade records in ResultsView:', err));
-
-            DatabaseService.getGradeGoals(result.student.id).then(goals => {
-                setGradeGoals(goals);
-            }).catch(err => console.error('Failed to load grade goals in ResultsView:', err));
-
-            // [Fix] 선형 보간 추정 제거: 시험 시점 매칭에 사용할 실제 검사 이력 로드
-            DatabaseService.getHistoryByStudent(result.student.id).then(history => {
-                setAssessmentHistory((history || []) as AssessmentResult[]);
-            }).catch(err => console.error('Failed to load assessment history in ResultsView:', err));
-        }
-    }, [result?.student?.id]);
+    const { gradeRecords, gradeGoals, assessmentHistory } = useGradePipeline(result, handleDataUpdate);
 
     // [NEW] Evaluate BrainBodyState for dynamic rendering
-    const brainBodyState = React.useMemo(() => {
-        try {
-            return evaluateBrainBodyCoherence(result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults);
-        } catch (e) {
-            console.error("BrainBodyEngine error:", e);
-            return null;
-        }
-    }, [result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults]);
+    const brainBodyState = React.useMemo(() => resolveBrainBodyState(result),
+        [result.hrv, result.survey, result.careType, result.protocol, result.cognitiveResults]);
 
     // [NEW Phase 1-1] Grade × Bio-Cognitive Correlation Data Modeling
     // [Fix] 선형 보간 추정치(variation) 제거: 각 시험 시점에 실측 검사 이력을 매칭하여 사용
-    const gradeCorrelationData = React.useMemo(() => {
-        if (!gradeRecords || gradeRecords.length === 0) return [];
-        const sorted = [...gradeRecords].sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+    const gradeCorrelationData = React.useMemo(() => computeGradeCorrelationData(gradeRecords, assessmentHistory, result),
+        [gradeRecords, assessmentHistory, result]);
 
-        // 검사 이력을 날짜 오름차순 정렬
-        const sortedHistory = [...assessmentHistory]
-            .filter(h => h?.date)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 리포트용 결과 객체 메모이제이션 (MedicalReport memo와 짝 — 외부 상태 변경 시 재생성 방지)
+    const medicalReportResult = React.useMemo(() => ({
+        ...result,
+        studyEfficiencyResults: studyEfficiencyResults || result.studyEfficiencyResults || (result.survey ? mapSurveyDataToResults(result.survey, (result as any).date || '') as any : undefined),
+        cognitiveResults: result.cognitiveResults,
+        gradeHistory: result.gradeHistory || gradeRecords
+    }), [result, studyEfficiencyResults, gradeRecords]);
 
-        // 시험일 기준 실측 지표 매칭: 시험일 이전에 실시한 가장 최근 검사 사용
-        const findMetricsForDate = (examDate: string) => {
-            const examTime = new Date(examDate).getTime();
-            const prior = sortedHistory.filter(h => new Date(h.date).getTime() <= examTime);
-            if (prior.length > 0) {
-                const m = prior[prior.length - 1];
-                return {
-                    stress: m.hrv?.physicalStress,
-                    focus: m.hrv?.concentrationLevel ?? m.analytics?.pureStudyRatio,
-                    memory: m.workingMemoryResults?.overallScore,
-                    measured: true, // 시험 시점에 실측된 검사 이력 기반
-                };
-            }
-            // 시험 이전 검사 이력이 없으면 현재 진단 결과의 실측값으로 대체 (추정 표시)
-            return {
-                stress: result?.hrv?.physicalStress,
-                focus: result?.hrv?.concentrationLevel ?? result?.analytics?.pureStudyRatio,
-                memory: result?.workingMemoryResults?.overallScore,
-                measured: false, // 현재 기준값으로의 추정
-            };
-        };
-
-        return sorted.map((r) => {
-            const validGrades = r.subjects.filter(s => s.grade !== undefined).map(s => s.grade as number);
-            const avgGrade = validGrades.length > 0 ? parseFloat((validGrades.reduce((a, b) => a + b, 0) / validGrades.length).toFixed(1)) : 4.0;
-            const weakSub = r.subjects.find(s => s.subjectId === result?.student?.weakSubject);
-            const weakGrade = weakSub?.grade !== undefined ? weakSub.grade : avgGrade;
-
-            const metrics = findMetricsForDate(r.examDate);
-            const hrvIndex = Math.max(15, Math.min(95, Math.round(100 - (metrics.stress ?? 50))));
-            const focusIndex = Math.max(15, Math.min(98, Math.round(metrics.focus ?? 70)));
-            const memoryScore = Math.max(0, Math.min(100, Math.round(metrics.memory ?? 65)));
-
-            return {
-                examName: r.examName,
-                examDate: r.examDate,
-                avgGrade,
-                weakGrade,
-                hrvResistance: hrvIndex,
-                focusCapacity: focusIndex,
-                memoryScore,
-                isMeasured: metrics.measured,
-            };
-        });
-    }, [gradeRecords, assessmentHistory, result]);
-
-    const handlePrintWindow = () => {
-        // [변경] 인쇄/PDF 저장은 유료 전용이 아니라 '심층 분석 대시보드'를 인쇄물로 보는 기능 → Free 모드에서도 허용
-        // Target the hidden Medical Report component
-        const printContent = document.getElementById('medical-report-container')?.innerHTML;
-
-        // Basic print styles to reset page
-        const printStyle = `
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto+Mono&display=swap');
-            @page { size: A4; margin: 0; }
-            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        `;
-
-        // Gather Tailwind styles from current document
-        const tailwindStyles = Array.from(document.styleSheets)
-            .map(styleSheet => {
-                try {
-                    return Array.from(styleSheet.cssRules).map(rule => rule.cssText).join('');
-                } catch (e) {
-                    return '';
-                }
-            }).join('');
-
-        const printWindow = window.open('', '_blank', 'width=1200,height=900');
-        if (printWindow) {
-            printWindow.document.write(`
-        <!DOCTYPE html>
-        <html lang="ko">
-          <head>
-            <title>NBASS 정밀 진단 보고서 : 등급표시 - ${result.student.name}</title>
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-              ${tailwindStyles}
-              ${printStyle}
-              .no-print { display: none !important; }
-              /* Ensure popup is scrollable if needed on screen, but print is paginated */
-              body { overflow-y: auto; }
-              @media print {
-                  .floating-print-btn { display: none; }
-                  body { -webkit-print-color-adjust: exact; }
-              }
-              .floating-print-btn {
-                position: fixed; top: 20px; right: 20px;
-                background: #1e293b; color: white; padding: 12px 24px;
-                border-radius: 9999px; font-weight: bold; cursor: pointer;
-                box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border: none; z-index: 1000;
-                transition: all 0.2s;
-              }
-              .floating-print-btn:hover { transform: scale(1.05); background: #0f172a; }
-            </style>
-          </head>
-          <body>
-            <button class="floating-print-btn" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
-            <div id="print-root">
-              ${printContent}
-            </div>
-          </body>
-        </html>
-      `);
-            printWindow.document.close();
-            printWindow.focus();
-        }
-    };
+    const handlePrintWindow = () => openResultPrintWindow(result);
 
     return (
         <Layout
@@ -388,206 +153,95 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             studentId={result.student.id}
             membershipTier={userTier}
         >
-            {/* Step Progress Bar with Integrated Action Toolbar (Inside the SAME single container) */}
-            <StepProgressBar
-                currentStep="results"
-                isMedicalMode={config.isMedicalMode}
-                isPortableMode={config.usePortable}
-                onStepClick={setStep}
+            {/* Results Hero Header (처음화면과 동일한 프리미엄 통합 헤더 카드) */}
+            <ResultsHeroHeader
                 studentInfo={result.student ? {
+                    id: result.student.id,
+                    name: result.student.name,
+                    email: result.student.email,
                     grade: result.student.grade,
                     age: result.student.age,
                     gender: result.student.gender,
                     testDate: result.student.testDate,
                     weakSubject: result.student.weakSubject
                 } : undefined}
-                bottomContent={
-                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 no-print w-full py-0.5">
-                        {(currentUserRole === 'OWNER' || localStorage.getItem('nbass_current_role') === 'OWNER' || isAdminUnlocked) && (
-                            <button
-                                onClick={() => {
-                                    setActiveConfigTab('general');
-                                    setShowConfig(true);
-                                }}
-                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl transition-all shadow-sm border border-amber-500/30 flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-                                title="⚙️ 시스템 및 알고리즘 환경설정 (오너/관리자 전용)"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0-.73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
-                                <span>설정</span>
-                            </button>
-                        )}
-
-                        {/* Study Mode */}
-                        <button
-                            onClick={() => {
-                                if (userTier === 'free') {
-                                    setSubscriptionReason('Study Mode (학습 관리 및 5대 심층 검사 - PRO 이상 전용)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setStep('study_management');
-                            }}
-                            className={`px-3 py-1.5 font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap text-xs ${userTier === 'free'
-                                ? 'bg-slate-800 text-slate-300 border border-slate-700'
-                                : 'bg-slate-900 text-white hover:bg-slate-800'
-                                }`}
-                        >
-                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                            <span>{userTier === 'free' ? '🔒 Study Mode' : 'Study Mode'}</span>
-                        </button>
-
-                        {/* Mental Management (VIP Only) */}
-                        <button
-                            onClick={() => {
-                                if (!isVipOrAbove) {
-                                    setSubscriptionReason('1:1 맞춤형 수면관리 & 심층 멘탈관리 솔루션 (VIP 전용)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setShowZenMode(true);
-                            }}
-                            className={`px-3 py-1.5 font-bold text-xs rounded-xl transition-colors shadow-sm flex items-center gap-1.5 whitespace-nowrap ${!isVipOrAbove
-                                ? 'bg-slate-800 text-purple-300 border border-purple-500/30 hover:bg-slate-700'
-                                : 'bg-purple-600 hover:bg-purple-700 text-white'
-                                }`}
-                        >
-                            <span>🧠</span>
-                            <span>{!isVipOrAbove ? '🔒 멘탈 관리' : '멘탈 관리'}</span>
-                        </button>
-
-                        {/* Psychological Assessment */}
-                        <button
-                            onClick={() => {
-                                if (userTier === 'free') {
-                                    setSubscriptionReason('Psychological Assessment (심리 정밀 인지 평가 - PRO 이상)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setShowAssessmentWindow(true);
-                            }}
-                            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs shadow-sm whitespace-nowrap ${userTier === 'free'
-                                ? 'bg-slate-800 text-purple-300 border border-purple-500/30'
-                                : 'bg-purple-600 text-white hover:bg-purple-700 shadow-purple-200'
-                                }`}
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            <span>{userTier === 'free' ? '🔒 심리 인지 평가' : '심리 인지 평가'}</span>
-                        </button>
-
-                        {/* Nutritional Prescription - Premium Tier Only */}
-                        <button
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap ${!isPremiumOrAbove
-                                ? 'bg-slate-800 text-emerald-300 border border-emerald-500/30 hover:bg-slate-700'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                }`}
-                            onClick={() => {
-                                if (!isPremiumOrAbove) {
-                                    setSubscriptionReason('1:1 맞춤 영양 처방전 발급 (PREMIUM 전용)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setShowNutritionalPrescription(true);
-                            }}
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                            </svg>
-                            <span>{!isPremiumOrAbove ? '🔒 영양 처방전 발급' : '영양 처방전 발급'}</span>
-                        </button>
-
-                        {/* Edit Data */}
-                        <button
-                            onClick={() => {
-                                if (userTier === 'free') {
-                                    setSubscriptionReason('검사 데이터 직접 수정 (PRO 이상 전용)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setShowDataEditor(true);
-                            }}
-                            className={`px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 font-bold text-xs border no-print whitespace-nowrap ${userTier === 'free'
-                                ? 'bg-slate-100 text-slate-400 border-slate-200'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-300'
-                                }`}
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            <span>{userTier === 'free' ? '🔒 수정' : '수정'}</span>
-                        </button>
-
-                        {/* Save PDF / Print */}
-                        <button
-                            onClick={() => {
-                                if (userTier === 'free') {
-                                    setSubscriptionReason('의학 정밀 리포트북 인쇄 및 PDF 저장 (PRO 이상 전용)');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                handlePrintWindow();
-                            }}
-                            className={`px-3 py-1.5 font-bold rounded-xl transition-all shadow-sm whitespace-nowrap text-xs flex items-center gap-1.5 ${userTier === 'free'
-                                ? 'bg-slate-800 text-blue-300 border border-blue-500/30'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
-                                }`}
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            <span>{userTier === 'free' ? '🔒 저장 / 인쇄' : '저장 / 인쇄'}</span>
-                        </button>
-
-                        {/* 2-Week Follow-up Assessment */}
-                        <button
-                            onClick={() => {
-                                if (onStartFollowUp) {
-                                    onStartFollowUp(result);
-                                }
-                            }}
-                            className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm shadow-emerald-500/20 flex items-center gap-1.5 whitespace-nowrap cursor-pointer active:scale-95 ring-2 ring-emerald-500/20"
-                            title="비정상 항목만 3분 내 집중 재평가하는 2주 정기 추적 검사"
-                        >
-                            <span>⚡</span>
-                            <span>2주 추적 검사 (3분)</span>
-                        </button>
-
-                        {/* New Assessment */}
-                        <button
-                            onClick={() => {
-                                const isProUsed = userTier === 'pro' && !isExpertUser && UserTierService.isProAssessmentUsed(result.student, history);
-                                if (isProUsed) {
-                                    setSubscriptionReason('PRO 1회 스타터 패스(₩9,000) 검사가 이미 완료되었습니다. 새로운 정밀 진단 검사는 정기구독(PREMIUM 등)으로 업그레이드 후 이용 가능합니다.');
-                                    setIsSubscriptionModalOpen(true);
-                                    return;
-                                }
-                                setStep('register');
-                                setProtocol(initialProtocol);
-                                setIsCustomLoc(false);
-                            }}
-                            className="px-3 py-1.5 bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors shadow-sm whitespace-nowrap cursor-pointer"
-                        >
-                            New Assessment
-                        </button>
-
-                        {/* Manual (매뉴얼) */}
-                        <button
-                            onClick={() => setShowManualModal(true)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors border border-slate-300 dark:border-slate-700 shadow-sm flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-                            title="NBASS 시스템 사용 매뉴얼"
-                        >
-                            <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                            <span>매뉴얼</span>
-                        </button>
-
-                        {/* Expert Guide (학원 / 의료전문가 / 오너 전용) */}
-                        {isExpertUser && (
-                            <button
-                                onClick={() => setIsExpertOverlayOpen(true)}
-                                className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm shadow-indigo-500/20 flex items-center gap-1.5 whitespace-nowrap cursor-pointer active:scale-95"
-                                title="전문가 가이드 열기"
-                            >
-                                <svg className="w-3.5 h-3.5 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                <span>Expert Guide</span>
-                            </button>
-                        )}
-                    </div>
-                }
+                userTier={userTier}
+                isVipOrAbove={isVipOrAbove}
+                isPremiumOrAbove={isPremiumOrAbove}
+                isExpertUser={isExpertUser}
+                isAdminUnlocked={isAdminUnlocked}
+                currentUserRole={currentUserRole}
+                careType={result.careType}
+                brainScore={result.hrv?.brainScore ?? 75}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                onPrint={() => {
+                    if (userTier === 'free') {
+                        setSubscriptionReason('의학 정밀 리포트북 인쇄 및 PDF 저장 (PRO 이상 전용)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    handlePrintWindow();
+                }}
+                onFollowUp={onStartFollowUp ? () => onStartFollowUp(result) : undefined}
+                onStudyMode={() => {
+                    if (userTier === 'free') {
+                        setSubscriptionReason('Study Mode (학습 관리 및 5대 심층 검사 - PRO 이상 전용)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setStep('study_management');
+                }}
+                onMentalCare={() => {
+                    if (!isVipOrAbove) {
+                        setSubscriptionReason('1:1 맞춤형 수면관리 & 심층 멘탈관리 솔루션 (정기결제 전용)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setShowZenMode(true);
+                }}
+                onPsychologicalAssessment={() => {
+                    if (userTier === 'free') {
+                        setSubscriptionReason('Psychological Assessment (심리 정밀 인지 평가 - PRO 이상)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setShowAssessmentWindow(true);
+                }}
+                onNutritionalPrescription={() => {
+                    if (!isPremiumOrAbove) {
+                        setSubscriptionReason('1:1 맞춤 영양 처방전 발급 (PREMIUM 전용)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setShowNutritionalPrescription(true);
+                }}
+                onEditData={() => {
+                    if (userTier === 'free') {
+                        setSubscriptionReason('검사 데이터 직접 수정 (PRO 이상 전용)');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setShowDataEditor(true);
+                }}
+                onNewAssessment={() => {
+                    const isProUsed = userTier === 'pro' && !isExpertUser && UserTierService.isProAssessmentUsed(result.student, history);
+                    if (isProUsed) {
+                        setSubscriptionReason('1회 정밀 리포트(₩24,900) 검사가 이미 완료되었습니다. 추가 진단 및 주간 케어는 정기결제(월 ₩19,900)로 전환 후 이용 가능합니다.');
+                        setIsSubscriptionModalOpen(true);
+                        return;
+                    }
+                    setStep('register');
+                    setProtocol(initialProtocol);
+                    setIsCustomLoc(false);
+                }}
+                onOpenManual={() => setShowManualModal(true)}
+                onOpenConfig={(currentUserRole === 'OWNER' || localStorage.getItem('nbass_current_role') === 'OWNER' || isAdminUnlocked) ? () => {
+                    setActiveConfigTab('general');
+                    setShowConfig(true);
+                } : undefined}
+                onOpenExpertGuide={isExpertUser ? () => setIsExpertOverlayOpen(true) : undefined}
+                onNextStepAction={handleNextStepAction}
             />
 
             {/* Config Modal */}
@@ -621,104 +275,62 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 onAiModelsChange={handleAiModelsChange}
             />
 
-            {/* View Mode Switcher Toolbar */}
-            <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm no-print mt-4">
-                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
-                    <button
-                        onClick={() => setViewMode('dashboard')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${viewMode === 'dashboard'
-                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                    >
-                        <span>📊</span>
-                        <span>심층 분석 인터랙티브 대시보드</span>
-                        <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded font-bold">기본 보기</span>
-                    </button>
-                    {/* [변경] 인쇄본 보기는 유료 전용이 아니라 '심층 분석 대시보드'를 인쇄물 형태로 보는 기능 → Free 모드에서도 사용 가능 */}
-                    <button
-                        onClick={() => setViewMode('comprehensive')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${viewMode === 'comprehensive'
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                    >
-                        <span>📋</span>
-                        <span>정밀 종합 리포트 (인쇄본 16P 전문)</span>
-                        <span className="px-1.5 py-0.5 text-[10px] rounded font-bold bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
-                            인쇄 일치
-                        </span>
-                    </button>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 text-xs font-medium px-2">
-                    <span className="text-slate-500">
-                        현재 보기:{' '}
-                        <strong className="text-slate-800 dark:text-slate-200">
-                            {viewMode === 'comprehensive' ? '인쇄본 전체 열람 (16-Page 전문)' : '섹션별 인터랙티브 대시보드'}
-                        </strong>
-                    </span>
-                    <button
-                        onClick={() => handlePrintWindow()}
-                        className="px-3.5 py-1.5 font-bold text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer bg-blue-600 hover:bg-blue-700 text-white"
-                        title="리포트북 출력 및 PDF 저장"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        <span>인쇄 / PDF 저장</span>
-                    </button>
-                </div>
-            </div>
-
             {viewMode === 'comprehensive' ? (
                 /* Mode 1: Comprehensive 16-Page Medical Report (Direct On-Screen Viewing) */
-                <div id="medical-report-container" className="w-full max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-4 sm:p-10 border border-slate-200 text-slate-900 transition-all duration-300 pb-20">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 mb-8 border-b border-slate-200 gap-4 no-print">
+                <div id="medical-report-container" className="w-full max-w-5xl mx-auto bg-white dark:bg-slate-900 shadow-2xl shadow-blue-500/5 rounded-2xl md:rounded-[2rem] p-4 sm:p-10 border border-slate-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 transition-all duration-300 pb-20">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 mb-8 border-b border-slate-200 dark:border-slate-800 gap-4 no-print">
                         <div>
                             <div className="flex items-center gap-2">
-                                <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs font-black rounded-full">
+                                <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 text-xs font-black rounded-full border border-indigo-200 dark:border-indigo-800">
                                     📋 16-Page 정밀 진단 종합 리포트북
                                 </span>
-                                <span className="text-xs text-slate-500 font-bold">인쇄물 100% 동일 표시</span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">인쇄물 100% 동일 표시</span>
                             </div>
-                            <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
+                            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-2">
                                 {result.student.name} 학생 정밀 의학·신경인지 진단 보고서
                             </h2>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 인쇄(출력)물과 동일한 모든 16개 정밀 챕터(생체신호, 신경인지, 자율신경계, 학습효율, 인지작업기억, 시험전략, 임상소견, 영양처방, AI 코칭 로드맵)가 화면에 순차적으로 완벽히 렌더링됩니다.
                             </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                             <button
                                 onClick={handlePrintWindow}
-                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                                 <span>인쇄 / PDF 저장</span>
                             </button>
                             <button
                                 onClick={() => setViewMode('dashboard')}
-                                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer"
                             >
                                 대시보드 뷰로 보기 →
                             </button>
                         </div>
                     </div>
 
-                    <MedicalReport
-                        result={{
-                            ...result,
-                            studyEfficiencyResults: studyEfficiencyResults || result.studyEfficiencyResults || (result.survey ? mapSurveyDataToResults(result.survey, (result as any).date || '') as any : undefined),
-                            cognitiveResults: result.cognitiveResults,
-                            gradeHistory: result.gradeHistory || gradeRecords
-                        }}
-                        config={config}
-                        strategies={strategies}
-                        selectedSubjectOptions={selectedSubjectOptions}
-                        adminMemo={medicalNotes || adminMemo}
-                        recommendedProducts={recommendedProducts}
-                        isPremiumOrAbove={isPremiumOrAbove}
-                        membershipTier={userTier}
-                    />
+                    <div id="medical-report-container-visible">
+                        <MedicalReport
+                            result={medicalReportResult}
+                            config={config}
+                            strategies={strategies}
+                            selectedSubjectOptions={selectedSubjectOptions}
+                            adminMemo={medicalNotes || adminMemo}
+                            recommendedProducts={recommendedProducts}
+                            isPremiumOrAbove={isPremiumOrAbove}
+                            membershipTier={userTier}
+                        />
+                    </div>
+
+                    {/* Mode 1: 16P 전문 종합 리포트 완독 후 하단 다음 단계 추천 로드맵 가이드 */}
+                    <div className="mt-8 no-print">
+                        <NextStepRoadmapBanner
+                            userTier={userTier}
+                            onNextStepAction={handleNextStepAction}
+                            variant="bottom"
+                        />
+                    </div>
                 </div>
             ) : (
                 /* Mode 2: Interactive In-Depth Dashboard View */
@@ -726,12 +338,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     {/* Hidden Medical Report for handlePrintWindow when in dashboard view */}
                     <div id="medical-report-container" className="hidden">
                         <MedicalReport
-                            result={{
-                                ...result,
-                                studyEfficiencyResults: studyEfficiencyResults || result.studyEfficiencyResults || (result.survey ? mapSurveyDataToResults(result.survey, (result as any).date || '') as any : undefined),
-                                cognitiveResults: result.cognitiveResults,
-                                gradeHistory: result.gradeHistory || gradeRecords
-                            }}
+                            result={medicalReportResult}
                             config={config}
                             strategies={strategies}
                             selectedSubjectOptions={selectedSubjectOptions}
@@ -748,36 +355,36 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 {/* Watermark for Print */}
                                 <div className="report-watermark hidden print:block">NBASS</div>
 
-                                {/* Official Report Header (Style 3) - Visible in Screen & Print */}
-                                <div className="report-official-header flex justify-between items-end bg-slate-50/50 p-4 rounded-t-2xl border-b-2 border-slate-200">
+                                {/* Official Report Header (Style 3) - Only for Print Document, Hidden on Screen to avoid duplication with ResultsHeroHeader */}
+                                <div className="report-official-header hidden print:flex justify-between items-end bg-slate-50/50 dark:bg-slate-800/50 p-4 rounded-t-2xl border-b-2 border-slate-200 dark:border-slate-700">
                                     <div>
-                                        <h1 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-2">
+                                        <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tighter flex items-center gap-2">
                                             <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
-                                            Neuro-Bio Academic Strategy System <span className="text-indigo-600 font-bold">[NBASS]</span>
+                                            Neuro-Bio Academic Strategy System <span className="text-indigo-600 dark:text-indigo-400 font-bold">[NBASS]</span>
                                         </h1>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1 ml-4">뉴로바이오 학습전략시스템</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1 ml-4">뉴로바이오 학습전략시스템</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Official Diagnostic Report</p>
-                                        <p className="text-xs font-black text-indigo-900 italic mt-0.5">Chief Analyst: Dr Lim</p>
+                                        <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold tracking-widest uppercase">Official Diagnostic Report</p>
+                                        <p className="text-xs font-black text-indigo-900 dark:text-indigo-300 italic mt-0.5">Chief Analyst: Dr Lim</p>
                                     </div>
                                 </div>
 
-                                {/* Student Info Header Card */}
-                                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                                {/* Student Info Header Card - Only for Print Document, Hidden on Screen */}
+                                <div className="hidden print:flex bg-white dark:bg-slate-900/80 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm flex-col md:flex-row justify-between items-center gap-6">
                                     <div className="flex items-center gap-6">
-                                        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 font-bold text-xl">
+                                        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xl border border-blue-100 dark:border-blue-900/40">
                                             {result.student.gender === 'Male' ? 'M' : 'F'}
                                         </div>
                                         <div>
-                                            <h2 className="text-2xl font-bold text-slate-900">
+                                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                                                 {result.student.name} <span className="text-sm font-normal text-slate-400">ID: {result.student.id}</span>
                                             </h2>
-                                            <p className="text-sm text-slate-500">
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">
                                                 {result.student.grade} / {result.student.age}세 / {result.student.gender === 'Male' ? '남성' : '여성'} / 검사일: {result.student.testDate}
                                             </p>
                                             {result.student.weakSubject && (
-                                                <span className="inline-block mt-1 px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
+                                                <span className="inline-block mt-1 px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-full border border-indigo-200 dark:border-indigo-800">
                                                     취약 과목 Focus: {result.student.weakSubject.toUpperCase()}
                                                 </span>
                                             )}
@@ -796,26 +403,26 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 {/* Scientific Framework Section (Compact) */}
                                 <div className="space-y-2.5 my-3">
                                     <div className="flex items-center gap-3 px-1">
-                                        <div className="h-px flex-1 bg-slate-200" />
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">Scientific Framework</h3>
-                                        <div className="h-px flex-1 bg-slate-200" />
+                                        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                                        <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em]">Scientific Framework</h3>
+                                        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div className="bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-sm border border-slate-800">
+                                        <div className="bg-slate-900 dark:bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-sm border border-slate-800 dark:border-slate-800/80 transition-all hover:scale-[1.01]">
                                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1.5">
                                                 <span>NEURO-EDULAB</span>
                                                 <span className="text-xs">🧠</span>
                                             </h4>
                                             <p className="text-slate-400 text-[11px] leading-snug">신경학적 분석을 통해 학습의 해답을 찾는 정밀 연구 시스템</p>
                                         </div>
-                                        <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl shadow-sm">
-                                            <h4 className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl shadow-sm transition-all hover:scale-[1.01]">
+                                            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
                                                 <span>BIO-COGNITIVE INDEX</span>
                                                 <span className="text-xs">📊</span>
                                             </h4>
-                                            <p className="text-slate-500 text-[11px] leading-snug">자율신경(교감·부교감)과 인지 수치를 통합 분석하여 객관적 지표(BCI)로 산출</p>
+                                            <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-snug">자율신경(교감·부교감)과 인지 수치를 통합 분석하여 객관적 지표(BCI)로 산출</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-2xl shadow-sm">
+                                        <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white px-4 py-3 rounded-2xl shadow-sm transition-all hover:scale-[1.01]">
                                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1.5">
                                                 <span>L.A.P.S</span>
                                                 <span className="text-xs">⚙️</span>
@@ -947,9 +554,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 />
 
                                 {/* Selected Environment & Core Metrics Bar (Horizontal Single-Row, Low Height) */}
-                                <div className="w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl px-5 py-2.5 text-white shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border border-slate-700/80">
+                                <div className="w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-[2rem] px-5 py-3 text-white shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border border-slate-700/80">
                                     <div className="flex items-center gap-3 shrink-0">
-                                        <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-base">
+                                        <div className="w-9 h-9 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-base">
                                             🏠
                                         </div>
                                         <div>
@@ -980,14 +587,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="w-full bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+                                <div className="w-full bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[2rem] border border-blue-100 dark:border-slate-700 shadow-xl shadow-blue-500/5 transition-colors">
                                     <div className="flex items-center justify-between mb-6">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                                            <h3 className="text-xl font-bold text-slate-900">Expert Integrated Neuro-Insight</h3>
+                                            <div className="w-1.5 h-6 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full"></div>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white">Expert Integrated Neuro-Insight</h3>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <div className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-200">
+                                            <div className="px-3 py-1 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full border border-blue-200 dark:border-blue-800">
                                                 ✓ Verified by YES_YOU | Dr Lim's Choice
                                             </div>
                                             <ErrorBoundary componentName="NutritionalPrescriptionModal">
@@ -1003,8 +610,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                     {/* Subject Strategy Card (Conditional) */}
                                     {config.isExamMode && result.student.weakSubject && (
-                                        <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-6 rounded-2xl mb-6 shadow-sm">
-                                            <h4 className="font-bold text-indigo-900 flex items-center gap-2 mb-4 text-base">
+                                        <div className="bg-gradient-to-br from-indigo-50/80 to-white dark:from-slate-900 dark:to-slate-800/80 border border-indigo-100 dark:border-slate-700 p-6 rounded-[1.5rem] mb-6 shadow-sm">
+                                            <h4 className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2 mb-4 text-base">
                                                 <span className="text-xl">🎯</span>
                                                 {result.student.weakSubject === 'korean' ? '국어' : result.student.weakSubject === 'math' ? '수학' : '영어'} 시간/멘탈 관리 공략
                                             </h4>
@@ -1020,17 +627,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                     const categories = Array.from(new Set(options.map(o => o.category))).sort();
 
                                                     return categories.map(cat => (
-                                                        <div key={cat} className="bg-white/70 p-4 rounded-xl border border-indigo-50">
-                                                            <h5 className="font-bold text-indigo-600 text-xs mb-2 uppercase tracking-wide border-b border-indigo-100 pb-1">{cat}</h5>
+                                                        <div key={cat} className="bg-white/80 dark:bg-slate-800/80 p-4 rounded-xl border border-indigo-50 dark:border-slate-700/60">
+                                                            <h5 className="font-bold text-indigo-600 dark:text-indigo-400 text-xs mb-2 uppercase tracking-wide border-b border-indigo-100 dark:border-slate-700 pb-1">{cat}</h5>
                                                             <ul className="space-y-2">
                                                                 {options.filter(o => o.category === cat).map(opt => (
-                                                                    <li key={opt.id} className="flex gap-2.5 text-xs text-slate-700 leading-relaxed cursor-pointer group" onClick={() => toggleCompleted && toggleCompleted(opt.id)}>
-                                                                        <div className={`mt-0.5 min-w-[16px] h-4 rounded border flex items-center justify-center transition-colors ${completedItems?.includes(opt.id) ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 bg-white group-hover:border-indigo-400'}`}>
+                                                                    <li key={opt.id} className="flex gap-2.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed cursor-pointer group" onClick={() => toggleCompleted && toggleCompleted(opt.id)}>
+                                                                        <div className={`mt-0.5 min-w-[16px] h-4 rounded border flex items-center justify-center transition-colors ${completedItems?.includes(opt.id) ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 group-hover:border-indigo-400'}`}>
                                                                             {completedItems?.includes(opt.id) && <span className="text-white text-[10px]">✓</span>}
                                                                         </div>
                                                                         <div className={`${completedItems?.includes(opt.id) ? 'opacity-50 line-through decoration-slate-400' : ''}`}>
-                                                                            <span className="font-bold text-slate-900 block mb-0.5">{opt.title}</span>
-                                                                            <span className="text-slate-600">{opt.content}</span>
+                                                                            <span className="font-bold text-slate-900 dark:text-white block mb-0.5">{opt.title}</span>
+                                                                            <span className="text-slate-600 dark:text-slate-400">{opt.content}</span>
                                                                         </div>
                                                                     </li>
                                                                 ))}
@@ -1064,6 +671,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             setSubscriptionReason(reason);
                                             setIsSubscriptionModalOpen(true);
                                         }}
+                                        recommendedProducts={recommendedProducts}
                                     />
 
                                     {/* DetailedAnalysisSection if text exists */}
@@ -1084,14 +692,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                 {/* Mind Prescription Card - Pro or higher */}
                                 {userTier === 'free' ? (
-                                    <div id="section-mind-prescription" className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white rounded-3xl border-2 border-indigo-500/40 p-6 md:p-8 relative overflow-hidden shadow-xl no-print">
+                                    <div id="section-mind-prescription" className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white rounded-2xl md:rounded-[2rem] border-2 border-indigo-500/40 p-6 md:p-8 relative overflow-hidden shadow-xl no-print">
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                             <div className="space-y-2">
                                                 <div className="flex items-center gap-2">
                                                     <span className="px-3 py-1 bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-full text-xs font-bold">
                                                         🔒 PRO 이상 전용
                                                     </span>
-                                                    <h4 className="text-xl font-black">오늘의 마음 처방전 & Zen 케어</h4>
+                                                    <h4 className="text-xl font-black">오늘의 마음 처방전 &amp; Zen 케어</h4>
                                                 </div>
                                                 <p className="text-xs text-indigo-200 leading-relaxed max-w-xl">
                                                     심리 긴장 완화, 알파파 유도 사운드테라피 및 맞춤형 Zen 호흡/명상 가이드가 포함된 실시간 마음 처방전은 <b>Pro 이상 회원</b>에게 제공됩니다.
@@ -1099,21 +707,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    setSubscriptionReason('오늘의 마음 처방전 & Zen 케어 (PRO 전용)');
+                                                    setSubscriptionReason('오늘의 마음 처방전 & Zen 케어 (정기결제 전용)');
                                                     setIsSubscriptionModalOpen(true);
                                                 }}
-                                                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg transition-all transform hover:scale-105 shrink-0"
+                                                className="px-6 py-3 bg-gradient-to-r from-amber-500 via-indigo-600 to-purple-600 hover:brightness-110 text-white font-bold rounded-2xl shadow-lg transition-all transform hover:scale-105 shrink-0 cursor-pointer"
                                             >
-                                                Pro 업그레이드 해제 (월 9,900원)
+                                                ⭐ 5,000원 할인받고 첫 달 ₩14,900원에 잠금 해제 →
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div id="section-mind-prescription" className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 rounded-2xl border border-indigo-100 p-6 no-print">
+                                    <div id="section-mind-prescription" className="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 dark:from-slate-800/80 dark:to-indigo-950/30 rounded-2xl md:rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 p-6 md:p-8 shadow-sm no-print">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-lg font-bold text-slate-800">오늘의 마음 처방전</h4>
-                                                <p className="text-xs text-slate-500 mt-1">긴장 완화 및 심리 안정을 위한 1:1 맞춤형 Zen 처방전입니다.</p>
+                                                <h4 className="text-lg font-bold text-slate-800 dark:text-white">오늘의 마음 처방전</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">긴장 완화 및 심리 안정을 위한 1:1 맞춤형 Zen 처방전입니다.</p>
                                             </div>
                                             <button
                                                 onClick={() => {
@@ -1121,7 +729,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                     const prescriptionData = encodeURIComponent(JSON.stringify(prescription));
                                                     window.open(`prescription-guide.html?data=${prescriptionData}`, '_blank', 'width=1400,height=900');
                                                 }}
-                                                className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shrink-0"
+                                                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition-all shrink-0 cursor-pointer"
                                             >
                                                 Zen 모드로 열기
                                             </button>
@@ -1131,58 +739,58 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                 {/* Learning Analytics Visual Dashboard */}
                                 {isLearningAnalyticsTested(result.analytics) ? (
-                                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 print-avoid-break">
+                                    <div className="bg-white dark:bg-slate-900/80 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm print-avoid-break">
                                         <div className="flex items-center justify-between mb-6">
-                                            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                                <span className="w-1 h-4 bg-indigo-500 rounded-full"></span>
+                                            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                                <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
                                                 Learning Analytics Visual Dashboard
                                             </h4>
-                                            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full border border-indigo-200/60">
+                                            <span className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-full border border-indigo-200/60 dark:border-indigo-800">
                                                 검사 완료
                                             </span>
                                         </div>
                                         <div className="space-y-6">
                                             {/* 1. Focus & Goals */}
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                                                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Focus Quality</p>
+                                                <div className="bg-slate-50/70 dark:bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/60">
+                                                    <p className="text-[10px] text-slate-400 dark:text-slate-400 uppercase font-bold mb-1">Focus Quality</p>
                                                     <div className="flex items-end gap-2">
-                                                        <span className="text-3xl font-black text-indigo-600">{result.analytics?.pureStudyRatio ?? 0}%</span>
-                                                        <span className="text-xs text-slate-400 mb-1">순공 집중 비율</span>
+                                                        <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{result.analytics?.pureStudyRatio ?? 0}%</span>
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400 mb-1">순공 집중 비율</span>
                                                     </div>
-                                                    <div className="w-full h-2 bg-slate-100 rounded-full mt-3 overflow-hidden">
+                                                    <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-3 overflow-hidden">
                                                         <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${result.analytics?.pureStudyRatio ?? 0}%` }}></div>
                                                     </div>
                                                 </div>
-                                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                                                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Goal Achievement</p>
+                                                <div className="bg-slate-50/70 dark:bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/60">
+                                                    <p className="text-[10px] text-slate-400 dark:text-slate-400 uppercase font-bold mb-1">Goal Achievement</p>
                                                     <div className="flex items-end gap-2">
-                                                        <span className="text-3xl font-black text-emerald-600">{result.analytics?.goalAchievementRate ?? 0}%</span>
-                                                        <span className="text-xs text-slate-400 mb-1">일일 목표 달성도</span>
+                                                        <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{result.analytics?.goalAchievementRate ?? 0}%</span>
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400 mb-1">일일 목표 달성도</span>
                                                     </div>
-                                                    <div className="w-full h-2 bg-slate-100 rounded-full mt-3 overflow-hidden">
+                                                    <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-3 overflow-hidden">
                                                         <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${result.analytics?.goalAchievementRate ?? 0}%` }}></div>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* 2. Chronotype & Location */}
-                                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                                            <div className="bg-slate-50/70 dark:bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/60 space-y-4">
                                                 <div className="flex justify-between items-center text-sm">
-                                                    <span className="font-bold text-slate-600">골든 타임 (Golden Time)</span>
-                                                    <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full font-bold text-xs border border-amber-200/50">
+                                                    <span className="font-bold text-slate-700 dark:text-slate-300">골든 타임 (Golden Time)</span>
+                                                    <span className="px-3 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-full font-bold text-xs border border-amber-200/50 dark:border-amber-800">
                                                         {result.analytics?.goldenTimeStart || '19:00'} ~ {result.analytics?.goldenTimeEnd || '22:00'}
                                                     </span>
                                                 </div>
-                                                <div className="flex justify-between items-center text-sm border-t border-slate-50 pt-3">
-                                                    <span className="font-bold text-slate-600">선호 학습 공간</span>
-                                                    <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-bold text-xs">
+                                                <div className="flex justify-between items-center text-sm border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                                                    <span className="font-bold text-slate-700 dark:text-slate-300">선호 학습 공간</span>
+                                                    <span className="px-3 py-1 bg-slate-200/70 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-full font-bold text-xs">
                                                         {result.analytics?.preferredLocation || result.protocol.location || '스터디카페'}
                                                     </span>
                                                 </div>
-                                                <div className="flex justify-between items-center text-sm border-t border-slate-50 pt-3">
-                                                    <span className="font-bold text-slate-600">연속 학습 일수 (Study Streak)</span>
-                                                    <span className="flex items-center gap-1 font-bold text-orange-600">
+                                                <div className="flex justify-between items-center text-sm border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                                                    <span className="font-bold text-slate-700 dark:text-slate-300">연속 학습 일수 (Study Streak)</span>
+                                                    <span className="flex items-center gap-1 font-bold text-orange-600 dark:text-orange-400">
                                                         🔥 {result.analytics?.studyStreak ?? 1} Days
                                                     </span>
                                                 </div>
@@ -1190,10 +798,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                             {/* 3. Subject Balance Mini Charts */}
                                             {result.analytics?.subjectRatios && Object.values(result.analytics.subjectRatios).some(v => Number(v) > 0) && (
-                                                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                                                <div className="bg-slate-50/70 dark:bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/60">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">과목별 학습시간 배분율 (%)</p>
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-200/60">
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest">과목별 학습시간 배분율 (%)</p>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-md border border-indigo-200/60 dark:border-indigo-800">
                                                             검사 실측치
                                                         </span>
                                                     </div>
@@ -1211,20 +819,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                             const barHeight = Math.max(displayVal * 0.9, 8);
                                                             return (
                                                                 <div key={key} className="flex-1 flex flex-col items-center gap-2 group relative">
-                                                                    <span className="text-[10px] font-black text-slate-700">{displayVal}%</span>
+                                                                    <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{displayVal}%</span>
                                                                     <div
                                                                         className={`${colors[key] || 'bg-slate-400'} w-full rounded-lg transition-all duration-500 shadow-md group-hover:shadow-lg group-hover:scale-105`}
                                                                         style={{ height: `${barHeight}%`, minHeight: '12px' }}
                                                                     ></div>
                                                                     <div className="text-center">
-                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{key.slice(0, 3)}</span>
-                                                                        <span className="text-[9px] text-slate-400 block">{labels[key]}</span>
+                                                                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">{key.slice(0, 3)}</span>
+                                                                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block">{labels[key]}</span>
                                                                     </div>
                                                                 </div>
                                                             );
                                                         })}
                                                     </div>
-                                                    <p className="text-[10px] text-slate-400 mt-3 text-right">
+                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-3 text-right">
                                                         * 학습 밀도 검사 실측 데이터 기반 과목별 순공 투자 비율입니다. 취약 과목 보완 권장 비율과 비교하여 일일 계획을 최적화하세요.
                                                     </p>
                                                 </div>
@@ -1233,7 +841,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     </div>
                                 ) : (
                                     /* Learning Analytics Visual Dashboard - Untested State (Screen only, hidden in print) */
-                                    <div className="bg-gradient-to-br from-slate-50 to-indigo-50/40 p-6 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 shadow-sm print-avoid-break no-print">
+                                    <div className="bg-gradient-to-br from-slate-50 to-indigo-50/40 dark:from-slate-800/60 dark:to-slate-900/60 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-dashed border-slate-300 dark:border-slate-700 shadow-sm print-avoid-break no-print">
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4 mb-5">
                                             <div className="flex items-center gap-2.5">
                                                 <span className="w-1.5 h-4 bg-slate-400 rounded-full"></span>
@@ -1378,28 +986,28 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     return (
                                         <>
                                             <div id="section-charts" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm h-80">
+                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm h-80">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <h4 className="text-sm font-bold text-slate-500 uppercase">자율신경계 밸런스 (ANS)</h4>
+                                                        <h4 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase">자율신경계 밸런스 (ANS)</h4>
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${hasBioSignals ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                                                             {hasBioSignals ? '센서 실측' : '설문·신체화 추정'}
                                                         </span>
                                                     </div>
                                                     <BalanceChart sns={result.hrv?.sns || 50} pns={result.hrv?.pns || 50} />
                                                 </div>
-                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm h-80">
+                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm h-80">
                                                     <div className="flex items-center justify-between mb-4">
-                                                        <h4 className="text-sm font-bold text-slate-500 uppercase">활력도 & 피로도 지수</h4>
+                                                        <h4 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase">활력도 &amp; 피로도 지수</h4>
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${hasBioSignals ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                                                             {hasBioSignals ? '센서 실측' : '수면·피로도 기반'}
                                                         </span>
                                                     </div>
                                                     <VitalityBarChart vitality={result.hrv?.vitality || 70} fatigue={result.hrv?.fatigue || 30} />
                                                 </div>
-                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm h-80 flex flex-col justify-between">
+                                                <div className="bg-white dark:bg-slate-900/70 p-6 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm h-80 flex flex-col justify-between">
                                                     <div>
                                                         <div className="flex items-center justify-between mb-4">
-                                                            <h4 className="text-sm font-bold text-slate-500 uppercase">스트레스 & 집중도 게이지</h4>
+                                                            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase">스트레스 &amp; 집중도 게이지</h4>
                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${hasBioSignals ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}>
                                                                 {hasBioSignals ? '생체신호 연동' : '설문·행동 기반'}
                                                             </span>
@@ -1435,11 +1043,22 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                     membershipTier={userTier}
                                                     hasBioSignals={hasBioSignals}
                                                     onUpgradeClick={() => {
-                                                        setSubscriptionReason('1:1 맞춤 영양제 3-Tier 추천 및 처방전 발급');
+                                                        setSubscriptionReason('1:1 맞춤 영양 설계 3-Tier 추천 및 프로토콜 발급');
                                                         setIsSubscriptionModalOpen(true);
                                                     }}
                                                 />
                                             </div>
+
+                                            {/* PRO 이상 전용: 1일 맞춤 To-Do 실행 계획서 & 체크리스트 */}
+                                            <DailyActionTodoPlanner
+                                                result={result}
+                                                recommendedProducts={recommendedProducts}
+                                                membershipTier={userTier}
+                                                onUpgradeClick={() => {
+                                                    setSubscriptionReason('데일리 뉴로-루틴 1일 실천 To-Do 플래너 개방');
+                                                    setIsSubscriptionModalOpen(true);
+                                                }}
+                                            />
                                         </>
                                     );
                                 })()}
@@ -1452,9 +1071,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     const wakeHour = parseTimeHour(sleepPrescription.recommendedWakeTime) || 7;
 
                                     const isMorningType = wakeHour <= 7;
-                                    let goldenStartNum = isMorningType ? 10 : 14;
+                                    let goldenStartNum = isMorningType ? Math.max(wakeHour + 2, 9) : Math.max(wakeHour + 3, 13);
                                     if (result.analytics?.goldenTimeStart) {
                                         const parsed = parseInt(result.analytics.goldenTimeStart.split(':')[0], 10);
+                                        if (!isNaN(parsed)) goldenStartNum = parsed;
+                                    } else if (result.hrv?.goldenTimeStart) {
+                                        const parsed = parseInt(result.hrv.goldenTimeStart.split(':')[0], 10);
                                         if (!isNaN(parsed)) goldenStartNum = parsed;
                                     }
                                     let goldenEndNum = goldenStartNum + 2;
@@ -1465,7 +1087,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     const slumpStartNum = goldenStartNum + 4;
                                     const slumpEndNum = slumpStartNum + 1;
                                     const secondStartNum = slumpEndNum + 2;
-                                    const secondEndNum = 22;
+                                    const bedHourEffective = bedHour <= wakeHour ? bedHour + 24 : bedHour;
+                                    const secondEndNum = Math.min(bedHourEffective - 1, secondStartNum + 3);
 
                                     const formatHour = (h: number) => `${h.toString().padStart(2, '0')}:00`;
                                     const goldenStart = formatHour(goldenStartNum);
@@ -1476,7 +1099,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                     return (
                                         <div className="space-y-8">
-                                            <div id="section-ai-schedule" className="bg-white dark:bg-slate-900/70 p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                                            <div id="section-ai-schedule" className="bg-white dark:bg-slate-900/70 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
                                                 {/* Header */}
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
                                                     <div className="flex items-center gap-2.5">
@@ -1513,8 +1136,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                             🌞 오전 활성화 루틴 (Morning Activation)
                                                         </span>
                                                         <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 leading-relaxed">
-                                                            <li>• <strong>[기상 직후] (표준 07:00~08:00경)</strong>: 코르티솔 각성 반응(CAR) 유도. 자연광 노출 + 미지근한 물 한 잔으로 뇌 혈류 공급.</li>
-                                                            <li>• <strong>[기상 후 1~2.5h] (표준 08:00~09:30경)</strong>: 예열 학습(Warm-up). {subjectPlan.subjectName} 개념/어휘 등 가벼운 워밍업으로 감각 활성화.</li>
+                                                            <li>• <strong>[기상 직후] (표준 {formatHour(wakeHour)}~{formatHour(wakeHour + 1)}경)</strong>: 코르티솔 각성 반응(CAR) 유도. 자연광 노출 + 미지근한 물 한 잔으로 뇌 혈류 공급.</li>
+                                                            <li>• <strong>[기상 후 1~2.5h] (표준 {formatHour(wakeHour + 1)}~{goldenStart}경)</strong>: 예열 학습(Warm-up). {subjectPlan.subjectName} 개념/어휘 등 가벼운 워밍업으로 감각 활성화.</li>
                                                         </ul>
                                                     </div>
                                                     <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-2xl">
@@ -1522,7 +1145,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                             🌙 수면 전 회복 루틴 (Pre-Sleep Routine)
                                                         </span>
                                                         <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 leading-relaxed">
-                                                            <li>• <strong>[취침 1~2h 전] (표준 22:00~23:00경)</strong>: 멜라토닌 분비 보호. 스마트폰 블루라이트 100% 차단 및 뇌 이완 모드 전환.</li>
+                                                            <li>• <strong>[취침 1~2h 전] (표준 {formatHour(bedHour > 0 ? bedHour - 1 : 23)}~{formatHour(bedHour)}경)</strong>: 멜라토닌 분비 보호. 스마트폰 블루라이트 100% 차단 및 뇌 이완 모드 전환.</li>
                                                             <li>• <strong>[취침 직전 20분]</strong>: 오늘 학습한 핵심 단어·공식을 가볍게 훑으면 수면 중 해마(Hippocampus) 장기기억 고착 극대화.</li>
                                                         </ul>
                                                     </div>
@@ -1541,12 +1164,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                                     isDark={isDarkMode}
                                                                     hideLegend={true}
                                                                     periods={[
-                                                                        { id: 'morning', start: 7, end: 9, label: '오전 루틴', color: '#1e40af', icon: '🌞' },
+                                                                        { id: 'morning', start: wakeHour, end: Math.min(wakeHour + 2, goldenStartNum), label: '오전 루틴', color: '#1e40af', icon: '🌞' },
                                                                         { id: 'golden', start: goldenStartNum, end: goldenEndNum, label: 'Golden Hour', color: '#2563eb', icon: '🔥' },
                                                                         { id: 'slump', start: slumpStartNum, end: slumpEndNum, label: '회복/슬럼프', color: '#94a3b8', icon: '💤' },
                                                                         { id: 'second', start: secondStartNum, end: secondEndNum, label: 'Second Wind', color: '#4f46e5', icon: '🚀' },
-                                                                        { id: 'sleep', start: bedHour, end: 24, label: '수면', color: '#334155', icon: '🌙' },
-                                                                        { id: 'sleep2', start: 0, end: wakeHour, label: '수면', color: '#334155' }
+                                                                        { id: 'sleep', start: bedHour, end: wakeHour, label: '수면', color: '#334155', icon: '🌙' }
                                                                     ]}
                                                                 />
                                                             </div>
@@ -1631,7 +1253,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             </div>
 
                                             {/* 증상 맞춤형 정신건강 처방전 */}
-                                            <div id="section-mental-health" className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden flex flex-col min-h-[400px]">
+                                            <div id="section-mental-health" className="bg-gradient-to-br from-indigo-900 to-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2rem] text-white shadow-xl relative overflow-hidden flex flex-col min-h-[400px]">
                                                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full blur-[60px] opacity-20"></div>
                                                 <div className="relative z-10 flex flex-col h-full flex-1">
                                                     <div className="flex items-center gap-3 mb-6">
@@ -1709,7 +1331,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     ];
 
                                     return (
-                                        <div className="bg-gradient-to-br from-slate-900 to-indigo-950 p-8 rounded-3xl shadow-2xl text-white print-avoid-break">
+                                        <div className="bg-gradient-to-br from-slate-900 to-indigo-950 p-6 md:p-8 rounded-2xl md:rounded-[2rem] shadow-2xl text-white print-avoid-break">
                                             <div className="flex items-center justify-between mb-8">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center text-2xl shadow-lg">
@@ -1717,7 +1339,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                     </div>
                                                     <div>
                                                         <h3 className="text-2xl font-black tracking-tight">Progress Tracker</h3>
-                                                        <p className="text-white/50 text-sm font-medium">Before & After 정기 추적 비교 분석</p>
+                                                        <p className="text-white/50 text-sm font-medium">Before &amp; After 정기 추적 비교 분석</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -1787,19 +1409,19 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     if (studentHistory.length < 2) return null;
 
                                     return (
-                                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm print-avoid-break overflow-hidden">
+                                        <div className="bg-white dark:bg-slate-900/80 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm print-avoid-break overflow-hidden">
                                             <div className="flex items-center justify-between mb-6">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
                                                     <div>
-                                                        <h3 className="text-xl font-bold text-slate-900">Multi-Session Analysis Trend</h3>
-                                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">누적 검사 기반 시계열 추이 분석</p>
+                                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white">Multi-Session Analysis Trend</h3>
+                                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">누적 검사 기반 시계열 추이 분석</p>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="h-72 w-full pt-4">
-                                                <ResponsiveContainer width="100%" height="100%">
+                                            <div className="h-72 w-full pt-4 min-w-0">
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                                                     <LineChart data={studentHistory}>
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
                                                         <XAxis
@@ -1843,7 +1465,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                 {/* Personalized Exam Strategy Section (6 Cards) */}
                                 {config.isExamMode && result.careType && strategies && strategies[result.careType] && (
-                                    <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden print-avoid-break">
+                                    <div className="bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2rem] text-white shadow-2xl relative overflow-hidden print-avoid-break">
                                         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 transform translate-x-1/2 -translate-y-1/2 no-print"></div>
                                         <div className="relative z-10">
                                             <div className="flex items-center gap-3 mb-8">
@@ -1914,14 +1536,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                         onClick={() => setShowSecretPoint(!showSecretPoint)}
                                         className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${showSecretPoint
                                             ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <span className="text-xl">{showSecretPoint ? '🔓' : '🔒'}</span>
                                             <div className="text-left">
-                                                <p className="font-bold text-sm">전문가 소견 (Secret Point & 임상 해석)</p>
-                                                <p className={`text-[10px] ${showSecretPoint ? 'text-slate-300' : 'text-slate-400'}`}>
+                                                <p className="font-bold text-sm">전문가 소견 (Secret Point &amp; 임상 해석)</p>
+                                                <p className={`text-[10px] ${showSecretPoint ? 'text-slate-300' : 'text-slate-400 dark:text-slate-400'}`}>
                                                     자율신경·신경인지·심리 설문 3중 복합 분석 기반 전문가 전용 임상 소견
                                                 </p>
                                             </div>
@@ -1932,7 +1554,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                     </button>
 
                                     {showSecretPoint && (
-                                        <div className="mt-4 p-6 bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl border border-slate-700 text-white animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div className="mt-4 p-6 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl md:rounded-[2rem] border border-slate-700 text-white animate-in fade-in slide-in-from-top-2 duration-300">
                                             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/10">
                                                 <span className="text-xl">🔐</span>
                                                 <h4 className="font-bold text-amber-400 uppercase tracking-wider text-sm">SECRET POINT - 전문가 전용 임상 분석</h4>
@@ -2012,7 +1634,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 {/* Section: 나의 전문소견 & AI 보조 어시스턴트 (Expert Opinion & AI Assistant) - 학원/오너/의료전문가 모드 전용 */}
                                 {isExpertUser && (
                                     <div id="section-ai-assistant" className="mt-8 space-y-6 print-avoid-break">
-                                        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 md:p-8 rounded-3xl border border-indigo-500/30 text-white shadow-xl">
+                                        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-indigo-500/30 text-white shadow-xl">
                                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 pb-4 border-b border-white/10">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-2xl shadow-inner">
@@ -2040,6 +1662,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                 protocol={result.protocol}
                                                 analytics={result.analytics}
                                                 bloodTest={result.bloodTest}
+                                                careType={result.careType}
                                                 adminMemo={adminMemo}
                                                 setAdminMemo={setAdminMemo}
                                             />
@@ -2060,32 +1683,32 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                 {/* Sleep & Mental Dashboard */}
                                 {!isVipOrAbove ? (
-                                    <div id="section-sleep-dashboard" className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white rounded-3xl border-2 border-amber-500/40 p-6 md:p-8 shadow-2xl no-print">
+                                    <div id="section-sleep-dashboard" className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white rounded-2xl md:rounded-[2rem] border-2 border-amber-500/40 p-6 md:p-8 shadow-2xl no-print">
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                             <div className="space-y-2">
                                                 <div className="flex items-center gap-2">
                                                     <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-xs font-black">
-                                                        👑 VIP 회원 전용
+                                                        💎 정기결제 회원 전용
                                                     </span>
                                                     <h4 className="text-xl font-black">맞춤형 수면 &amp; 멘탈 관리 프로그램</h4>
                                                 </div>
                                                 <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                                                    크로노타입(MEQ)과 일주기 렘/논렘(NREM) 수면 주기 및 심층 마인드셋 케어를 연동하여 수면 부채 해소 및 최적 멘탈 루틴을 자동 처방하는 <b>VIP 전용 솔루션</b>입니다.
+                                                    크로노타입(MEQ)과 일주기 렘/논렘(NREM) 수면 주기 및 심층 마인드셋 케어를 연동하여 수면 부채 해소 및 최적 멘탈 루틴을 자동 처방하는 <b>정기결제 전용 솔루션</b>입니다.
                                                 </p>
                                             </div>
                                             <button
                                                 onClick={() => {
-                                                    setSubscriptionReason('1:1 맞춤형 수면관리 & 심층 멘탈관리 솔루션 (VIP 전용)');
+                                                    setSubscriptionReason('1:1 맞춤형 수면관리 & 심층 멘탈관리 솔루션 (정기결제 전용)');
                                                     setIsSubscriptionModalOpen(true);
                                                 }}
                                                 className="px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white font-black rounded-2xl shadow-lg transition-all transform hover:scale-105 shrink-0 cursor-pointer"
                                             >
-                                                VIP 패키지 안내 (월 29,900원)
+                                                정기결제 안심 케어 (월 19,900원)
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div id="section-sleep-dashboard" className="space-y-4">
                                         <SleepDashboard careType={result.careType} analytics={result.analytics} studentId={result.student.id} />
                                         <div className="flex justify-end">
                                             <button
@@ -2101,7 +1724,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 )}
 
                                 {/* Grade & Academic Achievement Dashboard Integration */}
-                                <div id="section-grade-analytics" className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+                                <div id="section-grade-analytics" className="bg-white dark:bg-slate-900/80 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 p-6 md:p-8 shadow-sm">
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                                         <div className="flex items-center space-x-3">
                                             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl font-bold">
@@ -2120,7 +1743,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => onMenuChange ? onMenuChange('grade') : setStep('grade_management')}
+                                            onClick={() => onMenuChange ? onMenuChange('grades') : setStep('grade_management')}
                                             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-md hover:shadow-blue-500/20 text-xs transition-all transform hover:scale-[1.02] shrink-0 cursor-pointer"
                                         >
                                             <span>📊</span>
@@ -2184,8 +1807,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                         </div>
                                                     </div>
 
-                                                    <div className="h-64 w-full">
-                                                        <ResponsiveContainer width="100%" height="100%">
+                                                    <div className="h-64 w-full min-w-0">
+                                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
                                                             <ComposedChart data={gradeCorrelationData} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
                                                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
                                                                 <XAxis dataKey="examName" tick={{ fontSize: 11 }} />
@@ -2225,7 +1848,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                 모의고사 또는 내신 성적을 등록하시면 신경인지 평가 데이터와 결합된 1:1 맞춤형 성적 향상 확률 및 과목별 AI 학습 로드맵이 제공됩니다.
                                             </p>
                                             <button
-                                                onClick={() => onMenuChange ? onMenuChange('grade') : setStep('grade_management')}
+                                                onClick={() => onMenuChange ? onMenuChange('grades') : setStep('grade_management')}
                                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer"
                                             >
                                                 + 성적 데이터 등록하기
@@ -2235,8 +1858,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 </div>
 
                                 {/* Admin Memo Section (Quick Presets & Comment) */}
-                                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm print-avoid-break">
-                                    <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <div className="bg-white dark:bg-slate-900/80 p-6 sm:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm print-avoid-break">
+                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                                         <span>📝</span> 종합 소견 (Consultant's Comment)
                                     </h3>
 
@@ -2246,7 +1869,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             <button
                                                 key={idx}
                                                 onClick={() => setAdminMemo(prev => prev ? prev + '\n' + memo : memo)}
-                                                className="px-3 py-2 bg-slate-50 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors text-left cursor-pointer"
+                                                className="px-3 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left cursor-pointer"
                                             >
                                                 {memo.length > 20 ? memo.substring(0, 20) + '...' : memo}
                                             </button>
@@ -2256,17 +1879,26 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                                 const newMemo = prompt("새로운 상용구를 입력하세요:");
                                                 if (newMemo) setAdminMemosList([...adminMemosList, newMemo]);
                                             }}
-                                            className="px-3 py-2 border border-dashed border-slate-300 text-slate-400 text-xs font-bold rounded-xl hover:border-slate-500 transition-colors cursor-pointer"
+                                            className="px-3 py-2 border border-dashed border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-500 text-xs font-bold rounded-xl hover:border-slate-500 transition-colors cursor-pointer"
                                         >
                                             + 추가
                                         </button>
                                     </div>
 
                                     <textarea
-                                        className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-sm leading-relaxed"
+                                        className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-sm leading-relaxed text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                         placeholder="종합적인 상담 소견을 입력하세요..."
                                         value={adminMemo}
                                         onChange={e => setAdminMemo(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Mode 2: 종합 소견 확인 후 하단 다음 단계 추천 로드맵 가이드 배너 */}
+                                <div className="mt-6 no-print">
+                                    <NextStepRoadmapBanner
+                                        userTier={userTier}
+                                        onNextStepAction={handleNextStepAction}
+                                        variant="bottom"
                                     />
                                 </div>
 
@@ -2380,6 +2012,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 isOpen={isSubscriptionModalOpen}
                 onClose={() => setIsSubscriptionModalOpen(false)}
                 currentTier={userTier}
+                initialTier={subscriptionInitialTier}
                 onSelectTier={(tier) => {
                     handleDataUpdate({
                         ...result,

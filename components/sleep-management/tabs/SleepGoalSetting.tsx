@@ -137,10 +137,13 @@ export const SleepGoalSetting: React.FC<SleepGoalSettingProps> = ({ student, cur
 
   const getRecommendedBedtime = () => {
     const careType = currentAssessment?.careType;
-    const chronotype = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+    const rawChrono = currentAssessment?.studyEfficiencyResults?.chronotype || currentAssessment?.analytics?.chronotype;
+    const chronoStr = typeof rawChrono === 'object' && rawChrono ? String(rawChrono.result || '') : String(rawChrono || '');
+    const isMorning = chronoStr.toLowerCase().includes('morning') || chronoStr.includes('아침') || chronoStr.includes('종달새');
+    const isEvening = chronoStr.toLowerCase().includes('evening') || chronoStr.includes('저녁') || chronoStr.includes('올빼미');
     
-    if (chronotype === 'Morning' || chronotype === 'morning') return '22:00 ~ 22:30 (아침형)';
-    if (chronotype === 'Evening' || chronotype === 'evening') return '00:00 ~ 00:30 (저녁형)';
+    if (isMorning) return '22:00 ~ 22:30 (아침형)';
+    if (isEvening) return '00:00 ~ 00:30 (저녁형)';
     if (careType === CareType.BURNOUT || careType === CareType.STRESS_OVERLOAD || careType === CareType.ADRENAL) return '22:30 ~ 23:00 (회복)';
     if (careType === CareType.SLEEP) return '23:00 ~ 23:30 (CBT-I)';
     if (careType === CareType.ATTENTION_DEFICIT || careType === CareType.BRAIN_FATIGUE) return '23:00 ~ 23:30';
